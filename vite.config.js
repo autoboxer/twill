@@ -15,13 +15,27 @@ export default defineConfig({
       icon: {
         clientBundle: {
           icons: [
+            'lucide:archive',
+            'lucide:archive-restore',
+            'lucide:arrow-left',
             'lucide:book-open-check',
+            'lucide:check',
+            'lucide:chevron-right',
             'lucide:circle-alert',
+            'lucide:folder',
             'lucide:inbox',
+            'lucide:layers-3',
             'lucide:library',
             'lucide:loader-circle',
+            'lucide:pencil',
+            'lucide:plus',
+            'lucide:refresh-cw',
             'lucide:settings',
-            'lucide:square-pen'
+            'lucide:settings-2',
+            'lucide:square-pen',
+            'lucide:tag',
+            'lucide:trash-2',
+            'lucide:x'
           ],
           scan: true,
           sizeLimitKb: 256

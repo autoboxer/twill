@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 
+import ConceptDetailView from '../views/ConceptDetailView.vue';
 import CreateView from '../views/CreateView.vue';
 import LibraryView from '../views/LibraryView.vue';
 import SettingsView from '../views/SettingsView.vue';
@@ -24,6 +25,22 @@ const routes = [
     component: LibraryView,
     meta: {
       title: 'Library'
+    }
+  },
+  {
+    path: '/library/:conceptId/edit',
+    name: 'concept-edit',
+    component: CreateView,
+    meta: {
+      title: 'Edit concept'
+    }
+  },
+  {
+    path: '/library/:conceptId',
+    name: 'concept-detail',
+    component: ConceptDetailView,
+    meta: {
+      title: 'Concept'
     }
   },
   {

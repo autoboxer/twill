@@ -1,4 +1,5 @@
 pub mod data;
+mod library;
 
 use tauri::Manager;
 
@@ -13,6 +14,20 @@ pub fn run() {
 
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            library::commands::get_library,
+            library::commands::get_concept,
+            library::commands::create_concept,
+            library::commands::update_concept,
+            library::commands::set_concept_archived,
+            library::commands::delete_concept,
+            library::commands::create_deck,
+            library::commands::rename_deck,
+            library::commands::delete_deck,
+            library::commands::create_tag,
+            library::commands::rename_tag,
+            library::commands::delete_tag,
+        ])
         .run(tauri::generate_context!())
         .expect("failed to run Twill");
 }

@@ -1,0 +1,285 @@
+<script setup>
+import { computed, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+
+import ConfirmDialog from '../components/ConfirmDialog.vue';
+import ContentState from '../components/ContentState.vue';
+import PageHeader from '../components/PageHeader.vue';
+import {
+  conceptLibraryErrorMessage,
+  useConceptLibrary
+} from '../composables/useConceptLibrary';
+
+const route = useRoute();
+const router = useRouter();
+const {
+  clearError,
+  deleteConcept,
+  error,
+  isPending,
+  setConceptArchived
+} = useConceptLibrary();
+const {
+  clearError: clearLoadError,
+  getConcept
+} = useConceptLibrary();
+
+const concept = ref( null );
+const deleteDialogOpen = ref( false );
+const initialLoading = ref( true );
+const loadError = ref( '' );
+let loadRequestSequence = 0;
+
+const conceptId = computed( () => route.params.conceptId ?? '' );
+const archiveLabel = computed( () => concept.value?.archived ? 'Restore' : 'Archive' );
+const archiveIcon = computed( () => concept.value?.archived
+  ? 'i-lucide-archive-restore'
+  : 'i-lucide-archive'
+);
+
+watch( conceptId, loadConcept, { immediate: true });
+
+async function loadConcept() {
+  const request = ++loadRequestSequence;
+  const requestedConceptId = conceptId.value;
+
+  clearError();
+  clearLoadError();
+  initialLoading.value = true;
+  loadError.value = '';
+
+  try {
+    const loadedConcept = await getConcept( requestedConceptId );
+
+    if ( request !== loadRequestSequence ) {
+      return;
+    }
+
+    concept.value = loadedConcept;
+  } catch ( cause ) {
+    if ( request === loadRequestSequence ) {
+      loadError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( request === loadRequestSequence ) {
+      initialLoading.value = false;
+    }
+  }
+}
+
+async function toggleArchived() {
+  clearError();
+
+  try {
+    concept.value = await setConceptArchived( conceptId.value, !concept.value.archived );
+  } catch {
+    // Error state is handled by the composable.
+  }
+}
+
+async function confirmDelete() {
+  clearError();
+
+  try {
+    await deleteConcept( conceptId.value );
+    deleteDialogOpen.value = false;
+    await router.replace({ name: 'library' });
+  } catch {
+    // Error state is handled by the composable.
+  }
+}
+
+function formattedDate( timestamp ) {
+  return new Intl.DateTimeFormat( undefined, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format( new Date( timestamp ) );
+}
+</script>
+
+<template>
+  <div class="page concept-detail-page">
+    <PageHeader :title="concept?.title ?? 'Concept'">
+      <template #actions>
+        <UButton
+          :to="{ name: 'library' }"
+          leading-icon="i-lucide-arrow-left"
+          color="neutral"
+          variant="ghost"
+        >
+          Library
+        </UButton>
+
+        <UButton
+          v-if="concept"
+          :to="{
+            name: 'concept-edit',
+            params: { conceptId: concept.id }
+          }"
+          leading-icon="i-lucide-pencil"
+          color="neutral"
+          variant="soft"
+        >
+          Edit
+        </UButton>
+      </template>
+    </PageHeader>
+
+    <ContentState
+      v-if="initialLoading"
+      kind="loading"
+      title="Loading concept"
+    />
+
+    <ContentState
+      v-else-if="loadError"
+      kind="error"
+      title="Concept could not be loaded"
+      :description="loadError"
+    >
+      <template #actions>
+        <UButton
+          leading-icon="i-lucide-refresh-cw"
+          @click="loadConcept"
+        >
+          Retry
+        </UButton>
+
+        <UButton
+          :to="{ name: 'library' }"
+          color="neutral"
+          variant="soft"
+        >
+          Back to library
+        </UButton>
+      </template>
+    </ContentState>
+
+    <div
+      v-else-if="concept"
+      class="concept-detail-layout"
+    >
+      <UAlert
+        v-if="error"
+        :description="error"
+        icon="i-lucide-circle-alert"
+        color="error"
+        variant="soft"
+      />
+
+      <UAlert
+        v-if="concept.archived"
+        title="Archived"
+        description="This concept is hidden from the active library."
+        icon="i-lucide-archive"
+        color="neutral"
+        variant="soft"
+      />
+
+      <section class="concept-detail-panel concept-detail-summary">
+        <div class="concept-labels">
+          <UBadge
+            v-for="deck in concept.decks"
+            :key="`deck-${ deck.id }`"
+            :label="deck.name"
+            leading-icon="i-lucide-folder"
+            color="primary"
+            variant="subtle"
+          />
+
+          <UBadge
+            v-for="tag in concept.tags"
+            :key="`tag-${ tag.id }`"
+            :label="tag.name"
+            leading-icon="i-lucide-tag"
+            color="neutral"
+            variant="soft"
+          />
+
+          <span
+            v-if="!concept.decks.length && !concept.tags.length"
+            class="concept-detail-summary__unfiled"
+          >
+            No decks or tags
+          </span>
+        </div>
+
+        <dl class="concept-detail-dates">
+          <div>
+            <dt>Created</dt>
+            <dd>{{ formattedDate( concept.createdAt ) }}</dd>
+          </div>
+
+          <div>
+            <dt>Updated</dt>
+            <dd>{{ formattedDate( concept.updatedAt ) }}</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="concept-detail-panel retrieval-forms">
+        <div class="concept-detail-panel__heading">
+          <div>
+            <h2>Retrieval forms</h2>
+            <p>
+              {{ concept.cards.length }}
+              {{ concept.cards.length === 1 ? 'form' : 'forms' }}
+            </p>
+          </div>
+        </div>
+
+        <ol
+          v-if="concept.cards.length"
+          class="retrieval-form-list"
+        >
+          <li
+            v-for="( card, index ) in concept.cards"
+            :key="card.id"
+          >
+            <span>{{ index + 1 }}</span>
+            <strong>Retrieval form {{ index + 1 }}</strong>
+          </li>
+        </ol>
+
+        <div
+          v-else
+          class="retrieval-forms__empty"
+        >
+          No retrieval forms yet.
+        </div>
+      </section>
+
+      <footer class="concept-detail-actions">
+        <UButton
+          :leading-icon="archiveIcon"
+          color="neutral"
+          variant="soft"
+          :loading="isPending"
+          @click="toggleArchived"
+        >
+          {{ archiveLabel }}
+        </UButton>
+
+        <UButton
+          leading-icon="i-lucide-trash-2"
+          color="error"
+          variant="ghost"
+          :disabled="isPending"
+          @click="deleteDialogOpen = true"
+        >
+          Delete
+        </UButton>
+      </footer>
+    </div>
+
+    <ConfirmDialog
+      v-model:open="deleteDialogOpen"
+      title="Delete concept?"
+      description="This removes the concept and its retrieval forms from this device. The deletion is retained for later synchronization."
+      confirm-label="Delete concept"
+      :loading="isPending"
+      @confirm="confirmDelete"
+    />
+  </div>
+</template>
