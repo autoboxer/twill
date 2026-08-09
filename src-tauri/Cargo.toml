@@ -1,0 +1,15 @@
+[package]
+name = "twill"
+version = "0.1.0"
+description = "A focused, offline-first study app"
+edition = "2021"
+
+[lib]
+name = "twill_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
