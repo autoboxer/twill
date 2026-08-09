@@ -1,6 +1,15 @@
+import ui from '@nuxt/ui/vue-plugin';
 import { createApp } from 'vue';
 
 import App from './App.vue';
+import router from './router';
 import './styles/main.css';
 
-createApp( App ).mount( '#app' );
+const app = createApp( App );
+
+app.use( router );
+app.use( ui );
+
+router.isReady().then( () => {
+  app.mount( '#app' );
+});
