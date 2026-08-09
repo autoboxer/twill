@@ -10,9 +10,14 @@ pub fn apply(connection: &mut Connection) -> DataResult<()> {
 }
 
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(include_str!(
-        "../../migrations/0001_local_data_foundation.sql"
-    ))])
+    Migrations::new(vec![
+        M::up(include_str!(
+            "../../migrations/0001_local_data_foundation.sql"
+        )),
+        M::up(include_str!(
+            "../../migrations/0002_concept_library.sql"
+        )),
+    ])
 }
 
 #[cfg(test)]
@@ -34,7 +39,63 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 1);
+        assert_eq!(version, 2);
+    }
+
+    #[test]
+    fn the_concept_library_migrates_an_existing_foundation_database() {
+        let mut connection = Connection::open_in_memory().unwrap();
+
+        migrations().to_version(&mut connection, 1).unwrap();
+
+        let transaction = connection.transaction().unwrap();
+
+        transaction
+            .execute(
+                "INSERT INTO change_log (id, entity_id, operation, recorded_at)
+                VALUES (?1, ?2, 'create', 1)",
+                [
+                    "018f1e2d-3c4b-7a69-8f10-123456789abc",
+                    "018f1e2d-3c4b-7a69-8f10-123456789abd",
+                ],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO entities (
+                    id,
+                    kind,
+                    created_at,
+                    updated_at,
+                    deleted_at,
+                    revision,
+                    last_change_id
+                ) VALUES (?1, 'concept', 1, 1, NULL, 1, ?2)",
+                [
+                    "018f1e2d-3c4b-7a69-8f10-123456789abd",
+                    "018f1e2d-3c4b-7a69-8f10-123456789abc",
+                ],
+            )
+            .unwrap();
+
+        transaction.commit().unwrap();
+
+        apply(&mut connection).unwrap();
+
+        let entity_count: i64 = connection
+            .query_row("SELECT COUNT(*) FROM entities", [], |row| row.get(0))
+            .unwrap();
+        let concept_table: Option<String> = connection
+            .query_row(
+                "SELECT name FROM sqlite_master WHERE name = 'concepts'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .unwrap();
+
+        assert_eq!(entity_count, 1);
+        assert_eq!(concept_table.as_deref(), Some("concepts"));
     }
 
     #[test]
@@ -68,7 +129,7 @@ mod tests {
         let mut connection = Connection::open_in_memory().unwrap();
 
         connection
-            .pragma_update(None, "user_version", 2)
+            .pragma_update(None, "user_version", 3)
             .unwrap();
 
         assert!(apply(&mut connection).is_err());
@@ -77,6 +138,6 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
     }
 }

@@ -38,15 +38,44 @@ impl LocalDataStore {
         &self,
         operation: impl FnOnce(&WriteTransaction<'_>) -> DataResult<T>,
     ) -> DataResult<T> {
-        let mut connection = self.connection()?;
-        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        self.write_result(operation)
+    }
+
+    pub fn write_result<T, E>(
+        &self,
+        operation: impl FnOnce(&WriteTransaction<'_>) -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        E: From<DataError>,
+    {
+        let mut connection = self.connection().map_err(E::from)?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(DataError::from)
+            .map_err(E::from)?;
         let transaction = WriteTransaction { transaction };
 
         let result = operation(&transaction)?;
 
-        transaction.transaction.commit()?;
+        transaction
+            .transaction
+            .commit()
+            .map_err(DataError::from)
+            .map_err(E::from)?;
 
         Ok(result)
+    }
+
+    pub fn read_result<T, E>(
+        &self,
+        operation: impl FnOnce(&Connection) -> Result<T, E>,
+    ) -> Result<T, E>
+    where
+        E: From<DataError>,
+    {
+        let connection = self.connection().map_err(E::from)?;
+
+        operation(&connection)
     }
 
     pub fn entity(&self, id: &str) -> DataResult<Option<EntityMetadata>> {
@@ -311,7 +340,7 @@ mod tests {
 
         let store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 1);
+        assert_eq!(store.schema_version().unwrap(), 2);
         assert!(data_directory.join(DATABASE_FILENAME).is_file());
 
         let connection = store.connection().unwrap();
@@ -335,7 +364,7 @@ mod tests {
 
         let reopened_store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(reopened_store.schema_version().unwrap(), 1);
+        assert_eq!(reopened_store.schema_version().unwrap(), 2);
     }
 
     #[test]

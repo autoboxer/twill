@@ -14,6 +14,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 rusqlite = { version = "0.40", features = ["bundled"] }
 rusqlite_migration = "2.6"
+serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
 thiserror = "2"
 uuid = { version = "1", features = ["v7"] }
