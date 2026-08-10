@@ -1,6 +1,6 @@
 <script setup>
 import { AnimatePresence, m } from 'motion-v';
-import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
@@ -11,7 +11,11 @@ import {
 } from '../composables/useConceptLibrary';
 import { useRecallSession } from '../composables/useRecallSession';
 
-const { clearError, getStudyCards } = useConceptLibrary();
+const {
+  clearError,
+  getStudyQueue,
+  recordReview
+} = useConceptLibrary();
 const {
   answerRevealed,
   assess,
@@ -24,29 +28,52 @@ const {
   position,
   progress,
   recalledCount,
-  restart,
   revealAnswer,
   totalCards
 } = useRecallSession();
 
 const answerHeading = ref( null );
+const assessmentError = ref( '' );
+const assessmentPending = ref( false );
 const completionHeading = ref( null );
 const initialLoading = ref( true );
 const loadError = ref( '' );
+const nextDueAt = ref( null );
+const pendingAssessment = ref( '' );
 const revealButton = ref( null );
+const totalAvailableCards = ref( 0 );
 let loadRequestSequence = 0;
+let viewActive = true;
 
 const cardTransition = {
   duration: 0.22,
   ease: [ 0.22, 1, 0.36, 1 ]
 };
+const reviewRatings = {
+  needsWork: 'again',
+  recalled: 'good'
+};
 
-onMounted( loadStudyCards );
+const nextReviewDescription = computed( () => {
+  if ( nextDueAt.value === null ) {
+    return 'No reviews are currently due.';
+  }
+
+  const formattedTime = new Intl.DateTimeFormat( undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format( new Date( nextDueAt.value ) );
+
+  return `Next review: ${ formattedTime }`;
+});
+
+onMounted( loadStudyQueue );
 onBeforeUnmount( () => {
+  viewActive = false;
   loadRequestSequence += 1;
 });
 
-async function loadStudyCards() {
+async function loadStudyQueue() {
   const request = ++loadRequestSequence;
 
   clearError();
@@ -54,13 +81,15 @@ async function loadStudyCards() {
   initialLoading.value = true;
 
   try {
-    const cards = await getStudyCards();
+    const queue = await getStudyQueue();
 
     if ( request !== loadRequestSequence ) {
       return;
     }
 
-    begin( cards );
+    begin( queue.cards );
+    nextDueAt.value = queue.nextDueAt;
+    totalAvailableCards.value = queue.totalCards;
   } catch ( cause ) {
     if ( request === loadRequestSequence ) {
       loadError.value = conceptLibraryErrorMessage( cause );
@@ -79,19 +108,44 @@ async function showAnswer() {
 }
 
 async function recordAssessment( outcome ) {
-  if ( !assess( outcome ) ) {
+  const rating = reviewRatings[ outcome ];
+
+  if (
+    !rating
+    || assessmentPending.value
+    || !answerRevealed.value
+    || !currentCard.value
+  ) {
     return;
   }
 
-  await nextTick();
+  const cardId = currentCard.value.id;
 
-  focusCurrentState();
-}
+  assessmentError.value = '';
+  assessmentPending.value = true;
+  pendingAssessment.value = outcome;
 
-async function studyAgain() {
-  restart();
-  await nextTick();
-  focusCurrentState();
+  try {
+    await recordReview( cardId, rating );
+
+    if ( !viewActive || currentCard.value?.id !== cardId ) {
+      return;
+    }
+
+    assess( outcome );
+    await nextTick();
+
+    focusCurrentState();
+  } catch ( cause ) {
+    if ( viewActive ) {
+      assessmentError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      assessmentPending.value = false;
+      pendingAssessment.value = '';
+    }
+  }
 }
 
 function focusCurrentState() {
@@ -142,7 +196,7 @@ function focusButton( button ) {
       <template #actions>
         <UButton
           leading-icon="i-lucide-refresh-cw"
-          @click="loadStudyCards"
+          @click="loadStudyQueue"
         >
           Retry
         </UButton>
@@ -158,7 +212,7 @@ function focusButton( button ) {
     </ContentState>
 
     <ContentState
-      v-else-if="!hasCards"
+      v-else-if="!hasCards && totalAvailableCards === 0"
       title="No cards to study"
       description="Create or restore a concept to make a recall card available."
     >
@@ -169,6 +223,32 @@ function focusButton( button ) {
           size="lg"
         >
           Create concept
+        </UButton>
+
+        <UButton
+          :to="{ name: 'library' }"
+          leading-icon="i-lucide-library"
+          color="neutral"
+          variant="subtle"
+          size="lg"
+        >
+          Open library
+        </UButton>
+      </template>
+    </ContentState>
+
+    <ContentState
+      v-else-if="!hasCards"
+      title="Nothing due"
+      :description="nextReviewDescription"
+    >
+      <template #actions>
+        <UButton
+          leading-icon="i-lucide-refresh-cw"
+          size="lg"
+          @click="loadStudyQueue"
+        >
+          Check again
         </UButton>
 
         <UButton
@@ -283,6 +363,15 @@ function focusButton( button ) {
           </div>
 
           <footer class="study-card__footer">
+            <UAlert
+              v-if="assessmentError"
+              class="study-assessment-error"
+              :description="assessmentError"
+              icon="i-lucide-circle-alert"
+              color="error"
+              variant="soft"
+            />
+
             <AnimatePresence
               mode="wait"
               :initial="false"
@@ -323,6 +412,8 @@ function focusButton( button ) {
                     color="neutral"
                     variant="soft"
                     size="lg"
+                    :disabled="assessmentPending"
+                    :loading="assessmentPending && pendingAssessment === 'needsWork'"
                     @click="recordAssessment( 'needsWork' )"
                   >
                     Needs work
@@ -331,6 +422,8 @@ function focusButton( button ) {
                   <UButton
                     leading-icon="i-lucide-check"
                     size="lg"
+                    :disabled="assessmentPending"
+                    :loading="assessmentPending && pendingAssessment === 'recalled'"
                     @click="recordAssessment( 'recalled' )"
                   >
                     Recalled
@@ -362,7 +455,7 @@ function focusButton( button ) {
             >
               Session complete
             </h2>
-            <p>These results are not saved yet.</p>
+            <p>Reviews saved locally.</p>
           </div>
 
           <dl class="study-results">
@@ -377,14 +470,6 @@ function focusButton( button ) {
           </dl>
 
           <div class="study-complete__actions">
-            <UButton
-              leading-icon="i-lucide-refresh-cw"
-              size="lg"
-              @click="studyAgain"
-            >
-              Study again
-            </UButton>
-
             <UButton
               :to="{ name: 'library' }"
               leading-icon="i-lucide-library"

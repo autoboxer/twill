@@ -1067,6 +1067,10 @@ button {
   border-top: 1px solid var(--ui-border);
 }
 
+.study-assessment-error {
+  margin-bottom: 1rem;
+}
+
 .study-actions {
   display: flex;
   min-height: 3.25rem;
