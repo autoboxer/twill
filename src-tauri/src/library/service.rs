@@ -7,9 +7,10 @@ use crate::library::content::validate_content;
 use crate::library::media::{
     active_concept_media_ids, query_concept_media, validate_media_ids,
 };
+use crate::library::study::{create_recall_card, query_study_cards};
 use crate::library::{
     CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, LibraryError, LibraryResult,
-    LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary, UpdateConceptInput,
+    LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary, StudyCard, UpdateConceptInput,
 };
 
 const MAXIMUM_CONCEPT_TITLE_LENGTH: usize = 200;
@@ -38,6 +39,10 @@ impl<'store> ConceptLibrary<'store> {
     pub fn concept(&self, id: &str) -> LibraryResult<ConceptDetail> {
         self.store
             .read_result(|connection| query_concept(connection, id))
+    }
+
+    pub fn study_cards(&self) -> LibraryResult<Vec<StudyCard>> {
+        self.store.read_result(query_study_cards)
     }
 
     pub fn import_image(&self, bytes: &[u8]) -> LibraryResult<MediaSummary> {
@@ -80,6 +85,8 @@ impl<'store> ConceptLibrary<'store> {
                     content.serialized
                 ],
             )?;
+
+            create_recall_card(transaction, &entity.id)?;
 
             apply_assignments(
                 transaction,
@@ -937,7 +944,11 @@ mod tests {
         assert_eq!(created.title, "Cell membrane");
         assert_eq!(created.decks[0].id, first_deck.id);
         assert_eq!(created.tags[0].id, first_tag.id);
-        assert!(created.cards.is_empty());
+        assert_eq!(created.cards.len(), 1);
+        assert_eq!(
+            store.entity(&created.cards[0].id).unwrap().unwrap().kind,
+            EntityKind::Card
+        );
 
         let updated = library
             .update_concept(UpdateConceptInput {
@@ -1252,25 +1263,13 @@ mod tests {
             })
             .unwrap();
 
-        let card = store
-            .write(|transaction| {
-                let card = transaction.create_entity(EntityKind::Card)?;
+        let card_id = concept.cards[0].id.clone();
 
-                transaction.execute(
-                    "INSERT INTO cards (entity_id, concept_id, last_change_id)
-                    VALUES (?1, ?2, ?3)",
-                    params![card.id, concept.id, card.last_change_id],
-                )?;
-
-                Ok(card)
-            })
-            .unwrap();
-
-        assert_eq!(library.concept(&concept.id).unwrap().cards[0].id, card.id);
+        assert_eq!(library.concept(&concept.id).unwrap().cards[0].id, card_id);
         assert_eq!(library.snapshot(false).unwrap().concepts[0].card_count, 1);
 
         store
-            .write(|transaction| transaction.soft_delete_entity(&card.id))
+            .write(|transaction| transaction.soft_delete_entity(&card_id))
             .unwrap();
 
         assert!(library.concept(&concept.id).unwrap().cards.is_empty());
@@ -1298,6 +1297,61 @@ mod tests {
             .unwrap()
             .deleted_at
             .is_some());
+    }
+
+    #[test]
+    fn study_cards_include_only_active_unarchived_recall_cards() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let content = ConceptContent {
+            schema_version: 1,
+            prompt: json!({
+                "type": "doc",
+                "content": [{
+                    "type": "paragraph",
+                    "content": [{ "type": "text", "text": "A prompt" }]
+                }]
+            }),
+            answer: json!({
+                "type": "doc",
+                "content": [{
+                    "type": "paragraph",
+                    "content": [{ "type": "text", "text": "An answer" }]
+                }]
+            }),
+        };
+        let active = library
+            .create_concept(CreateConceptInput {
+                title: "Active concept".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: content.clone(),
+            })
+            .unwrap();
+        let archived = library
+            .create_concept(CreateConceptInput {
+                title: "Archived concept".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+            })
+            .unwrap();
+
+        library.set_concept_archived(&archived.id, true).unwrap();
+
+        let cards = library.study_cards().unwrap();
+
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].id, active.cards[0].id);
+        assert_eq!(cards[0].concept_id, active.id);
+        assert_eq!(cards[0].concept_title, active.title);
+        assert_eq!(cards[0].content, content);
+
+        store
+            .write(|transaction| transaction.soft_delete_entity(&cards[0].id))
+            .unwrap();
+
+        assert!(library.study_cards().unwrap().is_empty());
     }
 
     #[test]

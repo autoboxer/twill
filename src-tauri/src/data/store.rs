@@ -322,7 +322,7 @@ fn query_entity(connection: &Connection, id: &str) -> DataResult<Option<EntityMe
     .transpose()
 }
 
-fn current_timestamp() -> DataResult<i64> {
+pub(super) fn current_timestamp() -> DataResult<i64> {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| DataError::InvalidSystemTime)?
@@ -331,7 +331,7 @@ fn current_timestamp() -> DataResult<i64> {
     i64::try_from(timestamp).map_err(|_| DataError::InvalidSystemTime)
 }
 
-fn new_id() -> String {
+pub(super) fn new_id() -> String {
     Uuid::now_v7().hyphenated().to_string()
 }
 
@@ -352,7 +352,7 @@ mod tests {
 
         let store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 3);
+        assert_eq!(store.schema_version().unwrap(), 4);
         assert!(data_directory.join(DATABASE_FILENAME).is_file());
 
         let connection = store.connection().unwrap();
@@ -376,7 +376,7 @@ mod tests {
 
         let reopened_store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(reopened_store.schema_version().unwrap(), 3);
+        assert_eq!(reopened_store.schema_version().unwrap(), 4);
     }
 
     #[test]
