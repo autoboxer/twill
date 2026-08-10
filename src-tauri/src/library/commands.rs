@@ -1,4 +1,5 @@
 use serde::Serialize;
+use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::State;
 
 use crate::data::LocalDataStore;
@@ -20,15 +21,27 @@ pub(crate) struct CommandError {
 impl From<LibraryError> for CommandError {
     fn from(error: LibraryError) -> Self {
         let code = match &error {
-            LibraryError::EmptyValue { .. } | LibraryError::ValueTooLong { .. } => "validation",
+            LibraryError::EmptyValue { .. }
+            | LibraryError::ValueTooLong { .. }
+            | LibraryError::InvalidContent { .. }
+            | LibraryError::ImageTooLarge { .. }
+            | LibraryError::UnsupportedImage
+            | LibraryError::ImageDimensionsTooLarge => "validation",
             LibraryError::DuplicateName { .. } => "conflict",
             LibraryError::ConceptNotFound(_)
             | LibraryError::OrganizationNotFound { .. }
-            | LibraryError::InvalidSelection { .. } => "notFound",
-            LibraryError::Data(_) | LibraryError::Database(_) => "storage",
+            | LibraryError::InvalidSelection { .. }
+            | LibraryError::MediaNotFound(_) => "notFound",
+            LibraryError::Data(_)
+            | LibraryError::Database(_)
+            | LibraryError::Json(_)
+            | LibraryError::MediaIntegrity { .. } => "storage",
         };
         let message = match &error {
-            LibraryError::Data(_) | LibraryError::Database(_) => {
+            LibraryError::Data(_)
+            | LibraryError::Database(_)
+            | LibraryError::Json(_)
+            | LibraryError::MediaIntegrity { .. } => {
                 "Local data could not be accessed.".to_owned()
             }
             _ => error.to_string(),
@@ -155,5 +168,44 @@ pub(crate) fn delete_tag(
 ) -> CommandResult<()> {
     ConceptLibrary::new(local_data.inner())
         .delete_tag(&input.id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn import_image(
+    local_data: State<'_, LocalDataStore>,
+    request: Request<'_>,
+) -> CommandResult<crate::library::MediaSummary> {
+    let owned_bytes;
+    let bytes = match request.body() {
+        InvokeBody::Raw(bytes) => bytes.as_slice(),
+        InvokeBody::Json(serde_json::Value::Array(values)) => {
+            owned_bytes = values
+                .iter()
+                .map(|value| {
+                    value
+                        .as_u64()
+                        .and_then(|byte| u8::try_from(byte).ok())
+                        .ok_or(LibraryError::UnsupportedImage)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            &owned_bytes
+        }
+        InvokeBody::Json(_) => return Err(LibraryError::UnsupportedImage.into()),
+    };
+
+    ConceptLibrary::new(local_data.inner())
+        .import_image(bytes)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn read_media(
+    local_data: State<'_, LocalDataStore>,
+    media_id: String,
+) -> CommandResult<Response> {
+    ConceptLibrary::new(local_data.inner())
+        .media_bytes(&media_id)
+        .map(Response::new)
         .map_err(Into::into)
 }

@@ -30,9 +30,33 @@ pub enum LibraryError {
     #[error("selected {kind} {id} was not found")]
     InvalidSelection { kind: &'static str, id: String },
 
+    #[error("{field} {message}")]
+    InvalidContent {
+        field: &'static str,
+        message: String,
+    },
+
+    #[error("the selected image cannot be larger than {maximum_megabytes} MB")]
+    ImageTooLarge { maximum_megabytes: usize },
+
+    #[error("the selected image format is not supported")]
+    UnsupportedImage,
+
+    #[error("the selected image dimensions are too large")]
+    ImageDimensionsTooLarge,
+
+    #[error("media {0} was not found")]
+    MediaNotFound(String),
+
+    #[error("stored media file for digest {expected_digest} failed its integrity check")]
+    MediaIntegrity { expected_digest: String },
+
     #[error(transparent)]
     Data(#[from] DataError),
 
     #[error("local library data could not be read or written: {0}")]
     Database(#[from] rusqlite::Error),
+
+    #[error("local rich content could not be encoded or decoded: {0}")]
+    Json(#[from] serde_json::Error),
 }

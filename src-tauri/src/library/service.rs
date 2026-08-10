@@ -3,9 +3,13 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::data::{EntityKind, EntityMetadata, LocalDataStore, WriteTransaction};
+use crate::library::content::validate_content;
+use crate::library::media::{
+    active_concept_media_ids, query_concept_media, validate_media_ids,
+};
 use crate::library::{
     CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, LibraryError, LibraryResult,
-    LibrarySnapshot, NamedItem, OrganizationSummary, UpdateConceptInput,
+    LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary, UpdateConceptInput,
 };
 
 const MAXIMUM_CONCEPT_TITLE_LENGTH: usize = 200;
@@ -36,6 +40,14 @@ impl<'store> ConceptLibrary<'store> {
             .read_result(|connection| query_concept(connection, id))
     }
 
+    pub fn import_image(&self, bytes: &[u8]) -> LibraryResult<MediaSummary> {
+        crate::library::media::import_image(self.store, bytes)
+    }
+
+    pub fn media_bytes(&self, id: &str) -> LibraryResult<Vec<u8>> {
+        crate::library::media::read_media(self.store, id)
+    }
+
     pub fn create_concept(&self, input: CreateConceptInput) -> LibraryResult<ConceptDetail> {
         let title = normalize_value(
             input.title,
@@ -44,17 +56,29 @@ impl<'store> ConceptLibrary<'store> {
         )?;
         let deck_ids = normalize_ids(input.deck_ids, "deck")?;
         let tag_ids = normalize_ids(input.tag_ids, "tag")?;
+        let content = validate_content(input.content)?;
 
         self.store.write_result(|transaction| {
             validate_selections(transaction, OrganizationKind::Deck, &deck_ids)?;
             validate_selections(transaction, OrganizationKind::Tag, &tag_ids)?;
+            validate_media_ids(transaction, &content.media_ids)?;
 
             let entity = transaction.create_entity(EntityKind::Concept)?;
 
             transaction.execute(
-                "INSERT INTO concepts (entity_id, title, archived_at, last_change_id)
-                VALUES (?1, ?2, NULL, ?3)",
-                params![entity.id, title, entity.last_change_id],
+                "INSERT INTO concepts (
+                    entity_id,
+                    title,
+                    archived_at,
+                    last_change_id,
+                    content_json
+                ) VALUES (?1, ?2, NULL, ?3, ?4)",
+                params![
+                    entity.id,
+                    title,
+                    entity.last_change_id,
+                    content.serialized
+                ],
             )?;
 
             apply_assignments(
@@ -70,6 +94,12 @@ impl<'store> ConceptLibrary<'store> {
                 &entity,
                 &HashSet::new(),
                 &tag_ids,
+            )?;
+            apply_media_assignments(
+                transaction,
+                &entity,
+                &HashSet::new(),
+                &content.media_ids,
             )?;
 
             query_concept(transaction, &entity.id)
@@ -85,17 +115,25 @@ impl<'store> ConceptLibrary<'store> {
         )?;
         let deck_ids = normalize_ids(input.deck_ids, "deck")?;
         let tag_ids = normalize_ids(input.tag_ids, "tag")?;
+        let content = validate_content(input.content)?;
 
         self.store.write_result(|transaction| {
             let current = query_concept(transaction, &id)?;
 
             validate_selections(transaction, OrganizationKind::Deck, &deck_ids)?;
             validate_selections(transaction, OrganizationKind::Tag, &tag_ids)?;
+            validate_media_ids(transaction, &content.media_ids)?;
 
             let current_decks = item_ids(&current.decks);
             let current_tags = item_ids(&current.tags);
+            let current_media = active_concept_media_ids(transaction, &id)?;
 
-            if current.title == title && current_decks == deck_ids && current_tags == tag_ids {
+            if current.title == title
+                && current_decks == deck_ids
+                && current_tags == tag_ids
+                && current.content == content.content
+                && current_media == content.media_ids
+            {
                 return Ok(current);
             }
 
@@ -104,9 +142,10 @@ impl<'store> ConceptLibrary<'store> {
             transaction.execute(
                 "UPDATE concepts
                 SET title = ?1,
-                    last_change_id = ?2
-                WHERE entity_id = ?3",
-                params![title, entity.last_change_id, id],
+                    content_json = ?2,
+                    last_change_id = ?3
+                WHERE entity_id = ?4",
+                params![title, content.serialized, entity.last_change_id, id],
             )?;
 
             apply_assignments(
@@ -122,6 +161,12 @@ impl<'store> ConceptLibrary<'store> {
                 &entity,
                 &current_tags,
                 &tag_ids,
+            )?;
+            apply_media_assignments(
+                transaction,
+                &entity,
+                &current_media,
+                &content.media_ids,
             )?;
 
             query_concept(transaction, &id)
@@ -484,7 +529,8 @@ fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDeta
                 concepts.title,
                 entities.created_at,
                 entities.updated_at,
-                concepts.archived_at
+                concepts.archived_at,
+                concepts.content_json
             FROM concepts
             INNER JOIN entities ON entities.id = concepts.entity_id
             WHERE concepts.entity_id = ?1
@@ -497,11 +543,12 @@ fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDeta
                     row.get::<_, i64>(2)?,
                     row.get::<_, i64>(3)?,
                     row.get::<_, Option<i64>>(4)?,
+                    row.get::<_, String>(5)?,
                 ))
             },
         )
         .optional()?;
-    let Some((id, title, created_at, updated_at, archived_at)) = concept else {
+    let Some((id, title, created_at, updated_at, archived_at, content)) = concept else {
         return Err(LibraryError::ConceptNotFound(id.to_owned()));
     };
 
@@ -509,6 +556,8 @@ fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDeta
         decks: query_concept_assignments(connection, &id, OrganizationKind::Deck)?,
         tags: query_concept_assignments(connection, &id, OrganizationKind::Tag)?,
         cards: query_cards(connection, &id)?,
+        content: serde_json::from_str(&content)?,
+        media: query_concept_media(connection, &id)?,
         id,
         title,
         created_at,
@@ -763,6 +812,56 @@ fn apply_assignments(
     Ok(())
 }
 
+fn apply_media_assignments(
+    transaction: &WriteTransaction<'_>,
+    concept: &EntityMetadata,
+    current_ids: &HashSet<String>,
+    desired_ids: &HashSet<String>,
+) -> LibraryResult<()> {
+    for id in desired_ids.difference(current_ids) {
+        transaction.execute(
+            "INSERT INTO concept_media (
+                concept_id,
+                media_id,
+                created_at,
+                updated_at,
+                removed_at,
+                last_change_id
+            ) VALUES (?1, ?2, ?3, ?3, NULL, ?4)
+            ON CONFLICT (concept_id, media_id) DO UPDATE SET
+                updated_at = excluded.updated_at,
+                removed_at = NULL,
+                last_change_id = excluded.last_change_id",
+            params![
+                concept.id,
+                id,
+                concept.updated_at,
+                concept.last_change_id
+            ],
+        )?;
+    }
+
+    for id in current_ids.difference(desired_ids) {
+        transaction.execute(
+            "UPDATE concept_media
+            SET updated_at = ?1,
+                removed_at = ?1,
+                last_change_id = ?2
+            WHERE concept_id = ?3
+                AND media_id = ?4
+                AND removed_at IS NULL",
+            params![
+                concept.updated_at,
+                concept.last_change_id,
+                concept.id,
+                id
+            ],
+        )?;
+    }
+
+    Ok(())
+}
+
 fn concept_record_exists(connection: &Connection, id: &str) -> LibraryResult<bool> {
     Ok(connection.query_row(
         "SELECT EXISTS (SELECT 1 FROM concepts WHERE entity_id = ?1)",
@@ -786,18 +885,34 @@ fn organization_record_exists(
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
+    use image::{DynamicImage, ImageFormat};
     use rusqlite::params;
+    use serde_json::json;
     use tempfile::{tempdir, TempDir};
 
     use super::ConceptLibrary;
     use crate::data::{DataResult, EntityKind, LocalDataStore};
-    use crate::library::{CreateConceptInput, LibraryError, UpdateConceptInput};
+    use crate::library::{
+        ConceptContent, CreateConceptInput, LibraryError, UpdateConceptInput,
+    };
 
     fn test_store() -> (TempDir, LocalDataStore) {
         let directory = tempdir().unwrap();
         let store = LocalDataStore::open(directory.path()).unwrap();
 
         (directory, store)
+    }
+
+    fn png_bytes() -> Vec<u8> {
+        let mut bytes = Cursor::new(Vec::new());
+
+        DynamicImage::new_rgba8(4, 3)
+            .write_to(&mut bytes, ImageFormat::Png)
+            .unwrap();
+
+        bytes.into_inner()
     }
 
     #[test]
@@ -815,6 +930,7 @@ mod tests {
                 title: "  Cell membrane  ".to_owned(),
                 deck_ids: vec![first_deck.id.clone()],
                 tag_ids: vec![first_tag.id.clone()],
+                content: Default::default(),
             })
             .unwrap();
 
@@ -829,6 +945,7 @@ mod tests {
                 title: "Plasma membrane".to_owned(),
                 deck_ids: vec![second_deck.id.clone()],
                 tag_ids: vec![second_tag.id.clone()],
+                content: Default::default(),
             })
             .unwrap();
 
@@ -921,6 +1038,7 @@ mod tests {
                 title: "Greetings".to_owned(),
                 deck_ids: vec![deck.id.clone()],
                 tag_ids: vec![tag.id.clone()],
+                content: Default::default(),
             })
             .unwrap();
 
@@ -976,6 +1094,7 @@ mod tests {
             title: "Invalid".to_owned(),
             deck_ids: vec!["missing-deck".to_owned()],
             tag_ids: Vec::new(),
+            content: Default::default(),
         });
 
         assert!(matches!(
@@ -989,6 +1108,7 @@ mod tests {
                 title: "Stable".to_owned(),
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
+                content: Default::default(),
             })
             .unwrap();
         let revision = store.entity(&concept.id).unwrap().unwrap().revision;
@@ -999,6 +1119,7 @@ mod tests {
                 title: concept.title,
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
+                content: Default::default(),
             })
             .unwrap();
 
@@ -1006,6 +1127,116 @@ mod tests {
             store.entity(&concept.id).unwrap().unwrap().revision,
             revision
         );
+    }
+
+    #[test]
+    fn rich_content_and_media_references_update_transactionally() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let image_bytes = png_bytes();
+        let media = library.import_image(&image_bytes).unwrap();
+        let content = ConceptContent {
+            schema_version: 1,
+            prompt: json!({
+                "type": "doc",
+                "content": [
+                    {
+                        "type": "paragraph",
+                        "content": [{
+                            "type": "text",
+                            "text": "Identify this structure."
+                        }]
+                    },
+                    {
+                        "type": "mediaImage",
+                        "attrs": {
+                            "mediaId": media.id,
+                            "alt": "A test image",
+                            "title": null
+                        }
+                    }
+                ]
+            }),
+            answer: json!({
+                "type": "doc",
+                "content": [{
+                    "type": "codeBlock",
+                    "attrs": { "language": "rust" },
+                    "content": [{
+                        "type": "text",
+                        "text": "struct Cell;"
+                    }]
+                }]
+            }),
+        };
+        let concept = library
+            .create_concept(CreateConceptInput {
+                title: "Rich concept".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: content.clone(),
+            })
+            .unwrap();
+
+        assert_eq!(concept.content, content);
+        assert_eq!(concept.media, vec![media.clone()]);
+        assert_eq!(library.media_bytes(&media.id).unwrap(), image_bytes);
+
+        let revision = store.entity(&concept.id).unwrap().unwrap().revision;
+        let invalid_content = ConceptContent {
+            schema_version: 1,
+            prompt: json!({
+                "type": "doc",
+                "content": [{
+                    "type": "mediaImage",
+                    "attrs": {
+                        "mediaId": "018f1e2d-3c4b-7a69-8f10-123456789abc",
+                        "alt": null,
+                        "title": null
+                    }
+                }]
+            }),
+            answer: ConceptContent::default().answer,
+        };
+        let invalid_update = library.update_concept(UpdateConceptInput {
+            id: concept.id.clone(),
+            title: concept.title.clone(),
+            deck_ids: Vec::new(),
+            tag_ids: Vec::new(),
+            content: invalid_content,
+        });
+
+        assert!(matches!(
+            invalid_update,
+            Err(LibraryError::MediaNotFound(_))
+        ));
+        assert_eq!(store.entity(&concept.id).unwrap().unwrap().revision, revision);
+
+        let updated = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id.clone(),
+                title: concept.title,
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+            })
+            .unwrap();
+        let removed_references: i64 = store
+            .read_result(|connection| -> DataResult<i64> {
+                Ok(connection.query_row(
+                    "SELECT COUNT(*)
+                    FROM concept_media
+                    WHERE concept_id = ?1
+                        AND removed_at IS NOT NULL",
+                    [&concept.id],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(updated.content, ConceptContent::default());
+        assert!(updated.media.is_empty());
+        assert_eq!(removed_references, 1);
     }
 
     #[test]
@@ -1017,6 +1248,7 @@ mod tests {
                 title: "Linked card".to_owned(),
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
+                content: Default::default(),
             })
             .unwrap();
 
@@ -1077,6 +1309,7 @@ mod tests {
                 title: "Protected".to_owned(),
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
+                content: Default::default(),
             })
             .unwrap();
 

@@ -48,7 +48,9 @@ export function useConceptLibrary() {
     error,
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
     getLibrary: ( includeArchived = false ) => run( 'get_library', { includeArchived }),
+    importImage: ( bytes ) => run( 'import_image', bytes ),
     isPending,
+    readMedia: ( mediaId ) => run( 'read_media', { mediaId }),
     renameDeck: ( id, name ) => run( 'rename_deck', { input: { id, name } }),
     renameTag: ( id, name ) => run( 'rename_tag', { input: { id, name } }),
     setConceptArchived: ( id, archived ) => run( 'set_concept_archived', {

@@ -17,6 +17,9 @@ fn migrations() -> Migrations<'static> {
         M::up(include_str!(
             "../../migrations/0002_concept_library.sql"
         )),
+        M::up(include_str!(
+            "../../migrations/0003_rich_content_authoring.sql"
+        )),
     ])
 }
 
@@ -39,7 +42,7 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 2);
+        assert_eq!(version, 3);
     }
 
     #[test]
@@ -99,6 +102,72 @@ mod tests {
     }
 
     #[test]
+    fn rich_content_is_added_to_existing_concepts() {
+        let mut connection = Connection::open_in_memory().unwrap();
+
+        migrations().to_version(&mut connection, 2).unwrap();
+
+        let transaction = connection.transaction().unwrap();
+
+        transaction
+            .execute(
+                "INSERT INTO change_log (id, entity_id, operation, recorded_at)
+                VALUES (?1, ?2, 'create', 1)",
+                [
+                    "018f1e2d-3c4b-7a69-8f10-123456789abc",
+                    "018f1e2d-3c4b-7a69-8f10-123456789abd",
+                ],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO entities (
+                    id,
+                    kind,
+                    created_at,
+                    updated_at,
+                    deleted_at,
+                    revision,
+                    last_change_id
+                ) VALUES (?1, 'concept', 1, 1, NULL, 1, ?2)",
+                [
+                    "018f1e2d-3c4b-7a69-8f10-123456789abd",
+                    "018f1e2d-3c4b-7a69-8f10-123456789abc",
+                ],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO concepts (entity_id, title, archived_at, last_change_id)
+                VALUES (?1, 'Existing concept', NULL, ?2)",
+                [
+                    "018f1e2d-3c4b-7a69-8f10-123456789abd",
+                    "018f1e2d-3c4b-7a69-8f10-123456789abc",
+                ],
+            )
+            .unwrap();
+
+        transaction.commit().unwrap();
+
+        apply(&mut connection).unwrap();
+
+        let content: String = connection
+            .query_row("SELECT content_json FROM concepts", [], |row| row.get(0))
+            .unwrap();
+        let media_table: Option<String> = connection
+            .query_row(
+                "SELECT name FROM sqlite_master WHERE name = 'media'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .unwrap();
+
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&content).unwrap()["schemaVersion"], 1);
+        assert_eq!(media_table.as_deref(), Some("media"));
+    }
+
+    #[test]
     fn a_failed_migration_rolls_back_the_whole_schema_update() {
         let migrations = Migrations::new(vec![
             M::up("CREATE TABLE survives_only_on_success (id INTEGER);"),
@@ -129,7 +198,7 @@ mod tests {
         let mut connection = Connection::open_in_memory().unwrap();
 
         connection
-            .pragma_update(None, "user_version", 3)
+            .pragma_update(None, "user_version", 4)
             .unwrap();
 
         assert!(apply(&mut connection).is_err());
@@ -138,6 +207,6 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
     }
 }
