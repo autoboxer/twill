@@ -11,7 +11,8 @@ pub use models::{
     CardSummary, ConceptContent, ConceptDetail, ConceptSummary, CreateConceptInput,
     CreateNamedItemInput, EntityIdInput, GradingMode, LibrarySnapshot, MediaSummary, NamedItem,
     OrganizationSummary, RecordReviewInput, RenameNamedItemInput, ReviewOutcome,
-    ReviewRating, SchedulingState, SetConceptArchivedInput, SetGradingModeInput, StudyCard,
-    StudyPreferences, StudyQueue, UpdateConceptInput, RICH_CONTENT_SCHEMA_VERSION,
+    ReviewRating, SchedulingSettings, SchedulingState, SetConceptArchivedInput,
+    SetGradingModeInput, StudyCard, StudyPreferences, StudyQueue, UpdateConceptInput,
+    UpdateSchedulingSettingsInput, RICH_CONTENT_SCHEMA_VERSION,
 };
 pub use service::ConceptLibrary;

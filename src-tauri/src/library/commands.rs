@@ -6,8 +6,9 @@ use crate::data::LocalDataStore;
 use crate::library::{
     ConceptDetail, ConceptLibrary, CreateConceptInput, CreateNamedItemInput, EntityIdInput,
     LibraryError, LibrarySnapshot, OrganizationSummary, RenameNamedItemInput,
-    RecordReviewInput, ReviewOutcome, SetConceptArchivedInput, SetGradingModeInput,
-    StudyPreferences, StudyQueue, UpdateConceptInput,
+    RecordReviewInput, ReviewOutcome, SchedulingSettings, SetConceptArchivedInput,
+    SetGradingModeInput, StudyPreferences, StudyQueue, UpdateConceptInput,
+    UpdateSchedulingSettingsInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -27,7 +28,9 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidContent { .. }
             | LibraryError::ImageTooLarge { .. }
             | LibraryError::UnsupportedImage
-            | LibraryError::ImageDimensionsTooLarge => "validation",
+            | LibraryError::ImageDimensionsTooLarge
+            | LibraryError::InvalidDesiredRetention { .. }
+            | LibraryError::InvalidMaximumInterval { .. } => "validation",
             LibraryError::DuplicateName { .. } | LibraryError::CardNotDue { .. } => "conflict",
             LibraryError::ConceptNotFound(_)
             | LibraryError::OrganizationNotFound { .. }
@@ -118,6 +121,25 @@ pub(crate) fn set_grading_mode(
 ) -> CommandResult<StudyPreferences> {
     ConceptLibrary::new(local_data.inner())
         .set_grading_mode(input.grading_mode)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_scheduling_settings(
+    local_data: State<'_, LocalDataStore>,
+) -> CommandResult<SchedulingSettings> {
+    ConceptLibrary::new(local_data.inner())
+        .scheduling_settings()
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn update_scheduling_settings(
+    local_data: State<'_, LocalDataStore>,
+    input: UpdateSchedulingSettingsInput,
+) -> CommandResult<SchedulingSettings> {
+    ConceptLibrary::new(local_data.inner())
+        .update_scheduling_settings(input)
         .map_err(Into::into)
 }
 

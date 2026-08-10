@@ -87,10 +87,25 @@ pub struct StudyPreferences {
     pub grading_mode: GradingMode,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchedulingSettings {
+    pub algorithm_version: String,
+    pub desired_retention: f64,
+    pub maximum_interval_days: i64,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SetGradingModeInput {
     pub grading_mode: GradingMode,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateSchedulingSettingsInput {
+    pub desired_retention: f64,
+    pub maximum_interval_days: i64,
 }
 
 #[derive(Clone, Debug, Deserialize)]

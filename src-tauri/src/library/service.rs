@@ -10,13 +10,14 @@ use crate::library::media::{
     active_concept_media_ids, query_concept_media, validate_media_ids,
 };
 use crate::library::study::{
-    create_recall_card, query_study_preferences, query_study_queue, record_review,
-    update_grading_mode,
+    create_recall_card, query_scheduling_settings, query_study_preferences,
+    query_study_queue, record_review, update_grading_mode, update_scheduling_settings,
 };
 use crate::library::{
     CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, GradingMode, LibraryError,
     LibraryResult, LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary,
-    RecordReviewInput, ReviewOutcome, StudyPreferences, StudyQueue, UpdateConceptInput,
+    RecordReviewInput, ReviewOutcome, SchedulingSettings, StudyPreferences, StudyQueue,
+    UpdateConceptInput, UpdateSchedulingSettingsInput,
 };
 
 const MAXIMUM_CONCEPT_TITLE_LENGTH: usize = 200;
@@ -65,6 +66,19 @@ impl<'store> ConceptLibrary<'store> {
     ) -> LibraryResult<StudyPreferences> {
         self.store.write_result(|transaction| {
             update_grading_mode(transaction, grading_mode)
+        })
+    }
+
+    pub fn scheduling_settings(&self) -> LibraryResult<SchedulingSettings> {
+        self.store.read_result(query_scheduling_settings)
+    }
+
+    pub fn update_scheduling_settings(
+        &self,
+        input: UpdateSchedulingSettingsInput,
+    ) -> LibraryResult<SchedulingSettings> {
+        self.store.write_result(|transaction| {
+            update_scheduling_settings(transaction, input)
         })
     }
 
@@ -943,7 +957,7 @@ mod tests {
     use crate::data::{DataResult, EntityKind, LocalDataStore};
     use crate::library::{
         ConceptContent, CreateConceptInput, GradingMode, LibraryError, RecordReviewInput,
-        ReviewRating, SchedulingState, UpdateConceptInput,
+        ReviewRating, SchedulingState, UpdateConceptInput, UpdateSchedulingSettingsInput,
     };
 
     fn test_store() -> (TempDir, LocalDataStore) {
@@ -1425,6 +1439,251 @@ mod tests {
                 .grading_mode,
             GradingMode::Advanced
         );
+    }
+
+    #[test]
+    fn scheduling_settings_create_immutable_configuration_revisions() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let defaults = library.scheduling_settings().unwrap();
+
+        assert_eq!(defaults.algorithm_version, "6.6.1");
+        assert_eq!(defaults.desired_retention, 0.9);
+        assert_eq!(defaults.maximum_interval_days, 36_500);
+
+        let original_configuration: (String, String) = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok(connection.query_row(
+                    "SELECT configuration_id, parameters_json
+                    FROM active_scheduler_configuration
+                    INNER JOIN scheduler_configurations
+                        ON scheduler_configurations.id = configuration_id
+                    WHERE singleton = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?)
+            })
+            .unwrap();
+        let updated = library
+            .update_scheduling_settings(UpdateSchedulingSettingsInput {
+                desired_retention: 0.92,
+                maximum_interval_days: 3_650,
+            })
+            .unwrap();
+        let (active_id, parameters_json, configuration_count): (String, String, i64) = store
+            .read_result(|connection| -> DataResult<_> {
+                let (active_id, parameters_json) = connection.query_row(
+                    "SELECT configuration_id, parameters_json
+                    FROM active_scheduler_configuration
+                    INNER JOIN scheduler_configurations
+                        ON scheduler_configurations.id = configuration_id
+                    WHERE singleton = 1",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?;
+                let configuration_count = connection.query_row(
+                    "SELECT COUNT(*) FROM scheduler_configurations",
+                    [],
+                    |row| row.get(0),
+                )?;
+
+                Ok((active_id, parameters_json, configuration_count))
+            })
+            .unwrap();
+
+        assert_eq!(updated.desired_retention, 0.92);
+        assert_eq!(updated.maximum_interval_days, 3_650);
+        assert_ne!(active_id, original_configuration.0);
+        assert_eq!(parameters_json, original_configuration.1);
+        assert_eq!(configuration_count, 2);
+        assert_eq!(
+            uuid::Uuid::parse_str(&active_id).unwrap().get_version(),
+            Some(uuid::Version::SortRand)
+        );
+
+        let unchanged = library
+            .update_scheduling_settings(UpdateSchedulingSettingsInput {
+                desired_retention: 0.92,
+                maximum_interval_days: 3_650,
+            })
+            .unwrap();
+        let configuration_count: i64 = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok(connection.query_row(
+                    "SELECT COUNT(*) FROM scheduler_configurations",
+                    [],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(unchanged, updated);
+        assert_eq!(configuration_count, 2);
+
+        let altered_original: DataResult<()> = store.write(|transaction| {
+            transaction.execute(
+                "UPDATE scheduler_configurations
+                SET desired_retention = 0.91
+                WHERE id = ?1",
+                [&original_configuration.0],
+            )?;
+
+            Ok(())
+        });
+
+        assert!(altered_original.is_err());
+    }
+
+    #[test]
+    fn scheduling_settings_validate_bounds_without_creating_revisions() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+
+        for desired_retention in [f64::NAN, 0.79, 0.98] {
+            assert!(matches!(
+                library.update_scheduling_settings(UpdateSchedulingSettingsInput {
+                    desired_retention,
+                    maximum_interval_days: 365,
+                }),
+                Err(LibraryError::InvalidDesiredRetention { .. })
+            ));
+        }
+
+        for maximum_interval_days in [0, 36_501] {
+            assert!(matches!(
+                library.update_scheduling_settings(UpdateSchedulingSettingsInput {
+                    desired_retention: 0.9,
+                    maximum_interval_days,
+                }),
+                Err(LibraryError::InvalidMaximumInterval { .. })
+            ));
+        }
+
+        let configuration_count: i64 = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok(connection.query_row(
+                    "SELECT COUNT(*) FROM scheduler_configurations",
+                    [],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(configuration_count, 1);
+    }
+
+    #[test]
+    fn scheduling_changes_leave_existing_due_dates_and_cap_future_intervals() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let concept = library
+            .create_concept(CreateConceptInput {
+                title: "Future scheduling settings".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+            })
+            .unwrap();
+        let card = library.study_queue().unwrap().cards[0].clone();
+        let first_review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                card.due_at,
+            )
+            .unwrap();
+
+        library
+            .update_scheduling_settings(UpdateSchedulingSettingsInput {
+                desired_retention: 0.9,
+                maximum_interval_days: 1,
+            })
+            .unwrap();
+
+        let due_at_after_settings: i64 = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok(connection.query_row(
+                    "SELECT due_at FROM card_scheduling WHERE card_id = ?1",
+                    [&card.id],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(due_at_after_settings, first_review.due_at);
+
+        let second_review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Easy,
+                },
+                first_review.due_at,
+            )
+            .unwrap();
+        let configuration_ids: Vec<String> = store
+            .read_result(|connection| -> DataResult<_> {
+                let mut statement = connection.prepare(
+                    "SELECT scheduler_configuration_id
+                    FROM reviews
+                    WHERE card_id = ?1
+                    ORDER BY reviewed_at, entity_id",
+                )?;
+                let rows = statement.query_map([&card.id], |row| row.get(0))?;
+
+                Ok(rows.collect::<Result<_, _>>()?)
+            })
+            .unwrap();
+
+        assert_eq!(second_review.scheduled_interval_days, 1.0);
+        assert_eq!(
+            second_review.due_at,
+            second_review.reviewed_at + 86_400_000
+        );
+        assert_eq!(configuration_ids.len(), 2);
+        assert_ne!(configuration_ids[0], configuration_ids[1]);
+        assert_eq!(concept.cards[0].id, card.id);
+    }
+
+    #[test]
+    fn a_failed_scheduling_settings_write_rolls_back_the_revision() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+
+        store
+            .write(|transaction| {
+                transaction.execute_batch(
+                    "CREATE TRIGGER force_scheduling_settings_failure
+                    BEFORE UPDATE ON active_scheduler_configuration
+                    FOR EACH ROW
+                    BEGIN
+                        SELECT RAISE(ABORT, 'forced scheduling settings failure');
+                    END;",
+                )?;
+
+                Ok(())
+            })
+            .unwrap();
+
+        let result = library.update_scheduling_settings(UpdateSchedulingSettingsInput {
+            desired_retention: 0.91,
+            maximum_interval_days: 3_650,
+        });
+        let configuration_count: i64 = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok(connection.query_row(
+                    "SELECT COUNT(*) FROM scheduler_configurations",
+                    [],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+
+        assert!(result.is_err());
+        assert_eq!(configuration_count, 1);
+        assert_eq!(library.scheduling_settings().unwrap().desired_retention, 0.9);
     }
 
     #[test]
