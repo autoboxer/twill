@@ -6,7 +6,7 @@ use crate::data::LocalDataStore;
 use crate::library::{
     ConceptDetail, ConceptLibrary, CreateConceptInput, CreateNamedItemInput, EntityIdInput,
     LibraryError, LibrarySnapshot, OrganizationSummary, RenameNamedItemInput,
-    SetConceptArchivedInput, StudyCard, UpdateConceptInput,
+    RecordReviewInput, ReviewOutcome, SetConceptArchivedInput, StudyQueue, UpdateConceptInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -27,21 +27,30 @@ impl From<LibraryError> for CommandError {
             | LibraryError::ImageTooLarge { .. }
             | LibraryError::UnsupportedImage
             | LibraryError::ImageDimensionsTooLarge => "validation",
-            LibraryError::DuplicateName { .. } => "conflict",
+            LibraryError::DuplicateName { .. } | LibraryError::CardNotDue { .. } => "conflict",
             LibraryError::ConceptNotFound(_)
             | LibraryError::OrganizationNotFound { .. }
             | LibraryError::InvalidSelection { .. }
-            | LibraryError::MediaNotFound(_) => "notFound",
+            | LibraryError::MediaNotFound(_)
+            | LibraryError::CardNotFound(_) => "notFound",
             LibraryError::Data(_)
             | LibraryError::Database(_)
             | LibraryError::Json(_)
-            | LibraryError::MediaIntegrity { .. } => "storage",
+            | LibraryError::MediaIntegrity { .. }
+            | LibraryError::UnsupportedSchedulerConfiguration(_)
+            | LibraryError::InvalidSchedulingState(_)
+            | LibraryError::InvalidSchedule
+            | LibraryError::Scheduler(_) => "storage",
         };
         let message = match &error {
             LibraryError::Data(_)
             | LibraryError::Database(_)
             | LibraryError::Json(_)
-            | LibraryError::MediaIntegrity { .. } => {
+            | LibraryError::MediaIntegrity { .. }
+            | LibraryError::UnsupportedSchedulerConfiguration(_)
+            | LibraryError::InvalidSchedulingState(_)
+            | LibraryError::InvalidSchedule
+            | LibraryError::Scheduler(_) => {
                 "Local data could not be accessed.".to_owned()
             }
             _ => error.to_string(),
@@ -72,11 +81,21 @@ pub(crate) fn get_concept(
 }
 
 #[tauri::command(async)]
-pub(crate) fn get_study_cards(
+pub(crate) fn get_study_queue(
     local_data: State<'_, LocalDataStore>,
-) -> CommandResult<Vec<StudyCard>> {
+) -> CommandResult<StudyQueue> {
     ConceptLibrary::new(local_data.inner())
-        .study_cards()
+        .study_queue()
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn record_review(
+    local_data: State<'_, LocalDataStore>,
+    input: RecordReviewInput,
+) -> CommandResult<ReviewOutcome> {
+    ConceptLibrary::new(local_data.inner())
+        .record_review(input)
         .map_err(Into::into)
 }
 

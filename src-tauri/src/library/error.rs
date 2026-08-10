@@ -48,6 +48,21 @@ pub enum LibraryError {
     #[error("media {0} was not found")]
     MediaNotFound(String),
 
+    #[error("card {0} was not found")]
+    CardNotFound(String),
+
+    #[error("card {card_id} is not due until {due_at}")]
+    CardNotDue { card_id: String, due_at: i64 },
+
+    #[error("scheduler configuration {0} is not supported")]
+    UnsupportedSchedulerConfiguration(String),
+
+    #[error("stored card scheduling state is not valid: {0}")]
+    InvalidSchedulingState(String),
+
+    #[error("the scheduler produced an invalid interval")]
+    InvalidSchedule,
+
     #[error("stored media file for digest {expected_digest} failed its integrity check")]
     MediaIntegrity { expected_digest: String },
 
@@ -59,4 +74,7 @@ pub enum LibraryError {
 
     #[error("local rich content could not be encoded or decoded: {0}")]
     Json(#[from] serde_json::Error),
+
+    #[error("the FSRS scheduler could not calculate the next review: {0}")]
+    Scheduler(#[from] fsrs::FSRSError),
 }

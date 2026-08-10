@@ -2,15 +2,18 @@ use std::collections::{HashMap, HashSet};
 
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::data::{EntityKind, EntityMetadata, LocalDataStore, WriteTransaction};
+use crate::data::{
+    current_timestamp, EntityKind, EntityMetadata, LocalDataStore, WriteTransaction,
+};
 use crate::library::content::validate_content;
 use crate::library::media::{
     active_concept_media_ids, query_concept_media, validate_media_ids,
 };
-use crate::library::study::{create_recall_card, query_study_cards};
+use crate::library::study::{create_recall_card, query_study_queue, record_review};
 use crate::library::{
     CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, LibraryError, LibraryResult,
-    LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary, StudyCard, UpdateConceptInput,
+    LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary, RecordReviewInput,
+    ReviewOutcome, StudyQueue, UpdateConceptInput,
 };
 
 const MAXIMUM_CONCEPT_TITLE_LENGTH: usize = 200;
@@ -41,8 +44,12 @@ impl<'store> ConceptLibrary<'store> {
             .read_result(|connection| query_concept(connection, id))
     }
 
-    pub fn study_cards(&self) -> LibraryResult<Vec<StudyCard>> {
-        self.store.read_result(query_study_cards)
+    pub fn study_queue(&self) -> LibraryResult<StudyQueue> {
+        self.study_queue_at(current_timestamp()?)
+    }
+
+    pub fn record_review(&self, input: RecordReviewInput) -> LibraryResult<ReviewOutcome> {
+        self.record_review_at(input, current_timestamp()?)
     }
 
     pub fn import_image(&self, bytes: &[u8]) -> LibraryResult<MediaSummary> {
@@ -51,6 +58,23 @@ impl<'store> ConceptLibrary<'store> {
 
     pub fn media_bytes(&self, id: &str) -> LibraryResult<Vec<u8>> {
         crate::library::media::read_media(self.store, id)
+    }
+
+    fn study_queue_at(&self, now: i64) -> LibraryResult<StudyQueue> {
+        self.store
+            .read_result(|connection| query_study_queue(connection, now))
+    }
+
+    fn record_review_at(
+        &self,
+        input: RecordReviewInput,
+        now: i64,
+    ) -> LibraryResult<ReviewOutcome> {
+        let card_id = input.card_id.trim().to_owned();
+
+        self.store.write_result(|transaction| {
+            record_review(transaction, &card_id, input.rating, now)
+        })
     }
 
     pub fn create_concept(&self, input: CreateConceptInput) -> LibraryResult<ConceptDetail> {
@@ -902,7 +926,8 @@ mod tests {
     use super::ConceptLibrary;
     use crate::data::{DataResult, EntityKind, LocalDataStore};
     use crate::library::{
-        ConceptContent, CreateConceptInput, LibraryError, UpdateConceptInput,
+        ConceptContent, CreateConceptInput, LibraryError, RecordReviewInput, ReviewRating,
+        SchedulingState, UpdateConceptInput,
     };
 
     fn test_store() -> (TempDir, LocalDataStore) {
@@ -1339,7 +1364,7 @@ mod tests {
 
         library.set_concept_archived(&archived.id, true).unwrap();
 
-        let cards = library.study_cards().unwrap();
+        let cards = library.study_queue().unwrap().cards;
 
         assert_eq!(cards.len(), 1);
         assert_eq!(cards[0].id, active.cards[0].id);
@@ -1351,7 +1376,252 @@ mod tests {
             .write(|transaction| transaction.soft_delete_entity(&cards[0].id))
             .unwrap();
 
-        assert!(library.study_cards().unwrap().is_empty());
+        assert!(library.study_queue().unwrap().cards.is_empty());
+    }
+
+    #[test]
+    fn reviews_persist_fsrs_scheduling_and_only_due_cards_are_queued() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        library
+            .create_concept(CreateConceptInput {
+                title: "Scheduled concept".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+            })
+            .unwrap();
+        let initial_queue = library.study_queue().unwrap();
+        let card = initial_queue.cards[0].clone();
+
+        assert_eq!(initial_queue.total_cards, 1);
+        assert_eq!(card.scheduling_state, SchedulingState::New);
+
+        let first_review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                card.due_at,
+            )
+            .unwrap();
+
+        assert_eq!(first_review.scheduling_state, SchedulingState::Review);
+        assert!((first_review.scheduled_interval_days - 2.3065).abs() < 0.0001);
+        assert_eq!(
+            first_review.due_at,
+            first_review.reviewed_at
+                + (first_review.scheduled_interval_days * 86_400_000.0).round() as i64
+        );
+
+        let waiting_queue = library.study_queue_at(first_review.reviewed_at).unwrap();
+
+        assert!(waiting_queue.cards.is_empty());
+        assert_eq!(waiting_queue.next_due_at, Some(first_review.due_at));
+        assert_eq!(waiting_queue.total_cards, 1);
+
+        let changes_before_duplicate = store.changes_after(0, 100).unwrap();
+        let duplicate = library.record_review_at(
+            RecordReviewInput {
+                card_id: card.id.clone(),
+                rating: ReviewRating::Good,
+            },
+            first_review.reviewed_at,
+        );
+
+        assert!(matches!(duplicate, Err(LibraryError::CardNotDue { .. })));
+        assert_eq!(
+            store.changes_after(0, 100).unwrap(),
+            changes_before_duplicate
+        );
+
+        let due_queue = library.study_queue_at(first_review.due_at).unwrap();
+
+        assert_eq!(due_queue.cards.len(), 1);
+        assert_eq!(due_queue.cards[0].id, card.id);
+
+        let lapse = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Again,
+                },
+                first_review.due_at,
+            )
+            .unwrap();
+
+        assert_eq!(lapse.scheduling_state, SchedulingState::Relearning);
+        assert!(lapse.due_at > lapse.reviewed_at);
+
+        let (review_count, lapse_count, state): (i64, i64, String) = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok(connection.query_row(
+                    "SELECT review_count, lapse_count, state
+                    FROM card_scheduling
+                    WHERE card_id = ?1",
+                    [&card.id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )?)
+            })
+            .unwrap();
+        let history: Vec<(i64, i64, String)> = store
+            .read_result(|connection| -> DataResult<_> {
+                let mut statement = connection.prepare(
+                    "SELECT rating, elapsed_days, scheduler_configuration_id
+                    FROM reviews
+                    WHERE card_id = ?1
+                    ORDER BY reviewed_at, entity_id",
+                )?;
+                let rows = statement.query_map([&card.id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+                })?;
+
+                Ok(rows.collect::<Result<_, _>>()?)
+            })
+            .unwrap();
+
+        assert_eq!(review_count, 2);
+        assert_eq!(lapse_count, 1);
+        assert_eq!(state, "relearning");
+        assert_eq!(
+            history,
+            vec![
+                (3, 0, "fsrs-6.6.1-default-0.90".to_owned()),
+                (1, 2, "fsrs-6.6.1-default-0.90".to_owned()),
+            ]
+        );
+
+        let altered_history: DataResult<()> = store.write(|transaction| {
+            transaction.execute(
+                "UPDATE reviews SET rating = 4 WHERE entity_id = ?1",
+                [&first_review.review_id],
+            )?;
+
+            Ok(())
+        });
+        let removed_history: DataResult<()> = store.write(|transaction| {
+            transaction.execute(
+                "DELETE FROM reviews WHERE entity_id = ?1",
+                [&first_review.review_id],
+            )?;
+
+            Ok(())
+        });
+
+        assert!(altered_history.is_err());
+        assert!(removed_history.is_err());
+    }
+
+    #[test]
+    fn a_failed_new_card_enters_learning_without_counting_a_lapse() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+
+        library
+            .create_concept(CreateConceptInput {
+                title: "Learning concept".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+            })
+            .unwrap();
+
+        let card = library.study_queue().unwrap().cards[0].clone();
+        let review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Again,
+                },
+                card.due_at,
+            )
+            .unwrap();
+
+        assert_eq!(review.scheduling_state, SchedulingState::Learning);
+        assert!((review.scheduled_interval_days - 0.212).abs() < 0.0001);
+
+        let lapse_count: i64 = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok(connection.query_row(
+                    "SELECT lapse_count
+                    FROM card_scheduling
+                    WHERE card_id = ?1",
+                    [&card.id],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(lapse_count, 0);
+    }
+
+    #[test]
+    fn a_failed_review_write_rolls_back_the_event_and_schedule() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let concept = library
+            .create_concept(CreateConceptInput {
+                title: "Rollback".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+            })
+            .unwrap();
+        let card = library.study_queue().unwrap().cards[0].clone();
+
+        store
+            .write(|transaction| {
+                transaction.execute_batch(
+                    "CREATE TRIGGER force_review_failure
+                    AFTER INSERT ON reviews
+                    FOR EACH ROW
+                    BEGIN
+                        SELECT RAISE(ABORT, 'forced review failure');
+                    END;",
+                )?;
+
+                Ok(())
+            })
+            .unwrap();
+
+        let changes_before = store.changes_after(0, 100).unwrap();
+        let result = library.record_review_at(
+            RecordReviewInput {
+                card_id: card.id.clone(),
+                rating: ReviewRating::Good,
+            },
+            card.due_at,
+        );
+
+        assert!(result.is_err());
+        assert_eq!(store.changes_after(0, 100).unwrap(), changes_before);
+
+        let (review_entities, reviews, review_count): (i64, i64, i64) = store
+            .read_result(|connection| -> DataResult<_> {
+                let review_entities = connection.query_row(
+                    "SELECT COUNT(*) FROM entities WHERE kind = 'review'",
+                    [],
+                    |row| row.get(0),
+                )?;
+                let reviews = connection.query_row(
+                    "SELECT COUNT(*) FROM reviews",
+                    [],
+                    |row| row.get(0),
+                )?;
+                let review_count = connection.query_row(
+                    "SELECT review_count
+                    FROM card_scheduling
+                    WHERE card_id = ?1",
+                    [&concept.cards[0].id],
+                    |row| row.get(0),
+                )?;
+
+                Ok((review_entities, reviews, review_count))
+            })
+            .unwrap();
+
+        assert_eq!((review_entities, reviews, review_count), (0, 0, 0));
     }
 
     #[test]

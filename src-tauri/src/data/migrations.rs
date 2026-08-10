@@ -24,6 +24,9 @@ fn migrations() -> Migrations<'static> {
         )),
         M::up_with_hook("SELECT 1;", backfill_recall_cards)
             .comment("Create a default recall card for existing concepts"),
+        M::up(include_str!(
+            "../../migrations/0005_fsrs_scheduling.sql"
+        )),
     ])
 }
 
@@ -97,7 +100,7 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 4);
+        assert_eq!(version, 5);
     }
 
     #[test]
@@ -307,6 +310,116 @@ mod tests {
     }
 
     #[test]
+    fn scheduling_is_added_to_existing_recall_cards() {
+        let mut connection = Connection::open_in_memory().unwrap();
+
+        migrations().to_version(&mut connection, 3).unwrap();
+
+        let transaction = connection.transaction().unwrap();
+
+        transaction
+            .execute(
+                "INSERT INTO change_log (id, entity_id, operation, recorded_at)
+                VALUES (?1, ?2, 'create', 1000)",
+                [
+                    "018f1e2d-3c4b-7a69-8f10-123456789abc",
+                    "018f1e2d-3c4b-7a69-8f10-123456789abd",
+                ],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO entities (
+                    id,
+                    kind,
+                    created_at,
+                    updated_at,
+                    deleted_at,
+                    revision,
+                    last_change_id
+                ) VALUES (?1, 'concept', 1000, 1000, NULL, 1, ?2)",
+                [
+                    "018f1e2d-3c4b-7a69-8f10-123456789abd",
+                    "018f1e2d-3c4b-7a69-8f10-123456789abc",
+                ],
+            )
+            .unwrap();
+        transaction
+            .execute(
+                "INSERT INTO concepts (
+                    entity_id,
+                    title,
+                    archived_at,
+                    last_change_id,
+                    content_json
+                ) VALUES (?1, 'Existing concept', NULL, ?2, ?3)",
+                (
+                    "018f1e2d-3c4b-7a69-8f10-123456789abd",
+                    "018f1e2d-3c4b-7a69-8f10-123456789abc",
+                    r#"{"schemaVersion":1,"prompt":{"type":"doc","content":[{"type":"paragraph"}]},"answer":{"type":"doc","content":[{"type":"paragraph"}]}}"#,
+                ),
+            )
+            .unwrap();
+        transaction.commit().unwrap();
+
+        migrations().to_version(&mut connection, 4).unwrap();
+
+        let card_id: String = connection
+            .query_row("SELECT entity_id FROM cards", [], |row| row.get(0))
+            .unwrap();
+        let card_created_at: i64 = connection
+            .query_row(
+                "SELECT created_at FROM entities WHERE id = ?1",
+                [&card_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        apply(&mut connection).unwrap();
+
+        let configuration: (String, String, String, f64) = connection
+            .query_row(
+                "SELECT
+                    scheduler_configurations.id,
+                    scheduler_configurations.algorithm,
+                    scheduler_configurations.algorithm_version,
+                    scheduler_configurations.desired_retention
+                FROM active_scheduler_configuration
+                INNER JOIN scheduler_configurations
+                    ON scheduler_configurations.id = configuration_id",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        let parameters_json: String = connection
+            .query_row(
+                "SELECT parameters_json
+                FROM scheduler_configurations
+                WHERE id = 'fsrs-6.6.1-default-0.90'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let parameters: Vec<f32> = serde_json::from_str(&parameters_json).unwrap();
+        let schedule: (String, i64, i64) = connection
+            .query_row(
+                "SELECT state, due_at, review_count
+                FROM card_scheduling
+                WHERE card_id = ?1",
+                [&card_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .unwrap();
+
+        assert_eq!(configuration.0, "fsrs-6.6.1-default-0.90");
+        assert_eq!(configuration.1, "fsrs");
+        assert_eq!(configuration.2, "6.6.1");
+        assert_eq!(configuration.3, 0.9);
+        assert_eq!(parameters, fsrs::DEFAULT_PARAMETERS);
+        assert_eq!(schedule, ("new".to_owned(), card_created_at, 0));
+    }
+
+    #[test]
     fn a_failed_migration_rolls_back_the_whole_schema_update() {
         let migrations = Migrations::new(vec![
             M::up("CREATE TABLE survives_only_on_success (id INTEGER);"),
@@ -337,7 +450,7 @@ mod tests {
         let mut connection = Connection::open_in_memory().unwrap();
 
         connection
-            .pragma_update(None, "user_version", 5)
+            .pragma_update(None, "user_version", 6)
             .unwrap();
 
         assert!(apply(&mut connection).is_err());
@@ -346,6 +459,6 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
     }
 }

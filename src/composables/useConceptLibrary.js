@@ -48,10 +48,13 @@ export function useConceptLibrary() {
     error,
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
     getLibrary: ( includeArchived = false ) => run( 'get_library', { includeArchived }),
-    getStudyCards: () => run( 'get_study_cards' ),
+    getStudyQueue: () => run( 'get_study_queue' ),
     importImage: ( bytes ) => run( 'import_image', bytes ),
     isPending,
     readMedia: ( mediaId ) => run( 'read_media', { mediaId }),
+    recordReview: ( cardId, rating ) => run( 'record_review', {
+      input: { cardId, rating }
+    }),
     renameDeck: ( id, name ) => run( 'rename_deck', { input: { id, name } }),
     renameTag: ( id, name ) => run( 'rename_tag', { input: { id, name } }),
     setConceptArchived: ( id, archived ) => run( 'set_concept_archived', {

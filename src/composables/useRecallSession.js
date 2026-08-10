@@ -77,7 +77,6 @@ export function useRecallSession() {
     position,
     progress,
     recalledCount,
-    restart,
     revealAnswer,
     totalCards
   };
