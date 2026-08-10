@@ -170,6 +170,15 @@ impl LocalDataStore {
 impl WriteTransaction<'_> {
     pub fn create_entity(&self, kind: EntityKind) -> DataResult<EntityMetadata> {
         let timestamp = current_timestamp()?;
+
+        self.create_entity_at(kind, timestamp)
+    }
+
+    pub(crate) fn create_entity_at(
+        &self,
+        kind: EntityKind,
+        timestamp: i64,
+    ) -> DataResult<EntityMetadata> {
         let entity_id = new_id();
         let change_id = record_change(
             self,
@@ -322,7 +331,7 @@ fn query_entity(connection: &Connection, id: &str) -> DataResult<Option<EntityMe
     .transpose()
 }
 
-pub(super) fn current_timestamp() -> DataResult<i64> {
+pub(crate) fn current_timestamp() -> DataResult<i64> {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| DataError::InvalidSystemTime)?
@@ -352,7 +361,7 @@ mod tests {
 
         let store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 4);
+        assert_eq!(store.schema_version().unwrap(), 5);
         assert!(data_directory.join(DATABASE_FILENAME).is_file());
 
         let connection = store.connection().unwrap();
@@ -376,7 +385,7 @@ mod tests {
 
         let reopened_store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(reopened_store.schema_version().unwrap(), 4);
+        assert_eq!(reopened_store.schema_version().unwrap(), 5);
     }
 
     #[test]

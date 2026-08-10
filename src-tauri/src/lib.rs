@@ -18,6 +18,8 @@ pub fn run() {
             library::commands::get_library,
             library::commands::get_concept,
             library::commands::get_study_cards,
+            library::commands::get_study_queue,
+            library::commands::record_review,
             library::commands::create_concept,
             library::commands::update_concept,
             library::commands::set_concept_archived,

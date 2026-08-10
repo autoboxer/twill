@@ -44,6 +44,53 @@ pub struct StudyCard {
     pub concept_id: String,
     pub concept_title: String,
     pub content: ConceptContent,
+    pub scheduling_state: SchedulingState,
+    pub due_at: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudyQueue {
+    pub cards: Vec<StudyCard>,
+    pub next_due_at: Option<i64>,
+    pub total_cards: i64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SchedulingState {
+    New,
+    Learning,
+    Review,
+    Relearning,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReviewRating {
+    Again = 1,
+    Hard = 2,
+    Good = 3,
+    Easy = 4,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RecordReviewInput {
+    pub card_id: String,
+    pub rating: ReviewRating,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewOutcome {
+    pub review_id: String,
+    pub card_id: String,
+    pub rating: ReviewRating,
+    pub scheduling_state: SchedulingState,
+    pub reviewed_at: i64,
+    pub due_at: i64,
+    pub scheduled_interval_days: f64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
