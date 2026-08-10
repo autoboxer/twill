@@ -44,6 +44,7 @@ const isOpen = computed({
   get: () => props.open,
   set: ( value ) => emit( 'update:open', value )
 });
+
 const deleteDialogOpen = computed({
   get: () => Boolean( deleteTarget.value ),
   set: ( value ) => {
@@ -52,6 +53,7 @@ const deleteDialogOpen = computed({
     }
   }
 });
+
 const deleteTargetKind = computed( () => deleteTarget.value?.kind ?? activeKind.value );
 const items = computed( () => activeKind.value === 'deck' ? props.decks : props.tags );
 const itemLabel = computed( () => activeKind.value === 'deck' ? 'deck' : 'tag' );

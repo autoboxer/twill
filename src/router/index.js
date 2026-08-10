@@ -8,6 +8,7 @@ const routes = [
     path: '/',
     redirect: '/study'
   },
+
   {
     path: '/study',
     name: 'study',
@@ -16,6 +17,7 @@ const routes = [
       title: 'Study'
     }
   },
+
   {
     path: '/library',
     name: 'library',
@@ -24,6 +26,7 @@ const routes = [
       title: 'Library'
     }
   },
+
   {
     path: '/library/:conceptId/edit',
     name: 'concept-edit',
@@ -32,6 +35,7 @@ const routes = [
       title: 'Edit concept'
     }
   },
+
   {
     path: '/library/:conceptId',
     name: 'concept-detail',
@@ -40,6 +44,7 @@ const routes = [
       title: 'Concept'
     }
   },
+
   {
     path: '/create',
     name: 'create',
@@ -48,6 +53,7 @@ const routes = [
       title: 'Create'
     }
   },
+
   {
     path: '/settings',
     name: 'settings',
@@ -56,6 +62,7 @@ const routes = [
       title: 'Settings'
     }
   },
+
   {
     path: '/:pathMatch(.*)*',
     redirect: '/study'

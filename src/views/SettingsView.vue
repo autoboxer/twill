@@ -23,6 +23,7 @@ const form = reactive({
   desiredRetentionPercent: DEFAULT_DESIRED_RETENTION_PERCENT,
   maximumIntervalDays: DEFAULT_MAXIMUM_INTERVAL_DAYS
 });
+
 const initialLoading = ref( true );
 const loadError = ref( '' );
 const saveAttempted = ref( false );
@@ -41,6 +42,7 @@ const panelTransition = {
 const desiredRetention = computed( () => {
   return Number( form.desiredRetentionPercent ) / 100;
 });
+
 const desiredRetentionError = computed( () => {
   if ( !saveAttempted.value ) {
     return '';
@@ -58,6 +60,7 @@ const desiredRetentionError = computed( () => {
 
   return '';
 });
+
 const maximumIntervalError = computed( () => {
   if ( !saveAttempted.value ) {
     return '';
@@ -75,6 +78,7 @@ const maximumIntervalError = computed( () => {
 
   return '';
 });
+
 const formValid = computed( () => {
   const retention = Number( form.desiredRetentionPercent );
   const maximumInterval = Number( form.maximumIntervalDays );
@@ -86,6 +90,7 @@ const formValid = computed( () => {
     && maximumInterval >= MINIMUM_INTERVAL_DAYS
     && maximumInterval <= MAXIMUM_INTERVAL_DAYS;
 });
+
 const hasChanges = computed( () => {
   if ( !savedSettings.value || !formValid.value ) {
     return false;
@@ -94,6 +99,7 @@ const hasChanges = computed( () => {
   return desiredRetention.value !== savedSettings.value.desiredRetention
     || Number( form.maximumIntervalDays ) !== savedSettings.value.maximumIntervalDays;
 });
+
 const defaultsActive = computed( () => {
   return Number( form.desiredRetentionPercent )
       === DEFAULT_DESIRED_RETENTION_PERCENT
@@ -103,6 +109,7 @@ const defaultsActive = computed( () => {
     && savedSettings.value?.maximumIntervalDays
       === DEFAULT_MAXIMUM_INTERVAL_DAYS;
 });
+
 const maximumIntervalSummary = computed( () => {
   const days = Number( form.maximumIntervalDays );
 
@@ -130,6 +137,7 @@ const maximumIntervalSummary = computed( () => {
 });
 
 onMounted( loadSettings );
+
 onBeforeUnmount( () => {
   viewActive = false;
   loadRequestSequence += 1;

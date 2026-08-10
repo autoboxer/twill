@@ -57,10 +57,12 @@ const cardTransition = {
   duration: 0.22,
   ease: [ 0.22, 1, 0.36, 1 ]
 };
+
 const gradingModeItems = [
   { label: 'Simple', value: 'simple' },
   { label: 'Advanced', value: 'advanced' }
 ];
+
 const gradingOptionsByMode = {
   simple: [
     {
@@ -71,6 +73,7 @@ const gradingOptionsByMode = {
       shortcut: '1',
       variant: 'soft'
     },
+
     {
       color: 'primary',
       icon: 'i-lucide-check',
@@ -89,6 +92,7 @@ const gradingOptionsByMode = {
       shortcut: '1',
       variant: 'soft'
     },
+
     {
       color: 'warning',
       icon: 'i-lucide-gauge',
@@ -97,6 +101,7 @@ const gradingOptionsByMode = {
       shortcut: '2',
       variant: 'soft'
     },
+
     {
       color: 'primary',
       icon: 'i-lucide-check',
@@ -105,6 +110,7 @@ const gradingOptionsByMode = {
       shortcut: '3',
       variant: 'soft'
     },
+
     {
       color: 'success',
       icon: 'i-lucide-sparkles',
@@ -119,9 +125,11 @@ const gradingOptionsByMode = {
 const gradingModeLocked = computed( () => {
   return completedCount.value > 0 && !isComplete.value;
 });
+
 const gradingOptions = computed( () => {
   return gradingOptionsByMode[ gradingMode.value ];
 });
+
 const sessionResultItems = computed( () => {
   if ( sessionGradingMode.value === 'simple' ) {
     return [
@@ -153,6 +161,7 @@ onMounted( () => {
   window.addEventListener( 'keydown', handleStudyKeydown );
   loadStudyQueue();
 });
+
 onBeforeUnmount( () => {
   viewActive = false;
   loadRequestSequence += 1;
