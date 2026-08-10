@@ -3,6 +3,12 @@ CREATE TABLE concepts (
     title TEXT NOT NULL CHECK (
         length(trim(title)) BETWEEN 1 AND 200
     ),
+    content_json TEXT NOT NULL
+        DEFAULT '{"schemaVersion":1,"prompt":{"type":"doc","content":[{"type":"paragraph"}]},"answer":{"type":"doc","content":[{"type":"paragraph"}]}}'
+        CHECK (
+            json_valid(content_json)
+            AND json_type(content_json) = 'object'
+        ),
     archived_at INTEGER CHECK (archived_at IS NULL OR archived_at >= 0),
     last_change_id TEXT NOT NULL,
     FOREIGN KEY (entity_id) REFERENCES entities(id),

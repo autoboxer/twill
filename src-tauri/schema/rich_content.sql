@@ -1,11 +1,3 @@
-ALTER TABLE concepts
-ADD COLUMN content_json TEXT NOT NULL
-DEFAULT '{"schemaVersion":1,"prompt":{"type":"doc","content":[{"type":"paragraph"}]},"answer":{"type":"doc","content":[{"type":"paragraph"}]}}'
-CHECK (
-    json_valid(content_json)
-    AND json_type(content_json) = 'object'
-);
-
 CREATE TABLE media (
     entity_id TEXT PRIMARY KEY NOT NULL,
     digest TEXT NOT NULL UNIQUE CHECK (length(digest) = 64),

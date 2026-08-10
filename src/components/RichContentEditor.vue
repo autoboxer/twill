@@ -49,8 +49,10 @@ const document = computed({
   get: () => props.modelValue,
   set: ( value ) => emit( 'update:modelValue', value )
 });
+
 const extensions = createRichContentExtensions({ onEditMath });
 const starterKit = richContentStarterKit( true );
+
 const linkError = computed( () => {
   if ( !linkSubmitted.value ) {
     return '';
@@ -77,6 +79,7 @@ const linkError = computed( () => {
 
   return '';
 });
+
 const mathError = computed( () => {
   if ( !mathSubmitted.value ) {
     return '';
@@ -92,6 +95,7 @@ const mathError = computed( () => {
 
   return '';
 });
+
 const toolbarItems = [
   [
     {

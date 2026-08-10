@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use uuid::Uuid;
 
-use crate::data::migrations;
+use crate::data::schema;
 use crate::data::{
     ChangeOperation, ChangeRecord, DataError, DataResult, EntityKind, EntityMetadata,
 };
@@ -147,7 +147,7 @@ impl LocalDataStore {
         data_directory: PathBuf,
     ) -> DataResult<Self> {
         configure_connection(&connection)?;
-        migrations::apply(&mut connection)?;
+        schema::ensure_current(&mut connection)?;
 
         Ok(Self {
             connection: Mutex::new(connection),
@@ -361,7 +361,7 @@ mod tests {
 
         let store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 7);
+        assert_eq!(store.schema_version().unwrap(), 1);
         assert!(data_directory.join(DATABASE_FILENAME).is_file());
 
         let connection = store.connection().unwrap();
@@ -385,7 +385,7 @@ mod tests {
 
         let reopened_store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(reopened_store.schema_version().unwrap(), 7);
+        assert_eq!(reopened_store.schema_version().unwrap(), 1);
     }
 
     #[test]

@@ -43,16 +43,19 @@ const form = reactive({
   tagIds: [],
   title: ''
 });
+
 const submitted = ref( false );
 
 const deckItems = computed( () => props.decks.map( ( deck ) => ({
   label: deck.name,
   value: deck.id
 }) ) );
+
 const tagItems = computed( () => props.tags.map( ( tag ) => ({
   label: tag.name,
   value: tag.id
 }) ) );
+
 const titleError = computed( () => {
   if ( !submitted.value || form.title.trim() ) {
     return '';
@@ -60,6 +63,7 @@ const titleError = computed( () => {
 
   return 'Concept title cannot be empty.';
 });
+
 const titleLength = computed( () => Array.from( form.title ).length );
 const submitLabel = computed( () => props.mode === 'edit' ? 'Save changes' : 'Create concept' );
 

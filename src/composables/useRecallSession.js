@@ -20,12 +20,15 @@ export function useRecallSession() {
   const completedCount = computed( () => currentIndex.value );
   const currentCard = computed( () => cards.value[ currentIndex.value ] ?? null );
   const hasCards = computed( () => cards.value.length > 0 );
+
   const isComplete = computed( () => {
     return hasCards.value && currentIndex.value >= cards.value.length;
   });
+
   const position = computed( () => {
     return Math.min( currentIndex.value + 1, cards.value.length );
   });
+
   const progress = computed( () => {
     if ( !cards.value.length ) {
       return 0;
@@ -33,6 +36,7 @@ export function useRecallSession() {
 
     return completedCount.value / cards.value.length * 100;
   });
+
   const totalCards = computed( () => cards.value.length );
 
   function begin( studyCards ) {

@@ -21,6 +21,7 @@ const library = ref({
   decks: [],
   tags: []
 });
+
 const loadError = ref( '' );
 const organizationManagerOpen = ref( false );
 let loadRequestSequence = 0;
@@ -40,6 +41,7 @@ const filteredConcepts = computed( () => {
 
   return library.value.concepts;
 });
+
 const activeFilterName = computed( () => {
   if ( activeFilter.value.kind === 'all' ) {
     return 'All concepts';
