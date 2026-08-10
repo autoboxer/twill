@@ -1,6 +1,6 @@
 mod entity;
 mod error;
-mod migrations;
+mod schema;
 mod store;
 
 pub use entity::{ChangeOperation, ChangeRecord, EntityKind, EntityMetadata};

@@ -11,6 +11,9 @@ CREATE TABLE scheduler_configurations (
         desired_retention > 0.0
         AND desired_retention < 1.0
     ),
+    maximum_interval_days INTEGER NOT NULL DEFAULT 36500 CHECK (
+        maximum_interval_days BETWEEN 1 AND 36500
+    ),
     created_at INTEGER NOT NULL CHECK (created_at >= 0)
 ) STRICT;
 
@@ -203,6 +206,7 @@ INSERT INTO scheduler_configurations (
     algorithm_version,
     parameters_json,
     desired_retention,
+    maximum_interval_days,
     created_at
 ) VALUES (
     'fsrs-6.6.1-default-0.90',
@@ -210,33 +214,9 @@ INSERT INTO scheduler_configurations (
     '6.6.1',
     '[0.212,1.2931,2.3065,8.2956,6.4133,0.8334,3.0194,0.001,1.8722,0.1666,0.796,1.4835,0.0614,0.2629,1.6483,0.6014,1.8729,0.5425,0.0912,0.0658,0.1542]',
     0.90,
+    36500,
     0
 );
 
 INSERT INTO active_scheduler_configuration (singleton, configuration_id)
 VALUES (1, 'fsrs-6.6.1-default-0.90');
-
-INSERT INTO card_scheduling (
-    card_id,
-    state,
-    due_at,
-    stability,
-    difficulty,
-    last_reviewed_at,
-    last_review_id,
-    review_count,
-    lapse_count
-)
-SELECT
-    cards.entity_id,
-    'new',
-    entities.created_at,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    0,
-    0
-FROM cards
-INNER JOIN entities ON entities.id = cards.entity_id
-WHERE entities.deleted_at IS NULL;

@@ -10,7 +10,7 @@ pub enum DataError {
     Database(#[from] rusqlite::Error),
 
     #[error("the local data schema could not be updated: {0}")]
-    Migration(#[from] rusqlite_migration::Error),
+    Schema(#[from] rusqlite_migration::Error),
 
     #[error("the local data directory could not be prepared: {0}")]
     Io(#[from] io::Error),
