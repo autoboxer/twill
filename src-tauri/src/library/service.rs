@@ -9,11 +9,14 @@ use crate::library::content::validate_content;
 use crate::library::media::{
     active_concept_media_ids, query_concept_media, validate_media_ids,
 };
-use crate::library::study::{create_recall_card, query_study_queue, record_review};
+use crate::library::study::{
+    create_recall_card, query_study_preferences, query_study_queue, record_review,
+    update_grading_mode,
+};
 use crate::library::{
-    CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, LibraryError, LibraryResult,
-    LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary, RecordReviewInput,
-    ReviewOutcome, StudyQueue, UpdateConceptInput,
+    CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, GradingMode, LibraryError,
+    LibraryResult, LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary,
+    RecordReviewInput, ReviewOutcome, StudyPreferences, StudyQueue, UpdateConceptInput,
 };
 
 const MAXIMUM_CONCEPT_TITLE_LENGTH: usize = 200;
@@ -50,6 +53,19 @@ impl<'store> ConceptLibrary<'store> {
 
     pub fn record_review(&self, input: RecordReviewInput) -> LibraryResult<ReviewOutcome> {
         self.record_review_at(input, current_timestamp()?)
+    }
+
+    pub fn study_preferences(&self) -> LibraryResult<StudyPreferences> {
+        self.store.read_result(query_study_preferences)
+    }
+
+    pub fn set_grading_mode(
+        &self,
+        grading_mode: GradingMode,
+    ) -> LibraryResult<StudyPreferences> {
+        self.store.write_result(|transaction| {
+            update_grading_mode(transaction, grading_mode)
+        })
     }
 
     pub fn import_image(&self, bytes: &[u8]) -> LibraryResult<MediaSummary> {
@@ -926,8 +942,8 @@ mod tests {
     use super::ConceptLibrary;
     use crate::data::{DataResult, EntityKind, LocalDataStore};
     use crate::library::{
-        ConceptContent, CreateConceptInput, LibraryError, RecordReviewInput, ReviewRating,
-        SchedulingState, UpdateConceptInput,
+        ConceptContent, CreateConceptInput, GradingMode, LibraryError, RecordReviewInput,
+        ReviewRating, SchedulingState, UpdateConceptInput,
     };
 
     fn test_store() -> (TempDir, LocalDataStore) {
@@ -1377,6 +1393,38 @@ mod tests {
             .unwrap();
 
         assert!(library.study_queue().unwrap().cards.is_empty());
+    }
+
+    #[test]
+    fn grading_mode_is_a_durable_device_local_preference() {
+        let directory = tempdir().unwrap();
+
+        {
+            let store = LocalDataStore::open(directory.path()).unwrap();
+            let library = ConceptLibrary::new(&store);
+
+            assert_eq!(
+                library.study_preferences().unwrap().grading_mode,
+                GradingMode::Simple
+            );
+
+            let changes_before = store.changes_after(0, 100).unwrap();
+            let preferences = library.set_grading_mode(GradingMode::Advanced).unwrap();
+
+            assert_eq!(preferences.grading_mode, GradingMode::Advanced);
+            assert_eq!(store.changes_after(0, 100).unwrap(), changes_before);
+        }
+
+        let reopened_store = LocalDataStore::open(directory.path()).unwrap();
+        let reopened_library = ConceptLibrary::new(&reopened_store);
+
+        assert_eq!(
+            reopened_library
+                .study_preferences()
+                .unwrap()
+                .grading_mode,
+            GradingMode::Advanced
+        );
     }
 
     #[test]

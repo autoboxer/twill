@@ -60,6 +60,9 @@ pub enum LibraryError {
     #[error("stored card scheduling state is not valid: {0}")]
     InvalidSchedulingState(String),
 
+    #[error("stored grading mode is not valid: {0}")]
+    InvalidGradingMode(String),
+
     #[error("the scheduler produced an invalid interval")]
     InvalidSchedule,
 

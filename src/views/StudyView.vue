@@ -10,12 +10,17 @@ import {
   useConceptLibrary
 } from '../composables/useConceptLibrary';
 import { useRecallSession } from '../composables/useRecallSession';
+import { useStudyPreferences } from '../composables/useStudyPreferences';
 
 const {
   clearError,
   getStudyQueue,
   recordReview
 } = useConceptLibrary();
+const {
+  getStudyPreferences,
+  setGradingMode
+} = useStudyPreferences();
 const {
   answerRevealed,
   assess,
@@ -24,10 +29,9 @@ const {
   currentCard,
   hasCards,
   isComplete,
-  needsWorkCount,
   position,
   progress,
-  recalledCount,
+  ratingCounts,
   revealAnswer,
   totalCards
 } = useRecallSession();
@@ -36,11 +40,15 @@ const answerHeading = ref( null );
 const assessmentError = ref( '' );
 const assessmentPending = ref( false );
 const completionHeading = ref( null );
+const gradingMode = ref( 'simple' );
+const gradingModeError = ref( '' );
+const gradingModePending = ref( false );
 const initialLoading = ref( true );
 const loadError = ref( '' );
 const nextDueAt = ref( null );
 const pendingAssessment = ref( '' );
 const revealButton = ref( null );
+const sessionGradingMode = ref( 'simple' );
 const totalAvailableCards = ref( 0 );
 let loadRequestSequence = 0;
 let viewActive = true;
@@ -49,10 +57,84 @@ const cardTransition = {
   duration: 0.22,
   ease: [ 0.22, 1, 0.36, 1 ]
 };
-const reviewRatings = {
-  needsWork: 'again',
-  recalled: 'good'
+const gradingModeItems = [
+  { label: 'Simple', value: 'simple' },
+  { label: 'Advanced', value: 'advanced' }
+];
+const gradingOptionsByMode = {
+  simple: [
+    {
+      color: 'error',
+      icon: 'i-lucide-rotate-ccw',
+      label: 'Forgot',
+      rating: 'again',
+      shortcut: '1',
+      variant: 'soft'
+    },
+    {
+      color: 'primary',
+      icon: 'i-lucide-check',
+      label: 'Remembered',
+      rating: 'good',
+      shortcut: '2',
+      variant: 'solid'
+    }
+  ],
+  advanced: [
+    {
+      color: 'error',
+      icon: 'i-lucide-rotate-ccw',
+      label: 'Again',
+      rating: 'again',
+      shortcut: '1',
+      variant: 'soft'
+    },
+    {
+      color: 'warning',
+      icon: 'i-lucide-gauge',
+      label: 'Hard',
+      rating: 'hard',
+      shortcut: '2',
+      variant: 'soft'
+    },
+    {
+      color: 'primary',
+      icon: 'i-lucide-check',
+      label: 'Good',
+      rating: 'good',
+      shortcut: '3',
+      variant: 'soft'
+    },
+    {
+      color: 'success',
+      icon: 'i-lucide-sparkles',
+      label: 'Easy',
+      rating: 'easy',
+      shortcut: '4',
+      variant: 'soft'
+    }
+  ]
 };
+
+const gradingModeLocked = computed( () => {
+  return completedCount.value > 0 && !isComplete.value;
+});
+const gradingOptions = computed( () => {
+  return gradingOptionsByMode[ gradingMode.value ];
+});
+const sessionResultItems = computed( () => {
+  if ( sessionGradingMode.value === 'simple' ) {
+    return [
+      { label: 'Remembered', rating: 'good' },
+      { label: 'Forgot', rating: 'again' }
+    ];
+  }
+
+  return gradingOptionsByMode.advanced.map( ( option ) => ({
+    label: option.label,
+    rating: option.rating
+  }) );
+});
 
 const nextReviewDescription = computed( () => {
   if ( nextDueAt.value === null ) {
@@ -67,28 +149,42 @@ const nextReviewDescription = computed( () => {
   return `Next review: ${ formattedTime }`;
 });
 
-onMounted( loadStudyQueue );
+onMounted( () => {
+  window.addEventListener( 'keydown', handleStudyKeydown );
+  loadStudyQueue();
+});
 onBeforeUnmount( () => {
   viewActive = false;
   loadRequestSequence += 1;
+  window.removeEventListener( 'keydown', handleStudyKeydown );
 });
 
 async function loadStudyQueue() {
+  if ( gradingModePending.value ) {
+    return;
+  }
+
   const request = ++loadRequestSequence;
 
   clearError();
+  gradingModeError.value = '';
   loadError.value = '';
   initialLoading.value = true;
 
   try {
-    const queue = await getStudyQueue();
+    const [ queue, preferences ] = await Promise.all([
+      getStudyQueue(),
+      getStudyPreferences()
+    ]);
 
     if ( request !== loadRequestSequence ) {
       return;
     }
 
     begin( queue.cards );
+    gradingMode.value = preferences.gradingMode;
     nextDueAt.value = queue.nextDueAt;
+    sessionGradingMode.value = preferences.gradingMode;
     totalAvailableCards.value = queue.totalCards;
   } catch ( cause ) {
     if ( request === loadRequestSequence ) {
@@ -107,12 +203,15 @@ async function showAnswer() {
   answerHeading.value?.focus();
 }
 
-async function recordAssessment( outcome ) {
-  const rating = reviewRatings[ outcome ];
+async function recordAssessment( rating ) {
+  const visibleRating = gradingOptions.value.some( ( option ) => {
+    return option.rating === rating;
+  });
 
   if (
-    !rating
+    !visibleRating
     || assessmentPending.value
+    || gradingModePending.value
     || !answerRevealed.value
     || !currentCard.value
   ) {
@@ -123,7 +222,11 @@ async function recordAssessment( outcome ) {
 
   assessmentError.value = '';
   assessmentPending.value = true;
-  pendingAssessment.value = outcome;
+  pendingAssessment.value = rating;
+
+  if ( completedCount.value === 0 ) {
+    sessionGradingMode.value = gradingMode.value;
+  }
 
   try {
     await recordReview( cardId, rating );
@@ -132,7 +235,7 @@ async function recordAssessment( outcome ) {
       return;
     }
 
-    assess( outcome );
+    assess( rating );
     await nextTick();
 
     focusCurrentState();
@@ -145,6 +248,76 @@ async function recordAssessment( outcome ) {
       assessmentPending.value = false;
       pendingAssessment.value = '';
     }
+  }
+}
+
+async function updateGradingMode( nextMode ) {
+  if (
+    gradingModePending.value
+    || assessmentPending.value
+    || gradingModeLocked.value
+    || !gradingOptionsByMode[ nextMode ]
+    || nextMode === gradingMode.value
+  ) {
+    return;
+  }
+
+  gradingModeError.value = '';
+  gradingModePending.value = true;
+
+  try {
+    const preferences = await setGradingMode( nextMode );
+
+    if ( !viewActive ) {
+      return;
+    }
+
+    gradingMode.value = preferences.gradingMode;
+
+    if ( completedCount.value === 0 ) {
+      sessionGradingMode.value = preferences.gradingMode;
+    }
+  } catch ( cause ) {
+    if ( viewActive ) {
+      gradingModeError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      gradingModePending.value = false;
+    }
+  }
+}
+
+function handleStudyKeydown( event ) {
+  const target = event.target;
+  const editing = target instanceof HTMLElement && (
+    target.isContentEditable
+    || [ 'INPUT', 'SELECT', 'TEXTAREA' ].includes( target.tagName )
+    || Boolean( target.closest( '[role="combobox"], [role="listbox"]' ) )
+  );
+
+  if (
+    editing
+    || event.defaultPrevented
+    || event.repeat
+    || event.altKey
+    || event.ctrlKey
+    || event.metaKey
+    || event.shiftKey
+    || !answerRevealed.value
+    || assessmentPending.value
+    || gradingModePending.value
+  ) {
+    return;
+  }
+
+  const option = gradingOptions.value.find( ( item ) => {
+    return item.shortcut === event.key;
+  });
+
+  if ( option ) {
+    event.preventDefault();
+    recordAssessment( option.rating );
   }
 }
 
@@ -170,6 +343,28 @@ function focusButton( button ) {
   <div class="page study-page">
     <PageHeader title="Study">
       <template #actions>
+        <div
+          class="grading-mode-control"
+          :title="gradingModeLocked
+            ? 'Finish the current session to change grading mode.'
+            : undefined"
+        >
+          <label for="grading-mode">Grading</label>
+
+          <USelect
+            id="grading-mode"
+            :model-value="gradingMode"
+            :items="gradingModeItems"
+            :disabled="gradingModeLocked || assessmentPending || initialLoading"
+            :loading="gradingModePending"
+            value-key="value"
+            leading-icon="i-lucide-list-checks"
+            size="sm"
+            class="grading-mode-control__select"
+            @update:model-value="updateGradingMode"
+          />
+        </div>
+
         <UButton
           :to="{ name: 'library' }"
           leading-icon="i-lucide-library"
@@ -180,6 +375,15 @@ function focusButton( button ) {
         </UButton>
       </template>
     </PageHeader>
+
+    <UAlert
+      v-if="gradingModeError"
+      class="study-mode-error"
+      :description="gradingModeError"
+      icon="i-lucide-circle-alert"
+      color="error"
+      variant="soft"
+    />
 
     <ContentState
       v-if="initialLoading"
@@ -196,6 +400,7 @@ function focusButton( button ) {
       <template #actions>
         <UButton
           leading-icon="i-lucide-refresh-cw"
+          :disabled="gradingModePending"
           @click="loadStudyQueue"
         >
           Retry
@@ -246,6 +451,7 @@ function focusButton( button ) {
         <UButton
           leading-icon="i-lucide-refresh-cw"
           size="lg"
+          :disabled="gradingModePending"
           @click="loadStudyQueue"
         >
           Check again
@@ -408,25 +614,26 @@ function focusButton( button ) {
 
                 <div class="study-actions__buttons">
                   <UButton
-                    leading-icon="i-lucide-rotate-ccw"
-                    color="neutral"
-                    variant="soft"
+                    v-for="option in gradingOptions"
+                    :key="option.rating"
+                    :leading-icon="option.icon"
+                    :color="option.color"
+                    :variant="option.variant"
+                    :disabled="assessmentPending || gradingModePending"
+                    :loading="assessmentPending && pendingAssessment === option.rating"
+                    :aria-keyshortcuts="option.shortcut"
                     size="lg"
-                    :disabled="assessmentPending"
-                    :loading="assessmentPending && pendingAssessment === 'needsWork'"
-                    @click="recordAssessment( 'needsWork' )"
+                    class="study-grade-button"
+                    @click="recordAssessment( option.rating )"
                   >
-                    Needs work
-                  </UButton>
+                    <span>{{ option.label }}</span>
 
-                  <UButton
-                    leading-icon="i-lucide-check"
-                    size="lg"
-                    :disabled="assessmentPending"
-                    :loading="assessmentPending && pendingAssessment === 'recalled'"
-                    @click="recordAssessment( 'recalled' )"
-                  >
-                    Recalled
+                    <kbd
+                      class="study-grade-button__shortcut"
+                      aria-hidden="true"
+                    >
+                      {{ option.shortcut }}
+                    </kbd>
                   </UButton>
                 </div>
               </m.div>
@@ -458,14 +665,18 @@ function focusButton( button ) {
             <p>Reviews saved locally.</p>
           </div>
 
-          <dl class="study-results">
-            <div>
-              <dt>Recalled</dt>
-              <dd>{{ recalledCount }}</dd>
-            </div>
-            <div>
-              <dt>Needs work</dt>
-              <dd>{{ needsWorkCount }}</dd>
+          <dl
+            class="study-results"
+            :class="{
+              'study-results--advanced': sessionGradingMode === 'advanced'
+            }"
+          >
+            <div
+              v-for="item in sessionResultItems"
+              :key="item.rating"
+            >
+              <dt>{{ item.label }}</dt>
+              <dd>{{ ratingCounts[ item.rating ] }}</dd>
             </div>
           </dl>
 

@@ -1,14 +1,21 @@
 import { computed, ref } from 'vue';
 
-const NEEDS_WORK = 'needsWork';
-const RECALLED = 'recalled';
+const REVIEW_RATINGS = [ 'again', 'hard', 'good', 'easy' ];
+
+function emptyRatingCounts() {
+  return {
+    again: 0,
+    hard: 0,
+    good: 0,
+    easy: 0
+  };
+}
 
 export function useRecallSession() {
   const answerRevealed = ref( false );
   const cards = ref([]);
   const currentIndex = ref( 0 );
-  const needsWorkCount = ref( 0 );
-  const recalledCount = ref( 0 );
+  const ratingCounts = ref( emptyRatingCounts() );
 
   const completedCount = computed( () => currentIndex.value );
   const currentCard = computed( () => cards.value[ currentIndex.value ] ?? null );
@@ -39,19 +46,16 @@ export function useRecallSession() {
     }
   }
 
-  function assess( outcome ) {
+  function assess( rating ) {
     if ( !answerRevealed.value || !currentCard.value ) {
       return false;
     }
 
-    if ( outcome === NEEDS_WORK ) {
-      needsWorkCount.value += 1;
-    } else if ( outcome === RECALLED ) {
-      recalledCount.value += 1;
-    } else {
+    if ( !REVIEW_RATINGS.includes( rating ) ) {
       return false;
     }
 
+    ratingCounts.value[ rating ] += 1;
     currentIndex.value += 1;
     answerRevealed.value = false;
 
@@ -61,8 +65,7 @@ export function useRecallSession() {
   function restart() {
     answerRevealed.value = false;
     currentIndex.value = 0;
-    needsWorkCount.value = 0;
-    recalledCount.value = 0;
+    ratingCounts.value = emptyRatingCounts();
   }
 
   return {
@@ -73,10 +76,9 @@ export function useRecallSession() {
     currentCard,
     hasCards,
     isComplete,
-    needsWorkCount,
     position,
     progress,
-    recalledCount,
+    ratingCounts,
     revealAnswer,
     totalCards
   };
