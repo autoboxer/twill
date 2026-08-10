@@ -2,7 +2,6 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 
 import LibraryView from '../views/LibraryView.vue';
 import SettingsView from '../views/SettingsView.vue';
-import StudyView from '../views/StudyView.vue';
 
 const routes = [
   {
@@ -12,7 +11,7 @@ const routes = [
   {
     path: '/study',
     name: 'study',
-    component: StudyView,
+    component: loadStudyView,
     meta: {
       title: 'Study'
     }
@@ -80,4 +79,8 @@ function loadConceptDetailView() {
 
 function loadCreateView() {
   return import( '../views/CreateView.vue' );
+}
+
+function loadStudyView() {
+  return import( '../views/StudyView.vue' );
 }

@@ -48,6 +48,7 @@ export function useConceptLibrary() {
     error,
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
     getLibrary: ( includeArchived = false ) => run( 'get_library', { includeArchived }),
+    getStudyCards: () => run( 'get_study_cards' ),
     importImage: ( bytes ) => run( 'import_image', bytes ),
     isPending,
     readMedia: ( mediaId ) => run( 'read_media', { mediaId }),

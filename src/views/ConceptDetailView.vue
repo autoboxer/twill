@@ -259,7 +259,7 @@ function formattedDate( timestamp ) {
             :key="card.id"
           >
             <span>{{ index + 1 }}</span>
-            <strong>Retrieval form {{ index + 1 }}</strong>
+            <strong>Recall</strong>
           </li>
         </ol>
 
