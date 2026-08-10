@@ -9,9 +9,9 @@ mod study;
 pub use error::{LibraryError, LibraryResult};
 pub use models::{
     CardSummary, ConceptContent, ConceptDetail, ConceptSummary, CreateConceptInput,
-    CreateNamedItemInput, EntityIdInput, LibrarySnapshot, MediaSummary, NamedItem,
+    CreateNamedItemInput, EntityIdInput, GradingMode, LibrarySnapshot, MediaSummary, NamedItem,
     OrganizationSummary, RecordReviewInput, RenameNamedItemInput, ReviewOutcome,
-    ReviewRating, SchedulingState, SetConceptArchivedInput, StudyCard, StudyQueue,
-    UpdateConceptInput, RICH_CONTENT_SCHEMA_VERSION,
+    ReviewRating, SchedulingState, SetConceptArchivedInput, SetGradingModeInput, StudyCard,
+    StudyPreferences, StudyQueue, UpdateConceptInput, RICH_CONTENT_SCHEMA_VERSION,
 };
 pub use service::ConceptLibrary;

@@ -19,6 +19,8 @@ pub fn run() {
             library::commands::get_concept,
             library::commands::get_study_queue,
             library::commands::record_review,
+            library::commands::get_study_preferences,
+            library::commands::set_grading_mode,
             library::commands::create_concept,
             library::commands::update_concept,
             library::commands::set_concept_archived,

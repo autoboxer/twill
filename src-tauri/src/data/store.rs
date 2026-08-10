@@ -361,7 +361,7 @@ mod tests {
 
         let store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 5);
+        assert_eq!(store.schema_version().unwrap(), 6);
         assert!(data_directory.join(DATABASE_FILENAME).is_file());
 
         let connection = store.connection().unwrap();
@@ -385,7 +385,7 @@ mod tests {
 
         let reopened_store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(reopened_store.schema_version().unwrap(), 5);
+        assert_eq!(reopened_store.schema_version().unwrap(), 6);
     }
 
     #[test]

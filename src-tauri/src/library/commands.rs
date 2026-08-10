@@ -6,7 +6,8 @@ use crate::data::LocalDataStore;
 use crate::library::{
     ConceptDetail, ConceptLibrary, CreateConceptInput, CreateNamedItemInput, EntityIdInput,
     LibraryError, LibrarySnapshot, OrganizationSummary, RenameNamedItemInput,
-    RecordReviewInput, ReviewOutcome, SetConceptArchivedInput, StudyQueue, UpdateConceptInput,
+    RecordReviewInput, ReviewOutcome, SetConceptArchivedInput, SetGradingModeInput,
+    StudyPreferences, StudyQueue, UpdateConceptInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -39,6 +40,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::MediaIntegrity { .. }
             | LibraryError::UnsupportedSchedulerConfiguration(_)
             | LibraryError::InvalidSchedulingState(_)
+            | LibraryError::InvalidGradingMode(_)
             | LibraryError::InvalidSchedule
             | LibraryError::Scheduler(_) => "storage",
         };
@@ -49,6 +51,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::MediaIntegrity { .. }
             | LibraryError::UnsupportedSchedulerConfiguration(_)
             | LibraryError::InvalidSchedulingState(_)
+            | LibraryError::InvalidGradingMode(_)
             | LibraryError::InvalidSchedule
             | LibraryError::Scheduler(_) => {
                 "Local data could not be accessed.".to_owned()
@@ -96,6 +99,25 @@ pub(crate) fn record_review(
 ) -> CommandResult<ReviewOutcome> {
     ConceptLibrary::new(local_data.inner())
         .record_review(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_study_preferences(
+    local_data: State<'_, LocalDataStore>,
+) -> CommandResult<StudyPreferences> {
+    ConceptLibrary::new(local_data.inner())
+        .study_preferences()
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn set_grading_mode(
+    local_data: State<'_, LocalDataStore>,
+    input: SetGradingModeInput,
+) -> CommandResult<StudyPreferences> {
+    ConceptLibrary::new(local_data.inner())
+        .set_grading_mode(input.grading_mode)
         .map_err(Into::into)
 }
 

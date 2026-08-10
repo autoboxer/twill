@@ -27,6 +27,9 @@ fn migrations() -> Migrations<'static> {
         M::up(include_str!(
             "../../migrations/0005_fsrs_scheduling.sql"
         )),
+        M::up(include_str!(
+            "../../migrations/0006_grading_preferences.sql"
+        )),
     ])
 }
 
@@ -100,7 +103,7 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 5);
+        assert_eq!(version, 6);
     }
 
     #[test]
@@ -420,6 +423,32 @@ mod tests {
     }
 
     #[test]
+    fn simple_grading_is_the_default_device_preference() {
+        let mut connection = Connection::open_in_memory().unwrap();
+
+        migrations().to_version(&mut connection, 5).unwrap();
+        migrations().to_latest(&mut connection).unwrap();
+
+        let grading_mode: String = connection
+            .query_row(
+                "SELECT grading_mode
+                FROM device_preferences
+                WHERE singleton = 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(grading_mode, "simple");
+        assert!(connection
+            .execute(
+                "UPDATE device_preferences SET grading_mode = 'unsupported'",
+                [],
+            )
+            .is_err());
+    }
+
+    #[test]
     fn a_failed_migration_rolls_back_the_whole_schema_update() {
         let migrations = Migrations::new(vec![
             M::up("CREATE TABLE survives_only_on_success (id INTEGER);"),
@@ -450,7 +479,7 @@ mod tests {
         let mut connection = Connection::open_in_memory().unwrap();
 
         connection
-            .pragma_update(None, "user_version", 6)
+            .pragma_update(None, "user_version", 7)
             .unwrap();
 
         assert!(apply(&mut connection).is_err());
@@ -459,6 +488,6 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
     }
 }
