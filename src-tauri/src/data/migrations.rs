@@ -30,6 +30,9 @@ fn migrations() -> Migrations<'static> {
         M::up(include_str!(
             "../../migrations/0006_grading_preferences.sql"
         )),
+        M::up(include_str!(
+            "../../migrations/0007_scheduling_settings.sql"
+        )),
     ])
 }
 
@@ -103,7 +106,7 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 6);
+        assert_eq!(version, 7);
     }
 
     #[test]
@@ -449,6 +452,49 @@ mod tests {
     }
 
     #[test]
+    fn scheduling_settings_are_added_to_existing_configurations() {
+        let mut connection = Connection::open_in_memory().unwrap();
+
+        migrations().to_version(&mut connection, 6).unwrap();
+        migrations().to_latest(&mut connection).unwrap();
+
+        let maximum_interval_days: i64 = connection
+            .query_row(
+                "SELECT maximum_interval_days
+                FROM scheduler_configurations
+                WHERE id = 'fsrs-6.6.1-default-0.90'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+
+        assert_eq!(maximum_interval_days, 36_500);
+        assert!(connection
+            .execute(
+                "INSERT INTO scheduler_configurations (
+                    id,
+                    algorithm,
+                    algorithm_version,
+                    parameters_json,
+                    desired_retention,
+                    created_at,
+                    maximum_interval_days
+                ) SELECT
+                    'invalid-maximum',
+                    algorithm,
+                    algorithm_version,
+                    parameters_json,
+                    desired_retention,
+                    created_at,
+                    0
+                FROM scheduler_configurations
+                LIMIT 1",
+                [],
+            )
+            .is_err());
+    }
+
+    #[test]
     fn a_failed_migration_rolls_back_the_whole_schema_update() {
         let migrations = Migrations::new(vec![
             M::up("CREATE TABLE survives_only_on_success (id INTEGER);"),
@@ -479,7 +525,7 @@ mod tests {
         let mut connection = Connection::open_in_memory().unwrap();
 
         connection
-            .pragma_update(None, "user_version", 7)
+            .pragma_update(None, "user_version", 8)
             .unwrap();
 
         assert!(apply(&mut connection).is_err());
@@ -488,6 +534,6 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
 
-        assert_eq!(version, 7);
+        assert_eq!(version, 8);
     }
 }

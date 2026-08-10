@@ -63,6 +63,12 @@ pub enum LibraryError {
     #[error("stored grading mode is not valid: {0}")]
     InvalidGradingMode(String),
 
+    #[error("target retention must be between {minimum}% and {maximum}%")]
+    InvalidDesiredRetention { minimum: i64, maximum: i64 },
+
+    #[error("maximum interval must be between {minimum} and {maximum} days")]
+    InvalidMaximumInterval { minimum: i64, maximum: i64 },
+
     #[error("the scheduler produced an invalid interval")]
     InvalidSchedule,
 

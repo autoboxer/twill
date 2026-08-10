@@ -1,15 +1,21 @@
 use fsrs::{ItemState, MemoryState, FSRS};
 use rusqlite::{params, Connection};
+use uuid::Uuid;
 
-use crate::data::{EntityKind, WriteTransaction};
+use crate::data::{current_timestamp, EntityKind, WriteTransaction};
 use crate::library::{
     CardSummary, GradingMode, LibraryError, LibraryResult, ReviewOutcome, ReviewRating,
-    SchedulingState, StudyCard, StudyPreferences, StudyQueue,
+    SchedulingSettings, SchedulingState, StudyCard, StudyPreferences, StudyQueue,
+    UpdateSchedulingSettingsInput,
 };
 
 const FSRS_ALGORITHM: &str = "fsrs";
 const FSRS_VERSION: &str = "6.6.1";
 const MILLISECONDS_PER_DAY: i64 = 86_400_000;
+const MINIMUM_DESIRED_RETENTION: f64 = 0.80;
+const MAXIMUM_DESIRED_RETENTION: f64 = 0.97;
+const MINIMUM_INTERVAL_DAYS: i64 = 1;
+const MAXIMUM_INTERVAL_DAYS: i64 = 36_500;
 
 struct StoredSchedule {
     state: SchedulingState,
@@ -23,7 +29,10 @@ struct StoredSchedule {
 
 struct SchedulerConfiguration {
     id: String,
-    desired_retention: f32,
+    algorithm_version: String,
+    parameters_json: String,
+    desired_retention: f64,
+    maximum_interval_days: i64,
     scheduler: FSRS,
 }
 
@@ -174,6 +183,61 @@ pub fn update_grading_mode(
     query_study_preferences(transaction)
 }
 
+pub fn query_scheduling_settings(
+    connection: &Connection,
+) -> LibraryResult<SchedulingSettings> {
+    let configuration = query_scheduler_configuration(connection)?;
+
+    Ok(scheduling_settings(&configuration))
+}
+
+pub fn update_scheduling_settings(
+    transaction: &WriteTransaction<'_>,
+    input: UpdateSchedulingSettingsInput,
+) -> LibraryResult<SchedulingSettings> {
+    validate_scheduling_settings(&input)?;
+
+    let current = query_scheduler_configuration(transaction)?;
+
+    if current.desired_retention == input.desired_retention
+        && current.maximum_interval_days == input.maximum_interval_days
+    {
+        return Ok(scheduling_settings(&current));
+    }
+
+    let configuration_id = Uuid::now_v7().hyphenated().to_string();
+    let created_at = current_timestamp()?;
+
+    transaction.execute(
+        "INSERT INTO scheduler_configurations (
+            id,
+            algorithm,
+            algorithm_version,
+            parameters_json,
+            desired_retention,
+            created_at,
+            maximum_interval_days
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            configuration_id,
+            FSRS_ALGORITHM,
+            current.algorithm_version,
+            current.parameters_json,
+            input.desired_retention,
+            created_at,
+            input.maximum_interval_days,
+        ],
+    )?;
+    transaction.execute(
+        "UPDATE active_scheduler_configuration
+        SET configuration_id = ?1
+        WHERE singleton = 1",
+        [&configuration_id],
+    )?;
+
+    query_scheduling_settings(transaction)
+}
+
 pub fn record_review(
     transaction: &WriteTransaction<'_>,
     card_id: &str,
@@ -194,12 +258,13 @@ pub fn record_review(
     let memory_state = memory_state(&schedule)?;
     let next_states = configuration.scheduler.next_states(
         memory_state,
-        configuration.desired_retention,
+        configuration.desired_retention as f32,
         elapsed_days,
     )?;
     let next_state = select_next_state(next_states, rating);
     let scheduling_state = next_scheduling_state(schedule.state, rating);
-    let scheduled_interval_days = f64::from(next_state.interval);
+    let scheduled_interval_days = f64::from(next_state.interval)
+        .min(configuration.maximum_interval_days as f64);
     let due_at = calculate_due_at(now, scheduled_interval_days)?;
     let stability = f64::from(next_state.memory.stability);
     let difficulty = f64::from(next_state.memory.difficulty);
@@ -346,43 +411,84 @@ fn query_schedule(
 fn query_scheduler_configuration(
     connection: &Connection,
 ) -> LibraryResult<SchedulerConfiguration> {
-    let (id, algorithm, algorithm_version, parameters_json, desired_retention) = connection
-        .query_row(
-            "SELECT
-                scheduler_configurations.id,
-                scheduler_configurations.algorithm,
-                scheduler_configurations.algorithm_version,
-                scheduler_configurations.parameters_json,
-                scheduler_configurations.desired_retention
-            FROM active_scheduler_configuration
-            INNER JOIN scheduler_configurations
-                ON scheduler_configurations.id = configuration_id
-            WHERE singleton = 1",
-            [],
-            |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, f64>(4)?,
-                ))
-            },
-        )?;
+    let (
+        id,
+        algorithm,
+        algorithm_version,
+        parameters_json,
+        desired_retention,
+        maximum_interval_days,
+    ) = connection.query_row(
+        "SELECT
+            scheduler_configurations.id,
+            scheduler_configurations.algorithm,
+            scheduler_configurations.algorithm_version,
+            scheduler_configurations.parameters_json,
+            scheduler_configurations.desired_retention,
+            scheduler_configurations.maximum_interval_days
+        FROM active_scheduler_configuration
+        INNER JOIN scheduler_configurations
+            ON scheduler_configurations.id = configuration_id
+        WHERE singleton = 1",
+        [],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, f64>(4)?,
+                row.get::<_, i64>(5)?,
+            ))
+        },
+    )?;
 
     if algorithm != FSRS_ALGORITHM || algorithm_version != FSRS_VERSION {
         return Err(LibraryError::UnsupportedSchedulerConfiguration(id));
     }
 
     let parameters: Vec<f32> = serde_json::from_str(&parameters_json)?;
-    let desired_retention = desired_retention as f32;
     let scheduler = FSRS::new(&parameters)?;
 
     Ok(SchedulerConfiguration {
         id,
+        algorithm_version,
+        parameters_json,
         desired_retention,
+        maximum_interval_days,
         scheduler,
     })
+}
+
+fn scheduling_settings(configuration: &SchedulerConfiguration) -> SchedulingSettings {
+    SchedulingSettings {
+        algorithm_version: configuration.algorithm_version.clone(),
+        desired_retention: configuration.desired_retention,
+        maximum_interval_days: configuration.maximum_interval_days,
+    }
+}
+
+fn validate_scheduling_settings(input: &UpdateSchedulingSettingsInput) -> LibraryResult<()> {
+    if !input.desired_retention.is_finite()
+        || input.desired_retention < MINIMUM_DESIRED_RETENTION
+        || input.desired_retention > MAXIMUM_DESIRED_RETENTION
+    {
+        return Err(LibraryError::InvalidDesiredRetention {
+            minimum: (MINIMUM_DESIRED_RETENTION * 100.0) as i64,
+            maximum: (MAXIMUM_DESIRED_RETENTION * 100.0) as i64,
+        });
+    }
+
+    if !(MINIMUM_INTERVAL_DAYS..=MAXIMUM_INTERVAL_DAYS)
+        .contains(&input.maximum_interval_days)
+    {
+        return Err(LibraryError::InvalidMaximumInterval {
+            minimum: MINIMUM_INTERVAL_DAYS,
+            maximum: MAXIMUM_INTERVAL_DAYS,
+        });
+    }
+
+    Ok(())
 }
 
 fn memory_state(schedule: &StoredSchedule) -> LibraryResult<Option<MemoryState>> {
