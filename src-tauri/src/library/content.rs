@@ -13,7 +13,7 @@ const MAXIMUM_DOCUMENT_NODES: usize = 10_000;
 const MAXIMUM_DOCUMENT_TEXT: usize = 500_000;
 const MAXIMUM_LATEX_LENGTH: usize = 10_000;
 const MAXIMUM_LINK_LENGTH: usize = 2_048;
-const MAXIMUM_MEDIA_TEXT_LENGTH: usize = 500;
+const MAXIMUM_ATTRIBUTE_TEXT_LENGTH: usize = 500;
 
 pub struct ValidatedContent {
     pub content: ConceptContent,
@@ -367,7 +367,11 @@ fn validate_link(mark: &Map<String, Value>, field: &'static str) -> LibraryResul
     ensure_keys(mark, &["type", "attrs"], field)?;
 
     let attributes = required_attributes(mark, field)?;
-    ensure_keys(attributes, &["href", "target", "rel", "class"], field)?;
+    ensure_keys(
+        attributes,
+        &["href", "target", "rel", "class", "title"],
+        field,
+    )?;
 
     let href = required_string(attributes, "href", field)?.trim();
     let normalized_href = href.to_ascii_lowercase();
@@ -386,6 +390,12 @@ fn validate_link(mark: &Map<String, Value>, field: &'static str) -> LibraryResul
     validate_optional_short_string(attributes, "target", 32, field)?;
     validate_optional_short_string(attributes, "rel", 100, field)?;
     validate_optional_short_string(attributes, "class", 100, field)?;
+    validate_optional_short_string(
+        attributes,
+        "title",
+        MAXIMUM_ATTRIBUTE_TEXT_LENGTH,
+        field,
+    )?;
 
     Ok(())
 }
@@ -421,8 +431,18 @@ fn validate_media_image(
         return Err(invalid_content(field, "contains an invalid image reference"));
     }
 
-    validate_optional_short_string(attributes, "alt", MAXIMUM_MEDIA_TEXT_LENGTH, field)?;
-    validate_optional_short_string(attributes, "title", MAXIMUM_MEDIA_TEXT_LENGTH, field)?;
+    validate_optional_short_string(
+        attributes,
+        "alt",
+        MAXIMUM_ATTRIBUTE_TEXT_LENGTH,
+        field,
+    )?;
+    validate_optional_short_string(
+        attributes,
+        "title",
+        MAXIMUM_ATTRIBUTE_TEXT_LENGTH,
+        field,
+    )?;
 
     state.media_ids.insert(media_id.to_owned());
 
@@ -588,7 +608,16 @@ mod tests {
                         "content": [{
                             "type": "text",
                             "text": "Cell membrane",
-                            "marks": [{ "type": "bold" }]
+                            "marks": [{
+                                "type": "link",
+                                "attrs": {
+                                    "href": "https://example.com/cells",
+                                    "target": "_blank",
+                                    "rel": "noopener noreferrer nofollow",
+                                    "class": null,
+                                    "title": null
+                                }
+                            }]
                         }]
                     },
                     {
@@ -636,7 +665,8 @@ mod tests {
                                 "href": "javascript:alert(1)",
                                 "target": null,
                                 "rel": null,
-                                "class": null
+                                "class": null,
+                                "title": null
                             }
                         }]
                     }]

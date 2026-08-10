@@ -1,6 +1,12 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 
+import RichContentEditor from './RichContentEditor.vue';
+import {
+  cloneConceptContent,
+  createEmptyConceptContent
+} from '../rich-content/schema';
+
 const props = defineProps({
   concept: {
     type: Object,
@@ -32,6 +38,7 @@ const props = defineProps({
 const emit = defineEmits([ 'cancel', 'manage', 'submit' ]);
 
 const form = reactive({
+  content: createEmptyConceptContent(),
   deckIds: [],
   tagIds: [],
   title: ''
@@ -57,6 +64,7 @@ const titleLength = computed( () => Array.from( form.title ).length );
 const submitLabel = computed( () => props.mode === 'edit' ? 'Save changes' : 'Create concept' );
 
 watch( () => props.concept, ( concept ) => {
+  form.content = cloneConceptContent( concept?.content );
   form.title = concept?.title ?? '';
   form.deckIds = concept?.decks.map( ( deck ) => deck.id ) ?? [];
   form.tagIds = concept?.tags.map( ( tag ) => tag.id ) ?? [];
@@ -71,6 +79,7 @@ function submit() {
   }
 
   emit( 'submit', {
+    content: cloneConceptContent( form.content ),
     deckIds: [ ...form.deckIds ],
     tagIds: [ ...form.tagIds ],
     title: form.title
@@ -115,6 +124,29 @@ function submit() {
           size="xl"
         />
       </UFormField>
+    </section>
+
+    <section class="editor-section">
+      <div class="editor-section__heading">
+        <div>
+          <h2>Content</h2>
+          <p>Write the prompt and answer for this concept.</p>
+        </div>
+      </div>
+
+      <div class="concept-content-editors">
+        <RichContentEditor
+          v-model="form.content.prompt"
+          label="Prompt"
+          placeholder="Write a prompt"
+        />
+
+        <RichContentEditor
+          v-model="form.content.answer"
+          label="Answer"
+          placeholder="Write an answer"
+        />
+      </div>
     </section>
 
     <section class="editor-section">

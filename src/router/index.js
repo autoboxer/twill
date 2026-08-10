@@ -1,7 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 
-import ConceptDetailView from '../views/ConceptDetailView.vue';
-import CreateView from '../views/CreateView.vue';
 import LibraryView from '../views/LibraryView.vue';
 import SettingsView from '../views/SettingsView.vue';
 import StudyView from '../views/StudyView.vue';
@@ -30,7 +28,7 @@ const routes = [
   {
     path: '/library/:conceptId/edit',
     name: 'concept-edit',
-    component: CreateView,
+    component: loadCreateView,
     meta: {
       title: 'Edit concept'
     }
@@ -38,7 +36,7 @@ const routes = [
   {
     path: '/library/:conceptId',
     name: 'concept-detail',
-    component: ConceptDetailView,
+    component: loadConceptDetailView,
     meta: {
       title: 'Concept'
     }
@@ -46,7 +44,7 @@ const routes = [
   {
     path: '/create',
     name: 'create',
-    component: CreateView,
+    component: loadCreateView,
     meta: {
       title: 'Create'
     }
@@ -75,3 +73,11 @@ router.afterEach( ( to ) => {
 });
 
 export default router;
+
+function loadConceptDetailView() {
+  return import( '../views/ConceptDetailView.vue' );
+}
+
+function loadCreateView() {
+  return import( '../views/CreateView.vue' );
+}
