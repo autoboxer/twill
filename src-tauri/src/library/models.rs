@@ -39,6 +39,15 @@ pub struct CardSummary {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct StudyCard {
+    pub id: String,
+    pub concept_id: String,
+    pub concept_title: String,
+    pub content: ConceptContent,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MediaSummary {
     pub id: String,
     pub mime_type: String,

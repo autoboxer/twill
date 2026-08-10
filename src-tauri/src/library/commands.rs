@@ -6,7 +6,7 @@ use crate::data::LocalDataStore;
 use crate::library::{
     ConceptDetail, ConceptLibrary, CreateConceptInput, CreateNamedItemInput, EntityIdInput,
     LibraryError, LibrarySnapshot, OrganizationSummary, RenameNamedItemInput,
-    SetConceptArchivedInput, UpdateConceptInput,
+    SetConceptArchivedInput, StudyCard, UpdateConceptInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -68,6 +68,15 @@ pub(crate) fn get_concept(
 ) -> CommandResult<ConceptDetail> {
     ConceptLibrary::new(local_data.inner())
         .concept(&concept_id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_study_cards(
+    local_data: State<'_, LocalDataStore>,
+) -> CommandResult<Vec<StudyCard>> {
+    ConceptLibrary::new(local_data.inner())
+        .study_cards()
         .map_err(Into::into)
 }
 
