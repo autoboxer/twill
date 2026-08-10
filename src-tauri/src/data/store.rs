@@ -1,6 +1,6 @@
 use std::fs;
 use std::ops::Deref;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -13,11 +13,13 @@ use crate::data::{
 };
 
 pub const DATABASE_FILENAME: &str = "twill.sqlite3";
+pub const MEDIA_DIRECTORY_NAME: &str = "media";
 
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct LocalDataStore {
     connection: Mutex<Connection>,
+    data_directory: PathBuf,
 }
 
 pub struct WriteTransaction<'connection> {
@@ -26,12 +28,14 @@ pub struct WriteTransaction<'connection> {
 
 impl LocalDataStore {
     pub fn open(data_directory: impl AsRef<Path>) -> DataResult<Self> {
-        fs::create_dir_all(data_directory.as_ref())?;
+        let data_directory = data_directory.as_ref().to_path_buf();
 
-        let database_path = data_directory.as_ref().join(DATABASE_FILENAME);
+        fs::create_dir_all(&data_directory)?;
+
+        let database_path = data_directory.join(DATABASE_FILENAME);
         let connection = Connection::open(database_path)?;
 
-        Self::from_connection(connection)
+        Self::from_connection(connection, data_directory)
     }
 
     pub fn write<T>(
@@ -134,12 +138,20 @@ impl LocalDataStore {
         Ok(version)
     }
 
-    fn from_connection(mut connection: Connection) -> DataResult<Self> {
+    pub fn media_directory(&self) -> PathBuf {
+        self.data_directory.join(MEDIA_DIRECTORY_NAME)
+    }
+
+    fn from_connection(
+        mut connection: Connection,
+        data_directory: PathBuf,
+    ) -> DataResult<Self> {
         configure_connection(&connection)?;
         migrations::apply(&mut connection)?;
 
         Ok(Self {
             connection: Mutex::new(connection),
+            data_directory,
         })
     }
 
@@ -151,7 +163,7 @@ impl LocalDataStore {
 
     #[cfg(test)]
     fn open_in_memory() -> DataResult<Self> {
-        Self::from_connection(Connection::open_in_memory()?)
+        Self::from_connection(Connection::open_in_memory()?, PathBuf::new())
     }
 }
 
@@ -340,7 +352,7 @@ mod tests {
 
         let store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(store.schema_version().unwrap(), 2);
+        assert_eq!(store.schema_version().unwrap(), 3);
         assert!(data_directory.join(DATABASE_FILENAME).is_file());
 
         let connection = store.connection().unwrap();
@@ -364,7 +376,7 @@ mod tests {
 
         let reopened_store = LocalDataStore::open(&data_directory).unwrap();
 
-        assert_eq!(reopened_store.schema_version().unwrap(), 2);
+        assert_eq!(reopened_store.schema_version().unwrap(), 3);
     }
 
     #[test]

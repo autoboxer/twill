@@ -27,6 +27,8 @@ pub fn run() {
             library::commands::create_tag,
             library::commands::rename_tag,
             library::commands::delete_tag,
+            library::commands::import_image,
+            library::commands::read_media,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Twill");

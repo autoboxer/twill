@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
+import RichContentRenderer from '../components/RichContentRenderer.vue';
 import {
   conceptLibraryErrorMessage,
   useConceptLibrary
@@ -216,6 +217,26 @@ function formattedDate( timestamp ) {
             <dd>{{ formattedDate( concept.updatedAt ) }}</dd>
           </div>
         </dl>
+      </section>
+
+      <section class="concept-detail-panel concept-content-panel">
+        <div class="concept-content-document">
+          <h2>Prompt</h2>
+
+          <RichContentRenderer
+            :document="concept.content.prompt"
+            label="Prompt"
+          />
+        </div>
+
+        <div class="concept-content-document">
+          <h2>Answer</h2>
+
+          <RichContentRenderer
+            :document="concept.content.answer"
+            label="Answer"
+          />
+        </div>
       </section>
 
       <section class="concept-detail-panel retrieval-forms">

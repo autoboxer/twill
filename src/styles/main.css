@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+@import "katex/dist/katex.min.css";
 
 @theme static {
   --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -517,6 +518,426 @@ button {
   padding-top: 0.5rem;
 }
 
+.dialog-actions--split > span {
+  flex: 1;
+}
+
+.concept-content-editors {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.rich-editor-field {
+  display: grid;
+  min-width: 0;
+  gap: 0.55rem;
+}
+
+.rich-editor-field__heading {
+  display: flex;
+  align-items: center;
+  min-height: 1.5rem;
+}
+
+.rich-editor-field__heading label {
+  color: var(--ui-text-highlighted);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.rich-editor {
+  min-width: 0;
+  overflow: hidden;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-accented);
+  border-radius: calc(var(--ui-radius) + 0.25rem);
+  transition:
+    border-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.rich-editor:focus-within {
+  border-color: var(--ui-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 16%, transparent);
+}
+
+.rich-editor__toolbar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--ui-bg-muted);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.rich-editor__formatting {
+  min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 0.4rem;
+  scrollbar-width: thin;
+}
+
+.rich-editor__inserts {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 0.4rem;
+  gap: 0.15rem;
+  border-left: 1px solid var(--ui-border);
+}
+
+.rich-editor__toolbar button {
+  min-width: 2.35rem;
+  min-height: 2.35rem;
+}
+
+.rich-editor__language {
+  width: 9.25rem;
+  margin-right: 0.25rem;
+}
+
+.rich-editor__surface [data-slot="content"] {
+  min-height: 14rem;
+}
+
+.rich-editor__surface .ProseMirror {
+  min-height: 14rem;
+  padding: 1.25rem;
+  outline: none;
+}
+
+.rich-editor__surface .ProseMirror p.is-editor-empty:first-child::before {
+  height: 0;
+  color: var(--ui-text-dimmed);
+  content: attr(data-placeholder);
+  float: left;
+  pointer-events: none;
+}
+
+.rich-editor-field__error {
+  margin: 0;
+  color: var(--ui-error);
+  font-size: 0.82rem;
+}
+
+.rich-editor__surface .ProseMirror,
+.rich-content-renderer .ProseMirror {
+  color: var(--ui-text);
+  font-size: 0.98rem;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.rich-editor__surface .ProseMirror > :first-child,
+.rich-content-renderer .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+.rich-editor__surface .ProseMirror > :last-child,
+.rich-content-renderer .ProseMirror > :last-child {
+  margin-bottom: 0;
+}
+
+.rich-editor__surface .ProseMirror p,
+.rich-content-renderer .ProseMirror p {
+  margin: 0.75rem 0;
+}
+
+.rich-editor__surface .ProseMirror h1,
+.rich-editor__surface .ProseMirror h2,
+.rich-editor__surface .ProseMirror h3,
+.rich-content-renderer .ProseMirror h1,
+.rich-content-renderer .ProseMirror h2,
+.rich-content-renderer .ProseMirror h3 {
+  margin: 1.5em 0 0.55em;
+  color: var(--ui-text-highlighted);
+  font-weight: 680;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.rich-editor__surface .ProseMirror h1,
+.rich-content-renderer .ProseMirror h1 {
+  font-size: 1.65rem;
+}
+
+.rich-editor__surface .ProseMirror h2,
+.rich-content-renderer .ProseMirror h2 {
+  font-size: 1.35rem;
+}
+
+.rich-editor__surface .ProseMirror h3,
+.rich-content-renderer .ProseMirror h3 {
+  font-size: 1.1rem;
+}
+
+.rich-editor__surface .ProseMirror ul,
+.rich-editor__surface .ProseMirror ol,
+.rich-content-renderer .ProseMirror ul,
+.rich-content-renderer .ProseMirror ol {
+  padding-left: 1.6rem;
+  margin: 0.85rem 0;
+}
+
+.rich-editor__surface .ProseMirror li,
+.rich-content-renderer .ProseMirror li {
+  padding-left: 0.2rem;
+  margin: 0.25rem 0;
+}
+
+.rich-editor__surface .ProseMirror blockquote,
+.rich-content-renderer .ProseMirror blockquote {
+  padding: 0.15rem 0 0.15rem 1rem;
+  margin: 1.1rem 0;
+  color: var(--ui-text-muted);
+  border-left: 3px solid var(--ui-primary);
+}
+
+.rich-editor__surface .ProseMirror a,
+.rich-content-renderer .ProseMirror a {
+  color: var(--ui-primary);
+  font-weight: 550;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--ui-primary) 45%, transparent);
+  text-underline-offset: 0.16em;
+}
+
+.rich-content-renderer .ProseMirror a:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+  border-radius: 0.15rem;
+}
+
+.rich-editor__surface .ProseMirror :not(pre) > code,
+.rich-content-renderer .ProseMirror :not(pre) > code {
+  padding: 0.12em 0.35em;
+  color: var(--ui-text-highlighted);
+  font-size: 0.88em;
+  background: var(--ui-bg-elevated);
+  border: 1px solid var(--ui-border);
+  border-radius: 0.3rem;
+}
+
+.rich-editor__surface .ProseMirror pre,
+.rich-content-renderer .ProseMirror pre {
+  max-width: 100%;
+  overflow: auto;
+  padding: 1rem 1.1rem;
+  margin: 1.1rem 0;
+  color: #e7eee3;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  background: #202820;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: var(--ui-radius);
+  tab-size: 2;
+}
+
+.rich-editor__surface .ProseMirror pre code,
+.rich-content-renderer .ProseMirror pre code {
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+}
+
+.ProseMirror .hljs-comment,
+.ProseMirror .hljs-quote {
+  color: #9aae99;
+}
+
+.ProseMirror .hljs-keyword,
+.ProseMirror .hljs-selector-tag,
+.ProseMirror .hljs-literal {
+  color: #d7b9ea;
+}
+
+.ProseMirror .hljs-string,
+.ProseMirror .hljs-attr,
+.ProseMirror .hljs-template-variable {
+  color: #b9d9a9;
+}
+
+.ProseMirror .hljs-number,
+.ProseMirror .hljs-symbol,
+.ProseMirror .hljs-bullet {
+  color: #e9c88d;
+}
+
+.ProseMirror .hljs-title,
+.ProseMirror .hljs-built_in,
+.ProseMirror .hljs-type {
+  color: #a9d7dd;
+}
+
+.rich-editor__surface .ProseMirror hr,
+.rich-content-renderer .ProseMirror hr {
+  margin: 1.5rem 0;
+  border: 0;
+  border-top: 1px solid var(--ui-border-accented);
+}
+
+.rich-editor__surface .tiptap-mathematics-render,
+.rich-content-renderer .tiptap-mathematics-render {
+  max-width: 100%;
+  color: var(--ui-text-highlighted);
+}
+
+.rich-editor__surface div.tiptap-mathematics-render,
+.rich-content-renderer div.tiptap-mathematics-render {
+  overflow-x: auto;
+  padding: 0.65rem 0;
+  margin: 1rem 0;
+  text-align: center;
+}
+
+.rich-editor__surface .tiptap-mathematics-render--editable {
+  border-radius: 0.35rem;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) ease;
+}
+
+.rich-editor__surface .tiptap-mathematics-render--editable:hover {
+  background: var(--ui-bg-muted);
+}
+
+.rich-editor__surface .inline-math-error,
+.rich-editor__surface .block-math-error,
+.rich-content-renderer .inline-math-error,
+.rich-content-renderer .block-math-error {
+  color: var(--ui-error);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.rich-image {
+  display: grid;
+  width: min(100%, 42rem);
+  padding: 0;
+  margin: 1.25rem auto;
+  gap: 0.55rem;
+}
+
+.rich-image__frame {
+  display: grid;
+  overflow: hidden;
+  min-height: 6rem;
+  background:
+    linear-gradient(45deg, var(--ui-bg-muted) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--ui-bg-muted) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--ui-bg-muted) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--ui-bg-muted) 75%);
+  background-position: 0 0, 0 0.5rem, 0.5rem -0.5rem, -0.5rem 0;
+  background-size: 1rem 1rem;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  place-items: center;
+}
+
+.rich-image img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 36rem;
+  object-fit: contain;
+}
+
+.rich-image__state {
+  display: flex;
+  min-height: 8rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  color: var(--ui-text-muted);
+  font-size: 0.88rem;
+}
+
+.rich-image__state > svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.rich-image__state--error {
+  color: var(--ui-error);
+}
+
+.rich-image__spinner {
+  animation: spin 900ms linear infinite;
+}
+
+.rich-image__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.rich-image__alt {
+  min-width: 0;
+  flex: 1;
+}
+
+.rich-image__alt input {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.65rem;
+  color: var(--ui-text);
+  font-size: 0.84rem;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-accented);
+  border-radius: 0.55rem;
+  outline: none;
+}
+
+.rich-image__alt input:focus {
+  border-color: var(--ui-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-primary) 14%, transparent);
+}
+
+.rich-image.ProseMirror-selectednode .rich-image__frame {
+  border-color: var(--ui-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 16%, transparent);
+}
+
+.math-editor-dialog {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.math-editor-dialog__input textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.concept-content-panel {
+  display: grid;
+  gap: 2rem;
+}
+
+.concept-content-document + .concept-content-document {
+  padding-top: 2rem;
+  border-top: 1px solid var(--ui-border);
+}
+
+.concept-content-document > h2 {
+  margin: 0 0 1rem;
+  color: var(--ui-text-highlighted);
+  font-size: 0.78rem;
+  font-weight: 720;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rich-content-renderer .ProseMirror {
+  outline: none;
+}
+
+.rich-content-renderer__empty {
+  margin: 0;
+  color: var(--ui-text-dimmed);
+  font-size: 0.9rem;
+}
+
 .library-layout {
   display: grid;
   grid-template-columns: minmax(12rem, 15.5rem) minmax(0, 1fr);
@@ -965,6 +1386,41 @@ button {
     flex-direction: column;
   }
 
+  .rich-editor__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rich-editor__formatting {
+    width: 100%;
+  }
+
+  .rich-editor__inserts {
+    justify-content: flex-end;
+    border-top: 1px solid var(--ui-border);
+    border-left: 0;
+  }
+
+  .rich-editor__toolbar button {
+    min-width: 2.65rem;
+    min-height: 2.65rem;
+  }
+
+  .rich-editor__language {
+    width: auto;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .rich-editor__surface [data-slot="content"],
+  .rich-editor__surface .ProseMirror {
+    min-height: 12rem;
+  }
+
+  .rich-editor__surface .ProseMirror {
+    padding: 1rem;
+  }
+
   .content-state {
     border-radius: 1.25rem;
   }
@@ -1007,6 +1463,10 @@ button {
 
   .dialog-actions {
     flex-direction: column-reverse;
+  }
+
+  .dialog-actions--split > span {
+    display: none;
   }
 
   .dialog-actions > * {
