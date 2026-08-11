@@ -52,9 +52,12 @@ CREATE TABLE templates (
 CREATE TABLE cards (
     entity_id TEXT PRIMARY KEY NOT NULL,
     concept_id TEXT NOT NULL,
+    retrieval_kind TEXT NOT NULL CHECK (retrieval_kind IN ('recall')),
+    template_id TEXT,
     last_change_id TEXT NOT NULL,
     FOREIGN KEY (entity_id) REFERENCES entities(id),
     FOREIGN KEY (concept_id) REFERENCES concepts(entity_id),
+    FOREIGN KEY (template_id) REFERENCES templates(entity_id),
     FOREIGN KEY (last_change_id) REFERENCES change_log(id)
 ) STRICT;
 
@@ -92,6 +95,9 @@ CREATE TABLE concept_tags (
 
 CREATE INDEX cards_concept_idx
     ON cards(concept_id);
+
+CREATE INDEX cards_template_idx
+    ON cards(template_id);
 
 CREATE INDEX concept_decks_deck_active_idx
     ON concept_decks(deck_id, removed_at);
@@ -266,8 +272,35 @@ WHEN NOT EXISTS (
         AND deleted_at IS NULL
         AND last_change_id = NEW.last_change_id
 )
+    OR NOT EXISTS (
+        SELECT 1
+        FROM entities
+        WHERE id = NEW.concept_id
+            AND kind = 'concept'
+            AND deleted_at IS NULL
+    )
+    OR (
+        NEW.template_id IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1
+            FROM entities
+            WHERE id = NEW.template_id
+                AND kind = 'template'
+                AND deleted_at IS NULL
+        )
+    )
+    OR EXISTS (
+        SELECT 1
+        FROM cards AS existing_cards
+        INNER JOIN entities AS existing_entities
+            ON existing_entities.id = existing_cards.entity_id
+        WHERE existing_cards.concept_id = NEW.concept_id
+            AND existing_cards.retrieval_kind = NEW.retrieval_kind
+            AND existing_cards.template_id IS NEW.template_id
+            AND existing_entities.deleted_at IS NULL
+    )
 BEGIN
-    SELECT RAISE(ABORT, 'card requires a matching active entity');
+    SELECT RAISE(ABORT, 'card requires a unique active retrieval form');
 END;
 
 CREATE TRIGGER validate_card_update
@@ -275,6 +308,8 @@ BEFORE UPDATE ON cards
 FOR EACH ROW
 WHEN NEW.entity_id != OLD.entity_id
     OR NEW.concept_id != OLD.concept_id
+    OR NEW.retrieval_kind != OLD.retrieval_kind
+    OR NEW.template_id IS NOT OLD.template_id
     OR NEW.last_change_id = OLD.last_change_id
     OR NOT EXISTS (
         SELECT 1
@@ -293,6 +328,24 @@ BEFORE DELETE ON cards
 FOR EACH ROW
 BEGIN
     SELECT RAISE(ABORT, 'cards must be deleted with an entity tombstone');
+END;
+
+CREATE TRIGGER prevent_active_template_delete
+BEFORE UPDATE OF deleted_at ON entities
+FOR EACH ROW
+WHEN OLD.kind = 'template'
+    AND OLD.deleted_at IS NULL
+    AND NEW.deleted_at IS NOT NULL
+    AND EXISTS (
+        SELECT 1
+        FROM cards
+        INNER JOIN entities AS card_entities
+            ON card_entities.id = cards.entity_id
+        WHERE cards.template_id = OLD.id
+            AND card_entities.deleted_at IS NULL
+    )
+BEGIN
+    SELECT RAISE(ABORT, 'templates in use by active cards cannot be deleted');
 END;
 
 CREATE TRIGGER validate_concept_deck_insert

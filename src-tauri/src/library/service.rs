@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use rusqlite::{params, Connection, OptionalExtension};
 
@@ -14,10 +14,11 @@ use crate::library::study::{
     query_study_queue, record_review, update_grading_mode, update_scheduling_settings,
 };
 use crate::library::{
-    CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, GradingMode, LibraryError,
-    LibraryResult, LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary,
-    RecordReviewInput, ReviewOutcome, SchedulingSettings, StudyPreferences, StudyQueue,
-    UpdateConceptInput, UpdateSchedulingSettingsInput,
+    CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, GradingMode,
+    LibraryError, LibraryResult, LibrarySnapshot, MediaSummary, NamedItem,
+    OrganizationSummary, RecordReviewInput, RetrievalFormKind, ReviewOutcome,
+    SchedulingSettings, SchedulingState, StudyPreferences, StudyQueue, UpdateConceptInput,
+    UpdateSchedulingSettingsInput,
 };
 
 const MAXIMUM_CONCEPT_TITLE_LENGTH: usize = 200;
@@ -116,11 +117,15 @@ impl<'store> ConceptLibrary<'store> {
         let deck_ids = normalize_ids(input.deck_ids, "deck")?;
         let tag_ids = normalize_ids(input.tag_ids, "tag")?;
         let content = validate_content(input.content)?;
+        let template_ids = normalize_template_ids(input.template_ids)?;
+
+        validate_retrieval_form_selection(input.include_standard_recall, &template_ids)?;
 
         self.store.write_result(|transaction| {
             validate_selections(transaction, OrganizationKind::Deck, &deck_ids)?;
             validate_selections(transaction, OrganizationKind::Tag, &tag_ids)?;
             validate_media_ids(transaction, &content.media_ids)?;
+            validate_template_selections(transaction, &template_ids)?;
 
             let entity = transaction.create_entity(EntityKind::Concept)?;
 
@@ -140,7 +145,13 @@ impl<'store> ConceptLibrary<'store> {
                 ],
             )?;
 
-            create_recall_card(transaction, &entity.id)?;
+            if input.include_standard_recall {
+                create_recall_card(transaction, &entity.id, None)?;
+            }
+
+            for template_id in &template_ids {
+                create_recall_card(transaction, &entity.id, Some(template_id))?;
+            }
 
             apply_assignments(
                 transaction,
@@ -177,6 +188,9 @@ impl<'store> ConceptLibrary<'store> {
         let deck_ids = normalize_ids(input.deck_ids, "deck")?;
         let tag_ids = normalize_ids(input.tag_ids, "tag")?;
         let content = validate_content(input.content)?;
+        let template_ids = normalize_template_ids(input.template_ids)?;
+
+        validate_retrieval_form_selection(input.include_standard_recall, &template_ids)?;
 
         self.store.write_result(|transaction| {
             let current = query_concept(transaction, &id)?;
@@ -184,16 +198,28 @@ impl<'store> ConceptLibrary<'store> {
             validate_selections(transaction, OrganizationKind::Deck, &deck_ids)?;
             validate_selections(transaction, OrganizationKind::Tag, &tag_ids)?;
             validate_media_ids(transaction, &content.media_ids)?;
+            validate_template_selections(transaction, &template_ids)?;
 
             let current_decks = item_ids(&current.decks);
             let current_tags = item_ids(&current.tags);
             let current_media = active_concept_media_ids(transaction, &id)?;
+            let current_include_standard_recall = current
+                .cards
+                .iter()
+                .any(|card| card.template.is_none());
+            let current_template_ids = current
+                .cards
+                .iter()
+                .filter_map(|card| card.template.as_ref().map(|template| template.id.clone()))
+                .collect::<BTreeSet<_>>();
 
             if current.title == title
                 && current_decks == deck_ids
                 && current_tags == tag_ids
                 && current.content == content.content
                 && current_media == content.media_ids
+                && current_include_standard_recall == input.include_standard_recall
+                && current_template_ids == template_ids
             {
                 return Ok(current);
             }
@@ -228,6 +254,13 @@ impl<'store> ConceptLibrary<'store> {
                 &entity,
                 &current_media,
                 &content.media_ids,
+            )?;
+            apply_retrieval_forms(
+                transaction,
+                &id,
+                &current.cards,
+                input.include_standard_recall,
+                &template_ids,
             )?;
 
             query_concept(transaction, &id)
@@ -463,6 +496,34 @@ fn normalize_ids(ids: Vec<String>, kind: &'static str) -> LibraryResult<HashSet<
         .collect()
 }
 
+fn normalize_template_ids(ids: Vec<String>) -> LibraryResult<BTreeSet<String>> {
+    ids.into_iter()
+        .map(|id| {
+            let id = id.trim().to_owned();
+
+            if id.is_empty() {
+                return Err(LibraryError::InvalidSelection {
+                    kind: "template",
+                    id,
+                });
+            }
+
+            Ok(id)
+        })
+        .collect()
+}
+
+fn validate_retrieval_form_selection(
+    include_standard_recall: bool,
+    template_ids: &BTreeSet<String>,
+) -> LibraryResult<()> {
+    if !include_standard_recall && template_ids.is_empty() {
+        return Err(LibraryError::MissingRetrievalForm);
+    }
+
+    Ok(())
+}
+
 fn item_ids(items: &[NamedItem]) -> HashSet<String> {
     items.iter().map(|item| item.id.clone()).collect()
 }
@@ -660,18 +721,81 @@ fn query_concept_assignments(
 
 fn query_cards(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<CardSummary>> {
     let mut statement = connection.prepare(
-        "SELECT cards.entity_id
+        "SELECT
+            cards.entity_id,
+            cards.retrieval_kind,
+            templates.entity_id,
+            templates.name,
+            card_scheduling.state,
+            card_scheduling.due_at,
+            card_scheduling.review_count,
+            card_scheduling.lapse_count
         FROM cards
-        INNER JOIN entities ON entities.id = cards.entity_id
+        INNER JOIN entities AS card_entities
+            ON card_entities.id = cards.entity_id
+        INNER JOIN card_scheduling
+            ON card_scheduling.card_id = cards.entity_id
+        LEFT JOIN templates
+            ON templates.entity_id = cards.template_id
+        LEFT JOIN entities AS template_entities
+            ON template_entities.id = cards.template_id
         WHERE cards.concept_id = ?1
-            AND entities.deleted_at IS NULL
-        ORDER BY entities.created_at, cards.entity_id",
+            AND card_entities.deleted_at IS NULL
+            AND (
+                cards.template_id IS NULL
+                OR template_entities.deleted_at IS NULL
+            )
+        ORDER BY
+            cards.template_id IS NOT NULL,
+            templates.name COLLATE NOCASE,
+            card_entities.created_at,
+            cards.entity_id",
     )?;
     let cards = statement.query_map([concept_id], |row| {
-        Ok(CardSummary { id: row.get(0)? })
+        let template_id = row.get::<_, Option<String>>(2)?;
+        let template_name = row.get::<_, Option<String>>(3)?;
+        let template = match (template_id, template_name) {
+            (Some(id), Some(name)) => Some(NamedItem { id, name }),
+            (None, None) => None,
+            _ => return Err(rusqlite::Error::InvalidQuery),
+        };
+        let retrieval_kind = row.get::<_, String>(1)?;
+        let scheduling_state = row.get::<_, String>(4)?;
+
+        Ok((
+            row.get::<_, String>(0)?,
+            retrieval_kind,
+            template,
+            scheduling_state,
+            row.get::<_, i64>(5)?,
+            row.get::<_, i64>(6)?,
+            row.get::<_, i64>(7)?,
+        ))
     })?;
 
-    Ok(cards.collect::<Result<_, _>>()?)
+    cards
+        .map(|card| {
+            let (
+                id,
+                retrieval_kind,
+                template,
+                scheduling_state,
+                due_at,
+                review_count,
+                lapse_count,
+            ) = card?;
+
+            Ok(CardSummary {
+                id,
+                retrieval_kind: RetrievalFormKind::try_from(retrieval_kind.as_str())?,
+                template,
+                scheduling_state: SchedulingState::try_from(scheduling_state.as_str())?,
+                due_at,
+                review_count,
+                lapse_count,
+            })
+        })
+        .collect()
 }
 
 fn active_card_ids(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<String>> {
@@ -765,6 +889,34 @@ fn validate_selections(
         if !exists {
             return Err(LibraryError::InvalidSelection {
                 kind: kind.noun(),
+                id: id.clone(),
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_template_selections(
+    connection: &Connection,
+    ids: &BTreeSet<String>,
+) -> LibraryResult<()> {
+    for id in ids {
+        let exists: bool = connection.query_row(
+            "SELECT EXISTS (
+                SELECT 1
+                FROM templates
+                INNER JOIN entities ON entities.id = templates.entity_id
+                WHERE templates.entity_id = ?1
+                    AND entities.deleted_at IS NULL
+            )",
+            [id],
+            |row| row.get(0),
+        )?;
+
+        if !exists {
+            return Err(LibraryError::InvalidSelection {
+                kind: "template",
                 id: id.clone(),
             });
         }
@@ -923,6 +1075,44 @@ fn apply_media_assignments(
     Ok(())
 }
 
+fn apply_retrieval_forms(
+    transaction: &WriteTransaction<'_>,
+    concept_id: &str,
+    current_cards: &[CardSummary],
+    include_standard_recall: bool,
+    template_ids: &BTreeSet<String>,
+) -> LibraryResult<()> {
+    for card in current_cards {
+        let retained = match &card.template {
+            Some(template) => template_ids.contains(&template.id),
+            None => include_standard_recall,
+        };
+
+        if !retained {
+            transaction.soft_delete_entity(&card.id)?;
+        }
+    }
+
+    let has_standard_recall = current_cards.iter().any(|card| card.template.is_none());
+
+    if include_standard_recall && !has_standard_recall {
+        create_recall_card(transaction, concept_id, None)?;
+    }
+
+    let current_template_ids = current_cards
+        .iter()
+        .filter_map(|card| card.template.as_ref().map(|template| template.id.as_str()))
+        .collect::<HashSet<_>>();
+
+    for template_id in template_ids {
+        if !current_template_ids.contains(template_id.as_str()) {
+            create_recall_card(transaction, concept_id, Some(template_id))?;
+        }
+    }
+
+    Ok(())
+}
+
 fn concept_record_exists(connection: &Connection, id: &str) -> LibraryResult<bool> {
     Ok(connection.query_row(
         "SELECT EXISTS (SELECT 1 FROM concepts WHERE entity_id = ?1)",
@@ -956,8 +1146,9 @@ mod tests {
     use super::ConceptLibrary;
     use crate::data::{DataResult, EntityKind, LocalDataStore};
     use crate::library::{
-        ConceptContent, CreateConceptInput, GradingMode, LibraryError, RecordReviewInput,
-        ReviewRating, SchedulingState, UpdateConceptInput, UpdateSchedulingSettingsInput,
+        ConceptContent, CreateConceptInput, CreateTemplateInput, GradingMode, LibraryError,
+        RecordReviewInput, ReviewRating, SchedulingState, TemplateContent, TemplateLibrary,
+        UpdateConceptInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
     };
 
     fn test_store() -> (TempDir, LocalDataStore) {
@@ -993,6 +1184,8 @@ mod tests {
                 deck_ids: vec![first_deck.id.clone()],
                 tag_ids: vec![first_tag.id.clone()],
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
 
@@ -1012,6 +1205,8 @@ mod tests {
                 deck_ids: vec![second_deck.id.clone()],
                 tag_ids: vec![second_tag.id.clone()],
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
 
@@ -1105,6 +1300,8 @@ mod tests {
                 deck_ids: vec![deck.id.clone()],
                 tag_ids: vec![tag.id.clone()],
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
 
@@ -1161,6 +1358,8 @@ mod tests {
             deck_ids: vec!["missing-deck".to_owned()],
             tag_ids: Vec::new(),
             content: Default::default(),
+            include_standard_recall: true,
+            template_ids: Vec::new(),
         });
 
         assert!(matches!(
@@ -1175,6 +1374,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
         let revision = store.entity(&concept.id).unwrap().unwrap().revision;
@@ -1186,6 +1387,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
 
@@ -1241,6 +1444,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: content.clone(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
 
@@ -1270,6 +1475,8 @@ mod tests {
             deck_ids: Vec::new(),
             tag_ids: Vec::new(),
             content: invalid_content,
+            include_standard_recall: true,
+            template_ids: Vec::new(),
         });
 
         assert!(matches!(
@@ -1285,6 +1492,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
         let removed_references: i64 = store
@@ -1315,6 +1524,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
 
@@ -1322,6 +1533,25 @@ mod tests {
 
         assert_eq!(library.concept(&concept.id).unwrap().cards[0].id, card_id);
         assert_eq!(library.snapshot(false).unwrap().concepts[0].card_count, 1);
+
+        let duplicate_card = store.write(|transaction| {
+            let card = transaction.create_entity(EntityKind::Card)?;
+
+            transaction.execute(
+                "INSERT INTO cards (
+                    entity_id,
+                    concept_id,
+                    retrieval_kind,
+                    template_id,
+                    last_change_id
+                ) VALUES (?1, ?2, 'recall', NULL, ?3)",
+                params![card.id, concept.id, card.last_change_id],
+            )?;
+
+            Ok(card)
+        });
+
+        assert!(duplicate_card.is_err());
 
         store
             .write(|transaction| transaction.soft_delete_entity(&card_id))
@@ -1335,8 +1565,13 @@ mod tests {
                 let card = transaction.create_entity(EntityKind::Card)?;
 
                 transaction.execute(
-                    "INSERT INTO cards (entity_id, concept_id, last_change_id)
-                    VALUES (?1, ?2, ?3)",
+                    "INSERT INTO cards (
+                        entity_id,
+                        concept_id,
+                        retrieval_kind,
+                        template_id,
+                        last_change_id
+                    ) VALUES (?1, ?2, 'recall', NULL, ?3)",
                     params![card.id, concept.id, card.last_change_id],
                 )?;
 
@@ -1352,6 +1587,205 @@ mod tests {
             .unwrap()
             .deleted_at
             .is_some());
+    }
+
+    #[test]
+    fn retrieval_forms_are_selected_without_duplicates_and_schedule_independently() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let templates = TemplateLibrary::new(&store);
+        let missing_forms = library.create_concept(CreateConceptInput {
+            title: "No forms".to_owned(),
+            deck_ids: Vec::new(),
+            tag_ids: Vec::new(),
+            content: Default::default(),
+            include_standard_recall: false,
+            template_ids: Vec::new(),
+        });
+
+        assert!(matches!(
+            missing_forms,
+            Err(LibraryError::MissingRetrievalForm)
+        ));
+        assert!(library.snapshot(false).unwrap().concepts.is_empty());
+
+        let first_template = templates
+            .create_template(CreateTemplateInput {
+                name: "Answer first".to_owned(),
+                content: TemplateContent::default(),
+            })
+            .unwrap();
+        let second_template = templates
+            .create_template(CreateTemplateInput {
+                name: "Prompt focused".to_owned(),
+                content: TemplateContent::default(),
+            })
+            .unwrap();
+        let concept = library
+            .create_concept(CreateConceptInput {
+                title: "Complementary practice".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: false,
+                template_ids: vec![
+                    second_template.id.clone(),
+                    first_template.id.clone(),
+                    first_template.id.clone(),
+                ],
+            })
+            .unwrap();
+
+        assert_eq!(concept.cards.len(), 2);
+        assert_eq!(
+            concept
+                .cards
+                .iter()
+                .map(|card| card.template.as_ref().unwrap().name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Answer first", "Prompt focused"]
+        );
+
+        let reviewed_card = concept.cards[0].clone();
+        let waiting_card = concept.cards[1].clone();
+        let review_time = reviewed_card.due_at.max(waiting_card.due_at);
+
+        library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: reviewed_card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                review_time,
+            )
+            .unwrap();
+
+        let queue = library.study_queue_at(review_time).unwrap();
+
+        assert_eq!(queue.cards.len(), 1);
+        assert_eq!(queue.cards[0].id, waiting_card.id);
+        assert_eq!(
+            queue.cards[0].template.as_ref().unwrap().id,
+            second_template.id
+        );
+
+        let updated_template = templates
+            .update_template(UpdateTemplateInput {
+                id: second_template.id.clone(),
+                name: "Focused prompt".to_owned(),
+                content: second_template.content,
+            })
+            .unwrap();
+        let updated_queue = library.study_queue_at(review_time).unwrap();
+
+        assert_eq!(
+            updated_queue.cards[0].template.as_ref().unwrap().name,
+            updated_template.name
+        );
+    }
+
+    #[test]
+    fn changing_retrieval_forms_retains_selected_schedules_and_protects_templates_in_use() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let templates = TemplateLibrary::new(&store);
+        let removed_template = templates
+            .create_template(CreateTemplateInput {
+                name: "Temporary".to_owned(),
+                content: TemplateContent::default(),
+            })
+            .unwrap();
+        let retained_template = templates
+            .create_template(CreateTemplateInput {
+                name: "Retained".to_owned(),
+                content: TemplateContent::default(),
+            })
+            .unwrap();
+        let concept = library
+            .create_concept(CreateConceptInput {
+                title: "Managed forms".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: false,
+                template_ids: vec![
+                    removed_template.id.clone(),
+                    retained_template.id.clone(),
+                ],
+            })
+            .unwrap();
+        let removed_card_id = concept
+            .cards
+            .iter()
+            .find(|card| card.template.as_ref().unwrap().id == removed_template.id)
+            .unwrap()
+            .id
+            .clone();
+        let retained_card_id = concept
+            .cards
+            .iter()
+            .find(|card| card.template.as_ref().unwrap().id == retained_template.id)
+            .unwrap()
+            .id
+            .clone();
+
+        let updated = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id.clone(),
+                title: concept.title,
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: concept.content,
+                include_standard_recall: true,
+                template_ids: vec![retained_template.id.clone()],
+            })
+            .unwrap();
+
+        assert_eq!(updated.cards.len(), 2);
+        assert!(updated.cards.iter().any(|card| card.template.is_none()));
+        assert!(updated.cards.iter().any(|card| card.id == retained_card_id));
+        assert!(store
+            .entity(&removed_card_id)
+            .unwrap()
+            .unwrap()
+            .deleted_at
+            .is_some());
+        assert_eq!(
+            templates
+                .catalog()
+                .unwrap()
+                .templates
+                .into_iter()
+                .find(|template| template.id == retained_template.id)
+                .unwrap()
+                .retrieval_form_count,
+            1
+        );
+        assert!(matches!(
+            templates.delete_template(&retained_template.id),
+            Err(LibraryError::TemplateInUse {
+                retrieval_form_count: 1,
+                ..
+            })
+        ));
+        assert!(store
+            .write(|transaction| transaction.soft_delete_entity(&retained_template.id))
+            .is_err());
+
+        library
+            .update_concept(UpdateConceptInput {
+                id: concept.id,
+                title: updated.title,
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: updated.content,
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+            })
+            .unwrap();
+
+        templates.delete_template(&removed_template.id).unwrap();
+        templates.delete_template(&retained_template.id).unwrap();
     }
 
     #[test]
@@ -1381,6 +1815,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: content.clone(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
         let archived = library
@@ -1389,6 +1825,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
 
@@ -1582,6 +2020,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
         let card = library.study_queue().unwrap().cards[0].clone();
@@ -1696,6 +2136,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
         let initial_queue = library.study_queue().unwrap();
@@ -1831,6 +2273,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
 
@@ -1873,6 +2317,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
         let card = library.study_queue().unwrap().cards[0].clone();
@@ -1941,6 +2387,8 @@ mod tests {
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
                 content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
             })
             .unwrap();
 

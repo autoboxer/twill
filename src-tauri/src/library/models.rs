@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
+use super::error::LibraryError;
+
 pub const RICH_CONTENT_SCHEMA_VERSION: u32 = 1;
 pub const TEMPLATE_SCHEMA_VERSION: u32 = 1;
 
@@ -36,6 +38,45 @@ pub struct ConceptSummary {
 #[serde(rename_all = "camelCase")]
 pub struct CardSummary {
     pub id: String,
+    pub retrieval_kind: RetrievalFormKind,
+    pub template: Option<NamedItem>,
+    pub scheduling_state: SchedulingState,
+    pub due_at: i64,
+    pub review_count: i64,
+    pub lapse_count: i64,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RetrievalFormKind {
+    Recall,
+}
+
+impl RetrievalFormKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Recall => "recall",
+        }
+    }
+}
+
+impl TryFrom<&str> for RetrievalFormKind {
+    type Error = LibraryError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "recall" => Ok(Self::Recall),
+            _ => Err(LibraryError::InvalidRetrievalFormKind(value.to_owned())),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudyTemplate {
+    pub id: String,
+    pub name: String,
+    pub content: TemplateContent,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -45,6 +86,8 @@ pub struct StudyCard {
     pub concept_id: String,
     pub concept_title: String,
     pub content: ConceptContent,
+    pub retrieval_kind: RetrievalFormKind,
+    pub template: Option<StudyTemplate>,
     pub scheduling_state: SchedulingState,
     pub due_at: i64,
 }
@@ -231,6 +274,7 @@ pub struct TemplateSummary {
     pub name: String,
     pub updated_at: i64,
     pub mode: TemplateMode,
+    pub retrieval_form_count: i64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -358,6 +402,10 @@ pub struct CreateConceptInput {
     pub tag_ids: Vec<String>,
     #[serde(default)]
     pub content: ConceptContent,
+    #[serde(default = "default_include_standard_recall")]
+    pub include_standard_recall: bool,
+    #[serde(default)]
+    pub template_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -371,6 +419,10 @@ pub struct UpdateConceptInput {
     pub tag_ids: Vec<String>,
     #[serde(default)]
     pub content: ConceptContent,
+    #[serde(default = "default_include_standard_recall")]
+    pub include_standard_recall: bool,
+    #[serde(default)]
+    pub template_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -404,4 +456,8 @@ fn empty_rich_text_document() -> Value {
         "type": "doc",
         "content": [{ "type": "paragraph" }]
     })
+}
+
+const fn default_include_standard_recall() -> bool {
+    true
 }
