@@ -4,11 +4,12 @@ use tauri::State;
 
 use crate::data::LocalDataStore;
 use crate::library::{
-    ConceptDetail, ConceptLibrary, CreateConceptInput, CreateNamedItemInput, EntityIdInput,
-    LibraryError, LibrarySnapshot, OrganizationSummary, RenameNamedItemInput,
+    ConceptDetail, ConceptLibrary, CreateConceptInput, CreateNamedItemInput, CreateTemplateInput,
+    EntityIdInput, LibraryError, LibrarySnapshot, OrganizationSummary, RenameNamedItemInput,
     RecordReviewInput, ReviewOutcome, SchedulingSettings, SetConceptArchivedInput,
-    SetGradingModeInput, StudyPreferences, StudyQueue, UpdateConceptInput,
-    UpdateSchedulingSettingsInput,
+    SetGradingModeInput, StudyPreferences, StudyQueue, TemplateCatalog, TemplateDetail,
+    TemplateContent, TemplateLibrary, UpdateConceptInput, UpdateSchedulingSettingsInput,
+    UpdateTemplateInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -26,6 +27,7 @@ impl From<LibraryError> for CommandError {
             LibraryError::EmptyValue { .. }
             | LibraryError::ValueTooLong { .. }
             | LibraryError::InvalidContent { .. }
+            | LibraryError::InvalidTemplate { .. }
             | LibraryError::ImageTooLarge { .. }
             | LibraryError::UnsupportedImage
             | LibraryError::ImageDimensionsTooLarge
@@ -34,6 +36,7 @@ impl From<LibraryError> for CommandError {
             LibraryError::DuplicateName { .. } | LibraryError::CardNotDue { .. } => "conflict",
             LibraryError::ConceptNotFound(_)
             | LibraryError::OrganizationNotFound { .. }
+            | LibraryError::TemplateNotFound(_)
             | LibraryError::InvalidSelection { .. }
             | LibraryError::MediaNotFound(_)
             | LibraryError::CardNotFound(_) => "notFound",
@@ -241,6 +244,62 @@ pub(crate) fn delete_tag(
     ConceptLibrary::new(local_data.inner())
         .delete_tag(&input.id)
         .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_templates(
+    local_data: State<'_, LocalDataStore>,
+) -> CommandResult<TemplateCatalog> {
+    TemplateLibrary::new(local_data.inner())
+        .catalog()
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_template(
+    local_data: State<'_, LocalDataStore>,
+    template_id: String,
+) -> CommandResult<TemplateDetail> {
+    TemplateLibrary::new(local_data.inner())
+        .template(&template_id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn create_template(
+    local_data: State<'_, LocalDataStore>,
+    input: CreateTemplateInput,
+) -> CommandResult<TemplateDetail> {
+    TemplateLibrary::new(local_data.inner())
+        .create_template(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn update_template(
+    local_data: State<'_, LocalDataStore>,
+    input: UpdateTemplateInput,
+) -> CommandResult<TemplateDetail> {
+    TemplateLibrary::new(local_data.inner())
+        .update_template(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn delete_template(
+    local_data: State<'_, LocalDataStore>,
+    input: EntityIdInput,
+) -> CommandResult<()> {
+    TemplateLibrary::new(local_data.inner())
+        .delete_template(&input.id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn prepare_template_preview(
+    content: TemplateContent,
+) -> CommandResult<TemplateContent> {
+    TemplateLibrary::prepare_content(content).map_err(Into::into)
 }
 
 #[tauri::command(async)]

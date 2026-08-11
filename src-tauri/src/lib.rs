@@ -33,6 +33,12 @@ pub fn run() {
             library::commands::create_tag,
             library::commands::rename_tag,
             library::commands::delete_tag,
+            library::commands::get_templates,
+            library::commands::get_template,
+            library::commands::create_template,
+            library::commands::update_template,
+            library::commands::delete_template,
+            library::commands::prepare_template_preview,
             library::commands::import_image,
             library::commands::read_media,
         ])

@@ -27,11 +27,20 @@ pub enum LibraryError {
     #[error("{kind} {id} was not found")]
     OrganizationNotFound { kind: &'static str, id: String },
 
+    #[error("template {0} was not found")]
+    TemplateNotFound(String),
+
     #[error("selected {kind} {id} was not found")]
     InvalidSelection { kind: &'static str, id: String },
 
     #[error("{field} {message}")]
     InvalidContent {
+        field: &'static str,
+        message: String,
+    },
+
+    #[error("{field} {message}")]
+    InvalidTemplate {
         field: &'static str,
         message: String,
     },
