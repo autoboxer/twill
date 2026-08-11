@@ -496,6 +496,11 @@ button {
   gap: 0.5rem;
 }
 
+.retrieval-form-options {
+  display: grid;
+  gap: 0.65rem;
+}
+
 .editor-selection__empty {
   padding: 1.25rem;
   margin: 0;
@@ -1529,17 +1534,18 @@ button {
 }
 
 .retrieval-form-list li {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 3.5rem;
-  padding: 0.65rem 0.8rem;
-  gap: 0.75rem;
+  min-height: 4.5rem;
+  padding: 0.8rem;
+  gap: 0.85rem;
   background: var(--ui-bg-muted);
   border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius);
 }
 
-.retrieval-form-list li > span {
+.retrieval-form-list__icon {
   display: grid;
   width: 2rem;
   height: 2rem;
@@ -1553,10 +1559,36 @@ button {
   place-items: center;
 }
 
+.retrieval-form-list__icon > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.retrieval-form-list__copy,
+.retrieval-form-list__schedule {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
 .retrieval-form-list strong {
+  overflow: hidden;
   color: var(--ui-text-highlighted);
   font-size: 0.9rem;
   font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.retrieval-form-list__copy > span,
+.retrieval-form-list__schedule > span {
+  color: var(--ui-text-dimmed);
+  font-size: 0.78rem;
+}
+
+.retrieval-form-list__schedule {
+  justify-items: end;
+  text-align: right;
 }
 
 .retrieval-forms__empty {
@@ -1886,6 +1918,7 @@ button {
   border-radius: 0.8rem;
 }
 
+.editor-field-error,
 .template-field-error {
   margin: 0;
   color: var(--ui-error);
@@ -2442,6 +2475,16 @@ button {
 
   .editor-section__heading {
     flex-direction: column;
+  }
+
+  .retrieval-form-list li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .retrieval-form-list__schedule {
+    grid-column: 2;
+    justify-items: start;
+    text-align: left;
   }
 
   .template-editor__basics {
