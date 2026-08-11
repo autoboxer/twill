@@ -55,6 +55,33 @@ const routes = [
   },
 
   {
+    path: '/templates',
+    name: 'templates',
+    component: loadTemplatesView,
+    meta: {
+      title: 'Templates'
+    }
+  },
+
+  {
+    path: '/templates/new',
+    name: 'template-create',
+    component: loadTemplateEditorView,
+    meta: {
+      title: 'New template'
+    }
+  },
+
+  {
+    path: '/templates/:templateId',
+    name: 'template-edit',
+    component: loadTemplateEditorView,
+    meta: {
+      title: 'Edit template'
+    }
+  },
+
+  {
     path: '/settings',
     name: 'settings',
     component: SettingsView,
@@ -90,4 +117,12 @@ function loadCreateView() {
 
 function loadStudyView() {
   return import( '../views/StudyView.vue' );
+}
+
+function loadTemplateEditorView() {
+  return import( '../views/TemplateEditorView.vue' );
+}
+
+function loadTemplatesView() {
+  return import( '../views/TemplatesView.vue' );
 }

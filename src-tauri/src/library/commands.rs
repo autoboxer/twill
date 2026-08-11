@@ -8,7 +8,8 @@ use crate::library::{
     EntityIdInput, LibraryError, LibrarySnapshot, OrganizationSummary, RenameNamedItemInput,
     RecordReviewInput, ReviewOutcome, SchedulingSettings, SetConceptArchivedInput,
     SetGradingModeInput, StudyPreferences, StudyQueue, TemplateCatalog, TemplateDetail,
-    TemplateLibrary, UpdateConceptInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
+    TemplateContent, TemplateLibrary, UpdateConceptInput, UpdateSchedulingSettingsInput,
+    UpdateTemplateInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -292,6 +293,13 @@ pub(crate) fn delete_template(
     TemplateLibrary::new(local_data.inner())
         .delete_template(&input.id)
         .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn prepare_template_preview(
+    content: TemplateContent,
+) -> CommandResult<TemplateContent> {
+    TemplateLibrary::prepare_content(content).map_err(Into::into)
 }
 
 #[tauri::command(async)]

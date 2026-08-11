@@ -179,6 +179,10 @@ impl<'store> TemplateLibrary<'store> {
             Ok(())
         })
     }
+
+    pub fn prepare_content(content: TemplateContent) -> LibraryResult<TemplateContent> {
+        validate_template_content(content)
+    }
 }
 
 fn normalize_name(name: String) -> LibraryResult<String> {

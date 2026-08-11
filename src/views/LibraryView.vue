@@ -133,6 +133,15 @@ function formattedDate( timestamp ) {
     <PageHeader title="Library">
       <template #actions>
         <UButton
+          :to="{ name: 'templates' }"
+          leading-icon="i-lucide-layout-template"
+          color="neutral"
+          variant="soft"
+        >
+          Templates
+        </UButton>
+
+        <UButton
           leading-icon="i-lucide-settings-2"
           color="neutral"
           variant="soft"
