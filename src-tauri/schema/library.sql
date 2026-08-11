@@ -35,6 +35,20 @@ CREATE TABLE tags (
     FOREIGN KEY (last_change_id) REFERENCES change_log(id)
 ) STRICT;
 
+CREATE TABLE templates (
+    entity_id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL CHECK (
+        length(trim(name)) BETWEEN 1 AND 80
+    ),
+    content_json TEXT NOT NULL CHECK (
+        json_valid(content_json)
+        AND json_type(content_json) = 'object'
+    ),
+    last_change_id TEXT NOT NULL,
+    FOREIGN KEY (entity_id) REFERENCES entities(id),
+    FOREIGN KEY (last_change_id) REFERENCES change_log(id)
+) STRICT;
+
 CREATE TABLE cards (
     entity_id TEXT PRIMARY KEY NOT NULL,
     concept_id TEXT NOT NULL,
@@ -200,6 +214,45 @@ BEFORE DELETE ON tags
 FOR EACH ROW
 BEGIN
     SELECT RAISE(ABORT, 'tags must be deleted with an entity tombstone');
+END;
+
+CREATE TRIGGER validate_template_insert
+BEFORE INSERT ON templates
+FOR EACH ROW
+WHEN NOT EXISTS (
+    SELECT 1
+    FROM entities
+    WHERE id = NEW.entity_id
+        AND kind = 'template'
+        AND deleted_at IS NULL
+        AND last_change_id = NEW.last_change_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'template requires a matching active entity');
+END;
+
+CREATE TRIGGER validate_template_update
+BEFORE UPDATE ON templates
+FOR EACH ROW
+WHEN NEW.entity_id != OLD.entity_id
+    OR NEW.last_change_id = OLD.last_change_id
+    OR NOT EXISTS (
+        SELECT 1
+        FROM entities
+        WHERE id = NEW.entity_id
+            AND kind = 'template'
+            AND deleted_at IS NULL
+            AND last_change_id = NEW.last_change_id
+    )
+BEGIN
+    SELECT RAISE(ABORT, 'template update requires a matching entity change');
+END;
+
+CREATE TRIGGER prevent_template_delete
+BEFORE DELETE ON templates
+FOR EACH ROW
+BEGIN
+    SELECT RAISE(ABORT, 'templates must be deleted with an entity tombstone');
 END;
 
 CREATE TRIGGER validate_card_insert
