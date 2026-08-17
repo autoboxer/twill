@@ -52,9 +52,16 @@ CREATE TABLE templates (
 CREATE TABLE cards (
     entity_id TEXT PRIMARY KEY NOT NULL,
     concept_id TEXT NOT NULL,
-    retrieval_kind TEXT NOT NULL CHECK (retrieval_kind IN ('recall')),
+    retrieval_kind TEXT NOT NULL CHECK (
+        retrieval_kind IN ('recall', 'type_answer')
+    ),
+    configuration_json TEXT NOT NULL DEFAULT '{}' CHECK (
+        json_valid(configuration_json)
+        AND json_type(configuration_json) = 'object'
+    ),
     template_id TEXT,
     last_change_id TEXT NOT NULL,
+    CHECK (retrieval_kind = 'recall' OR template_id IS NULL),
     FOREIGN KEY (entity_id) REFERENCES entities(id),
     FOREIGN KEY (concept_id) REFERENCES concepts(entity_id),
     FOREIGN KEY (template_id) REFERENCES templates(entity_id),

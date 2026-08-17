@@ -9,16 +9,20 @@ use crate::library::content::validate_content;
 use crate::library::media::{
     active_concept_media_ids, query_concept_media, validate_media_ids,
 };
+use crate::library::retrieval_forms::{
+    normalize_type_answer, parse_type_answer, retrieval_form_configuration,
+};
 use crate::library::study::{
-    create_recall_card, query_scheduling_settings, query_study_preferences,
-    query_study_queue, record_review, update_grading_mode, update_scheduling_settings,
+    create_recall_card, create_type_answer_card, query_scheduling_settings,
+    query_study_preferences, query_study_queue, record_review, update_grading_mode,
+    update_scheduling_settings,
 };
 use crate::library::{
     CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, GradingMode,
     LibraryError, LibraryResult, LibrarySnapshot, MediaSummary, NamedItem,
     OrganizationSummary, RecordReviewInput, RetrievalFormKind, ReviewOutcome,
     SchedulingSettings, SchedulingState, StudyPreferences, StudyQueue, UpdateConceptInput,
-    UpdateSchedulingSettingsInput,
+    UpdateSchedulingSettingsInput, TypeAnswerSettings,
 };
 
 const MAXIMUM_CONCEPT_TITLE_LENGTH: usize = 200;
@@ -118,8 +122,13 @@ impl<'store> ConceptLibrary<'store> {
         let tag_ids = normalize_ids(input.tag_ids, "tag")?;
         let content = validate_content(input.content)?;
         let template_ids = normalize_template_ids(input.template_ids)?;
+        let type_answer = normalize_type_answer(input.type_answer)?;
 
-        validate_retrieval_form_selection(input.include_standard_recall, &template_ids)?;
+        validate_retrieval_form_selection(
+            input.include_standard_recall,
+            &template_ids,
+            type_answer.is_some(),
+        )?;
 
         self.store.write_result(|transaction| {
             validate_selections(transaction, OrganizationKind::Deck, &deck_ids)?;
@@ -147,6 +156,10 @@ impl<'store> ConceptLibrary<'store> {
 
             if input.include_standard_recall {
                 create_recall_card(transaction, &entity.id, None)?;
+            }
+
+            if let Some(settings) = &type_answer {
+                create_type_answer_card(transaction, &entity.id, settings)?;
             }
 
             for template_id in &template_ids {
@@ -189,8 +202,13 @@ impl<'store> ConceptLibrary<'store> {
         let tag_ids = normalize_ids(input.tag_ids, "tag")?;
         let content = validate_content(input.content)?;
         let template_ids = normalize_template_ids(input.template_ids)?;
+        let type_answer = normalize_type_answer(input.type_answer)?;
 
-        validate_retrieval_form_selection(input.include_standard_recall, &template_ids)?;
+        validate_retrieval_form_selection(
+            input.include_standard_recall,
+            &template_ids,
+            type_answer.is_some(),
+        )?;
 
         self.store.write_result(|transaction| {
             let current = query_concept(transaction, &id)?;
@@ -206,7 +224,14 @@ impl<'store> ConceptLibrary<'store> {
             let current_include_standard_recall = current
                 .cards
                 .iter()
-                .any(|card| card.template.is_none());
+                .any(|card| {
+                    card.retrieval_kind == RetrievalFormKind::Recall
+                        && card.template.is_none()
+                });
+            let current_type_answer = current
+                .cards
+                .iter()
+                .find_map(|card| card.type_answer.clone());
             let current_template_ids = current
                 .cards
                 .iter()
@@ -219,6 +244,7 @@ impl<'store> ConceptLibrary<'store> {
                 && current.content == content.content
                 && current_media == content.media_ids
                 && current_include_standard_recall == input.include_standard_recall
+                && current_type_answer == type_answer
                 && current_template_ids == template_ids
             {
                 return Ok(current);
@@ -261,6 +287,7 @@ impl<'store> ConceptLibrary<'store> {
                 &current.cards,
                 input.include_standard_recall,
                 &template_ids,
+                type_answer.as_ref(),
             )?;
 
             query_concept(transaction, &id)
@@ -516,8 +543,9 @@ fn normalize_template_ids(ids: Vec<String>) -> LibraryResult<BTreeSet<String>> {
 fn validate_retrieval_form_selection(
     include_standard_recall: bool,
     template_ids: &BTreeSet<String>,
+    include_type_answer: bool,
 ) -> LibraryResult<()> {
-    if !include_standard_recall && template_ids.is_empty() {
+    if !include_standard_recall && !include_type_answer && template_ids.is_empty() {
         return Err(LibraryError::MissingRetrievalForm);
     }
 
@@ -724,6 +752,7 @@ fn query_cards(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<C
         "SELECT
             cards.entity_id,
             cards.retrieval_kind,
+            cards.configuration_json,
             templates.entity_id,
             templates.name,
             card_scheduling.state,
@@ -752,24 +781,26 @@ fn query_cards(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<C
             cards.entity_id",
     )?;
     let cards = statement.query_map([concept_id], |row| {
-        let template_id = row.get::<_, Option<String>>(2)?;
-        let template_name = row.get::<_, Option<String>>(3)?;
+        let template_id = row.get::<_, Option<String>>(3)?;
+        let template_name = row.get::<_, Option<String>>(4)?;
         let template = match (template_id, template_name) {
             (Some(id), Some(name)) => Some(NamedItem { id, name }),
             (None, None) => None,
             _ => return Err(rusqlite::Error::InvalidQuery),
         };
         let retrieval_kind = row.get::<_, String>(1)?;
-        let scheduling_state = row.get::<_, String>(4)?;
+        let configuration = row.get::<_, String>(2)?;
+        let scheduling_state = row.get::<_, String>(5)?;
 
         Ok((
             row.get::<_, String>(0)?,
             retrieval_kind,
+            configuration,
             template,
             scheduling_state,
-            row.get::<_, i64>(5)?,
             row.get::<_, i64>(6)?,
             row.get::<_, i64>(7)?,
+            row.get::<_, i64>(8)?,
         ))
     })?;
 
@@ -778,16 +809,20 @@ fn query_cards(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<C
             let (
                 id,
                 retrieval_kind,
+                configuration,
                 template,
                 scheduling_state,
                 due_at,
                 review_count,
                 lapse_count,
             ) = card?;
+            let retrieval_kind = RetrievalFormKind::try_from(retrieval_kind.as_str())?;
+            let type_answer = parse_type_answer(retrieval_kind, &configuration)?;
 
             Ok(CardSummary {
                 id,
-                retrieval_kind: RetrievalFormKind::try_from(retrieval_kind.as_str())?,
+                retrieval_kind,
+                type_answer,
                 template,
                 scheduling_state: SchedulingState::try_from(scheduling_state.as_str())?,
                 due_at,
@@ -1081,11 +1116,15 @@ fn apply_retrieval_forms(
     current_cards: &[CardSummary],
     include_standard_recall: bool,
     template_ids: &BTreeSet<String>,
+    type_answer: Option<&TypeAnswerSettings>,
 ) -> LibraryResult<()> {
     for card in current_cards {
-        let retained = match &card.template {
-            Some(template) => template_ids.contains(&template.id),
-            None => include_standard_recall,
+        let retained = match card.retrieval_kind {
+            RetrievalFormKind::Recall => match &card.template {
+                Some(template) => template_ids.contains(&template.id),
+                None => include_standard_recall,
+            },
+            RetrievalFormKind::TypeAnswer => type_answer.is_some(),
         };
 
         if !retained {
@@ -1093,10 +1132,38 @@ fn apply_retrieval_forms(
         }
     }
 
-    let has_standard_recall = current_cards.iter().any(|card| card.template.is_none());
+    let has_standard_recall = current_cards.iter().any(|card| {
+        card.retrieval_kind == RetrievalFormKind::Recall && card.template.is_none()
+    });
 
     if include_standard_recall && !has_standard_recall {
         create_recall_card(transaction, concept_id, None)?;
+    }
+
+    let current_type_answer = current_cards
+        .iter()
+        .find(|card| card.retrieval_kind == RetrievalFormKind::TypeAnswer);
+
+    match (current_type_answer, type_answer) {
+        (None, Some(settings)) => {
+            create_type_answer_card(transaction, concept_id, settings)?;
+        }
+        (Some(card), Some(settings)) if card.type_answer.as_ref() != Some(settings) => {
+            let configuration = retrieval_form_configuration(
+                RetrievalFormKind::TypeAnswer,
+                Some(settings),
+            )?;
+            let entity = transaction.touch_entity(&card.id)?;
+
+            transaction.execute(
+                "UPDATE cards
+                SET configuration_json = ?1,
+                    last_change_id = ?2
+                WHERE entity_id = ?3",
+                params![configuration, entity.last_change_id, card.id],
+            )?;
+        }
+        _ => {}
     }
 
     let current_template_ids = current_cards
@@ -1148,8 +1215,9 @@ mod tests {
     use crate::library::models::TemplateMode;
     use crate::library::{
         ConceptContent, CreateConceptInput, CreateTemplateInput, GradingMode, LibraryError,
-        RecordReviewInput, ReviewRating, SchedulingState, TemplateContent, TemplateLibrary,
-        UpdateConceptInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
+        RecordReviewInput, RetrievalFormKind, ReviewRating, SchedulingState,
+        TemplateContent, TemplateLibrary, TypeAnswerSettings, UpdateConceptInput,
+        UpdateSchedulingSettingsInput, UpdateTemplateInput,
     };
 
     fn test_store() -> (TempDir, LocalDataStore) {
@@ -1187,6 +1255,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
 
@@ -1208,6 +1277,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
 
@@ -1303,6 +1373,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
 
@@ -1361,6 +1432,7 @@ mod tests {
             content: Default::default(),
             include_standard_recall: true,
             template_ids: Vec::new(),
+            type_answer: None,
         });
 
         assert!(matches!(
@@ -1377,6 +1449,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
         let revision = store.entity(&concept.id).unwrap().unwrap().revision;
@@ -1390,6 +1463,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
 
@@ -1447,6 +1521,7 @@ mod tests {
                 content: content.clone(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
 
@@ -1479,6 +1554,7 @@ mod tests {
             content: invalid_content,
             include_standard_recall: true,
             template_ids: Vec::new(),
+            type_answer: None,
         });
 
         assert!(matches!(
@@ -1496,6 +1572,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
         let removed_references: i64 = store
@@ -1528,6 +1605,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
 
@@ -1603,6 +1681,7 @@ mod tests {
             content: Default::default(),
             include_standard_recall: false,
             template_ids: Vec::new(),
+            type_answer: None,
         });
 
         assert!(matches!(
@@ -1654,6 +1733,7 @@ mod tests {
                     first_template.id.clone(),
                     first_template.id.clone(),
                 ],
+                type_answer: None,
             })
             .unwrap();
 
@@ -1710,6 +1790,172 @@ mod tests {
     }
 
     #[test]
+    fn type_answer_settings_are_validated_and_normalized() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let create_type_answer = |answers| CreateConceptInput {
+            title: "Typed response".to_owned(),
+            deck_ids: Vec::new(),
+            tag_ids: Vec::new(),
+            content: Default::default(),
+            include_standard_recall: false,
+            template_ids: Vec::new(),
+            type_answer: Some(TypeAnswerSettings {
+                accepted_answers: answers,
+            }),
+        };
+
+        assert!(matches!(
+            library.create_concept(create_type_answer(Vec::new())),
+            Err(LibraryError::MissingAcceptedAnswer)
+        ));
+        assert!(matches!(
+            library.create_concept(create_type_answer(vec!["answer".to_owned(); 21])),
+            Err(LibraryError::TooManyAcceptedAnswers { maximum: 20 })
+        ));
+        assert!(matches!(
+            library.create_concept(create_type_answer(vec![
+                "First answer".to_owned(),
+                " first   ANSWER ".to_owned(),
+            ])),
+            Err(LibraryError::DuplicateAcceptedAnswer)
+        ));
+        assert!(matches!(
+            library.create_concept(create_type_answer(vec!["x".repeat(501)])),
+            Err(LibraryError::ValueTooLong {
+                field: "Accepted answer",
+                maximum: 500,
+            })
+        ));
+        assert!(library.snapshot(false).unwrap().concepts.is_empty());
+
+        let concept = library
+            .create_concept(create_type_answer(vec![
+                "  García   Márquez  ".to_owned(),
+                "C++".to_owned(),
+            ]))
+            .unwrap();
+        let card = &concept.cards[0];
+
+        assert_eq!(concept.cards.len(), 1);
+        assert_eq!(card.retrieval_kind, RetrievalFormKind::TypeAnswer);
+        assert_eq!(card.template, None);
+        assert_eq!(
+            card.type_answer.as_ref().unwrap().accepted_answers,
+            vec!["García Márquez", "C++"]
+        );
+        let study_card = library.study_queue().unwrap().cards[0].clone();
+
+        assert_eq!(study_card.id, card.id);
+        assert_eq!(study_card.retrieval_kind, RetrievalFormKind::TypeAnswer);
+        assert_eq!(study_card.type_answer, card.type_answer);
+    }
+
+    #[test]
+    fn type_answer_edits_keep_schedules_and_readded_forms_start_fresh() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let concept = library
+            .create_concept(CreateConceptInput {
+                title: "Capital of France".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                type_answer: Some(TypeAnswerSettings {
+                    accepted_answers: vec!["Paris".to_owned()],
+                }),
+            })
+            .unwrap();
+        let original_card = concept.cards[0].clone();
+        let review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: original_card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                original_card.due_at,
+            )
+            .unwrap();
+        let updated = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id.clone(),
+                title: concept.title.clone(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: concept.content.clone(),
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                type_answer: Some(TypeAnswerSettings {
+                    accepted_answers: vec![
+                        "Paris".to_owned(),
+                        "The City of Paris".to_owned(),
+                    ],
+                }),
+            })
+            .unwrap();
+        let retained_card = updated.cards[0].clone();
+
+        assert_eq!(retained_card.id, original_card.id);
+        assert_eq!(retained_card.review_count, 1);
+        assert_eq!(retained_card.due_at, review.due_at);
+        assert_eq!(
+            retained_card.type_answer.unwrap().accepted_answers,
+            vec!["Paris", "The City of Paris"]
+        );
+
+        let without_type_answer = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id.clone(),
+                title: concept.title.clone(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: concept.content.clone(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                type_answer: None,
+            })
+            .unwrap();
+
+        assert_eq!(without_type_answer.cards.len(), 1);
+        assert_eq!(
+            without_type_answer.cards[0].retrieval_kind,
+            RetrievalFormKind::Recall
+        );
+        assert!(store
+            .entity(&original_card.id)
+            .unwrap()
+            .unwrap()
+            .deleted_at
+            .is_some());
+
+        let readded = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id,
+                title: concept.title,
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: concept.content,
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                type_answer: Some(TypeAnswerSettings {
+                    accepted_answers: vec!["Paris".to_owned()],
+                }),
+            })
+            .unwrap();
+        let readded_card = readded
+            .cards
+            .iter()
+            .find(|card| card.retrieval_kind == RetrievalFormKind::TypeAnswer)
+            .unwrap();
+
+        assert_ne!(readded_card.id, original_card.id);
+        assert_eq!(readded_card.scheduling_state, SchedulingState::New);
+        assert_eq!(readded_card.review_count, 0);
+    }
+
+    #[test]
     fn changing_retrieval_forms_retains_selected_schedules_and_protects_templates_in_use() {
         let (_directory, store) = test_store();
         let library = ConceptLibrary::new(&store);
@@ -1737,6 +1983,7 @@ mod tests {
                     removed_template.id.clone(),
                     retained_template.id.clone(),
                 ],
+                type_answer: None,
             })
             .unwrap();
         let removed_card_id = concept
@@ -1763,6 +2010,7 @@ mod tests {
                 content: concept.content,
                 include_standard_recall: true,
                 template_ids: vec![retained_template.id.clone()],
+                type_answer: None,
             })
             .unwrap();
 
@@ -1806,6 +2054,7 @@ mod tests {
                 content: updated.content,
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
 
@@ -1842,6 +2091,7 @@ mod tests {
                 content: content.clone(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
         let archived = library
@@ -1852,6 +2102,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
 
@@ -2047,6 +2298,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
         let card = library.study_queue().unwrap().cards[0].clone();
@@ -2163,6 +2415,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
         let initial_queue = library.study_queue().unwrap();
@@ -2300,6 +2553,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
 
@@ -2344,6 +2598,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
         let card = library.study_queue().unwrap().cards[0].clone();
@@ -2414,6 +2669,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                type_answer: None,
             })
             .unwrap();
 
