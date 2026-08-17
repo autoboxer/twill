@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt::Write as FormatWrite;
 use std::fs::{self, OpenOptions};
 use std::io::{Cursor, Write as IoWrite};
@@ -119,6 +119,44 @@ pub fn query_concept_media(
         ORDER BY entities.created_at, media.entity_id",
     )?;
     let media = statement.query_map([concept_id], media_record_from_row)?;
+
+    media
+        .map(|record| record.map(|record| record.summary()))
+        .collect::<Result<_, _>>()
+        .map_err(Into::into)
+}
+
+pub fn query_media_for_concepts(
+    connection: &Connection,
+    concept_ids: &BTreeSet<String>,
+) -> LibraryResult<Vec<MediaSummary>> {
+    if concept_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let placeholders = vec!["?"; concept_ids.len()].join(", ");
+    let sql = format!(
+        "SELECT DISTINCT
+            media.entity_id,
+            media.digest,
+            media.file_extension,
+            media.mime_type,
+            media.byte_size,
+            media.width,
+            media.height
+        FROM concept_media
+        INNER JOIN media ON media.entity_id = concept_media.media_id
+        INNER JOIN entities ON entities.id = media.entity_id
+        WHERE concept_media.concept_id IN ({placeholders})
+            AND concept_media.removed_at IS NULL
+            AND entities.deleted_at IS NULL
+        ORDER BY media.entity_id"
+    );
+    let mut statement = connection.prepare(&sql)?;
+    let media = statement.query_map(
+        rusqlite::params_from_iter(concept_ids),
+        media_record_from_row,
+    )?;
 
     media
         .map(|record| record.map(|record| record.summary()))

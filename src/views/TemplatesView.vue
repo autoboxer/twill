@@ -88,6 +88,14 @@ function modeLabel( mode ) {
   return mode === 'custom' ? 'HTML & CSS' : 'Visual';
 }
 
+function usageLabel( count ) {
+  if ( count === 0 ) {
+    return 'Not in use';
+  }
+
+  return `Used by ${ count } ${ count === 1 ? 'concept' : 'concepts' }`;
+}
+
 function formattedDate( timestamp ) {
   return new Intl.DateTimeFormat( undefined, {
     day: 'numeric',
@@ -208,7 +216,10 @@ function formattedDate( timestamp ) {
                   />
                 </div>
 
-                <p>Updated {{ formattedDate( template.updatedAt ) }}</p>
+                <p>
+                  Updated {{ formattedDate( template.updatedAt ) }}
+                  · {{ usageLabel( template.retrievalFormCount ) }}
+                </p>
               </div>
 
               <UIcon
@@ -221,7 +232,13 @@ function formattedDate( timestamp ) {
             <UButton
               type="button"
               icon="i-lucide-trash-2"
-              :aria-label="`Delete ${ template.name }`"
+              :aria-label="template.retrievalFormCount
+                ? `${ template.name } cannot be deleted while it is in use`
+                : `Delete ${ template.name }`"
+              :title="template.retrievalFormCount
+                ? 'Remove this template from its concepts before deleting it.'
+                : undefined"
+              :disabled="template.retrievalFormCount > 0"
               color="error"
               variant="ghost"
               square

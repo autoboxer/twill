@@ -32,8 +32,11 @@ impl From<LibraryError> for CommandError {
             | LibraryError::UnsupportedImage
             | LibraryError::ImageDimensionsTooLarge
             | LibraryError::InvalidDesiredRetention { .. }
-            | LibraryError::InvalidMaximumInterval { .. } => "validation",
-            LibraryError::DuplicateName { .. } | LibraryError::CardNotDue { .. } => "conflict",
+            | LibraryError::InvalidMaximumInterval { .. }
+            | LibraryError::MissingRetrievalForm => "validation",
+            LibraryError::DuplicateName { .. }
+            | LibraryError::CardNotDue { .. }
+            | LibraryError::TemplateInUse { .. } => "conflict",
             LibraryError::ConceptNotFound(_)
             | LibraryError::OrganizationNotFound { .. }
             | LibraryError::TemplateNotFound(_)
@@ -46,6 +49,8 @@ impl From<LibraryError> for CommandError {
             | LibraryError::MediaIntegrity { .. }
             | LibraryError::UnsupportedSchedulerConfiguration(_)
             | LibraryError::InvalidSchedulingState(_)
+            | LibraryError::InvalidRetrievalFormKind(_)
+            | LibraryError::InvalidRetrievalForm
             | LibraryError::InvalidGradingMode(_)
             | LibraryError::InvalidSchedule
             | LibraryError::Scheduler(_) => "storage",
@@ -57,6 +62,8 @@ impl From<LibraryError> for CommandError {
             | LibraryError::MediaIntegrity { .. }
             | LibraryError::UnsupportedSchedulerConfiguration(_)
             | LibraryError::InvalidSchedulingState(_)
+            | LibraryError::InvalidRetrievalFormKind(_)
+            | LibraryError::InvalidRetrievalForm
             | LibraryError::InvalidGradingMode(_)
             | LibraryError::InvalidSchedule
             | LibraryError::Scheduler(_) => {

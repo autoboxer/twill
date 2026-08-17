@@ -69,6 +69,18 @@ pub enum LibraryError {
     #[error("stored card scheduling state is not valid: {0}")]
     InvalidSchedulingState(String),
 
+    #[error("stored retrieval form kind is not valid: {0}")]
+    InvalidRetrievalFormKind(String),
+
+    #[error("stored retrieval form is not valid")]
+    InvalidRetrievalForm,
+
+    #[error("a concept must have at least one retrieval form")]
+    MissingRetrievalForm,
+
+    #[error("this template is used by {retrieval_form_count} active retrieval forms")]
+    TemplateInUse { retrieval_form_count: i64 },
+
     #[error("stored grading mode is not valid: {0}")]
     InvalidGradingMode(String),
 

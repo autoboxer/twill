@@ -174,6 +174,14 @@ impl<'store> TemplateLibrary<'store> {
                 return Err(LibraryError::TemplateNotFound(id));
             }
 
+            let retrieval_form_count = active_retrieval_form_count(transaction, &id)?;
+
+            if retrieval_form_count > 0 {
+                return Err(LibraryError::TemplateInUse {
+                    retrieval_form_count,
+                });
+            }
+
             transaction.soft_delete_entity(&id)?;
 
             Ok(())
@@ -386,7 +394,15 @@ fn query_catalog(connection: &Connection) -> LibraryResult<TemplateCatalog> {
             templates.entity_id,
             templates.name,
             entities.updated_at,
-            templates.content_json
+            templates.content_json,
+            (
+                SELECT COUNT(*)
+                FROM cards
+                INNER JOIN entities AS card_entities
+                    ON card_entities.id = cards.entity_id
+                WHERE cards.template_id = templates.entity_id
+                    AND card_entities.deleted_at IS NULL
+            )
         FROM templates
         INNER JOIN entities ON entities.id = templates.entity_id
         WHERE entities.deleted_at IS NULL
@@ -398,11 +414,12 @@ fn query_catalog(connection: &Connection) -> LibraryResult<TemplateCatalog> {
             row.get::<_, String>(1)?,
             row.get::<_, i64>(2)?,
             row.get::<_, String>(3)?,
+            row.get::<_, i64>(4)?,
         ))
     })?;
     let templates = templates
         .map(|template| {
-            let (id, name, updated_at, content) = template?;
+            let (id, name, updated_at, content, retrieval_form_count) = template?;
             let content: TemplateContent = serde_json::from_str(&content)?;
 
             Ok(TemplateSummary {
@@ -410,6 +427,7 @@ fn query_catalog(connection: &Connection) -> LibraryResult<TemplateCatalog> {
                 name,
                 updated_at,
                 mode: content.mode,
+                retrieval_form_count,
             })
         })
         .collect::<LibraryResult<_>>()?;
@@ -494,6 +512,21 @@ fn template_record_exists(connection: &Connection, id: &str) -> LibraryResult<bo
     Ok(connection.query_row(
         "SELECT EXISTS (SELECT 1 FROM templates WHERE entity_id = ?1)",
         [id],
+        |row| row.get(0),
+    )?)
+}
+
+fn active_retrieval_form_count(
+    connection: &Connection,
+    template_id: &str,
+) -> LibraryResult<i64> {
+    Ok(connection.query_row(
+        "SELECT COUNT(*)
+        FROM cards
+        INNER JOIN entities ON entities.id = cards.entity_id
+        WHERE cards.template_id = ?1
+            AND entities.deleted_at IS NULL",
+        [template_id],
         |row| row.get(0),
     )?)
 }

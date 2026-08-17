@@ -10,6 +10,7 @@ import {
   conceptLibraryErrorMessage,
   useConceptLibrary
 } from '../composables/useConceptLibrary';
+import { useTemplateLibrary } from '../composables/useTemplateLibrary';
 
 const route = useRoute();
 const router = useRouter();
@@ -26,6 +27,10 @@ const {
   getConcept: loadConcept,
   getLibrary: loadLibrary
 } = useConceptLibrary();
+const {
+  clearError: clearTemplateLoadError,
+  getTemplates
+} = useTemplateLibrary();
 
 const concept = ref( null );
 const initialLoading = ref( true );
@@ -37,6 +42,7 @@ const library = ref({
   tags: []
 });
 const organizationManagerOpen = ref( false );
+const templates = ref([]);
 let loadRequestSequence = 0;
 
 const conceptId = computed( () => route.params.conceptId ?? '' );
@@ -51,13 +57,15 @@ async function loadData() {
 
   clearError();
   clearLoadError();
+  clearTemplateLoadError();
   initialLoading.value = true;
   loadError.value = '';
 
   try {
-    const [ snapshot, existingConcept ] = await Promise.all([
+    const [ snapshot, existingConcept, templateCatalog ] = await Promise.all([
       loadLibrary( false ),
-      requestedConceptId ? loadConcept( requestedConceptId ) : Promise.resolve( null )
+      requestedConceptId ? loadConcept( requestedConceptId ) : Promise.resolve( null ),
+      getTemplates()
     ]);
 
     if ( request !== loadRequestSequence ) {
@@ -66,6 +74,7 @@ async function loadData() {
 
     library.value = snapshot;
     concept.value = existingConcept;
+    templates.value = templateCatalog.templates;
   } catch ( cause ) {
     if ( request === loadRequestSequence ) {
       loadError.value = conceptLibraryErrorMessage( cause );
@@ -158,6 +167,7 @@ function cancel() {
       :concept="concept"
       :decks="library.decks"
       :tags="library.tags"
+      :templates="templates"
       :error="error"
       :loading="isPending"
       @cancel="cancel"

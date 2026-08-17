@@ -4,7 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
-import RichContentRenderer from '../components/RichContentRenderer.vue';
+import StudyCardContent from '../components/StudyCardContent.vue';
 import {
   conceptLibraryErrorMessage,
   useConceptLibrary
@@ -36,7 +36,6 @@ const {
   totalCards
 } = useRecallSession();
 
-const answerHeading = ref( null );
 const assessmentError = ref( '' );
 const assessmentPending = ref( false );
 const completionHeading = ref( null );
@@ -49,6 +48,8 @@ const nextDueAt = ref( null );
 const pendingAssessment = ref( '' );
 const revealButton = ref( null );
 const sessionGradingMode = ref( 'simple' );
+const studyContent = ref( null );
+const studyMedia = ref([]);
 const totalAvailableCards = ref( 0 );
 let loadRequestSequence = 0;
 let viewActive = true;
@@ -190,6 +191,7 @@ async function loadStudyQueue() {
       return;
     }
 
+    studyMedia.value = queue.media;
     begin( queue.cards );
     gradingMode.value = preferences.gradingMode;
     nextDueAt.value = queue.nextDueAt;
@@ -209,7 +211,7 @@ async function loadStudyQueue() {
 async function showAnswer() {
   revealAnswer();
   await nextTick();
-  answerHeading.value?.focus();
+  studyContent.value?.focus();
 }
 
 async function recordAssessment( rating ) {
@@ -520,7 +522,9 @@ function focusButton( button ) {
         >
           <header class="study-card__header">
             <div>
-              <span class="study-card__eyebrow">Recall</span>
+              <span class="study-card__eyebrow">
+                {{ currentCard.template?.name ?? 'Standard recall' }}
+              </span>
               <h2>{{ currentCard.conceptTitle }}</h2>
             </div>
 
@@ -539,42 +543,12 @@ function focusButton( button ) {
           </header>
 
           <div class="study-card__body">
-            <section
-              class="study-document"
-              aria-labelledby="study-prompt-heading"
-            >
-              <h3 id="study-prompt-heading">Prompt</h3>
-
-              <RichContentRenderer
-                :document="currentCard.content.prompt"
-                :label="`Prompt for ${ currentCard.conceptTitle }`"
-              />
-            </section>
-
-            <AnimatePresence :initial="false">
-              <m.section
-                v-if="answerRevealed"
-                class="study-document study-document--answer"
-                aria-labelledby="study-answer-heading"
-                :initial="{ opacity: 0, y: 10 }"
-                :animate="{ opacity: 1, y: 0 }"
-                :exit="{ opacity: 0, y: -6 }"
-                :transition="cardTransition"
-              >
-                <h3
-                  id="study-answer-heading"
-                  ref="answerHeading"
-                  tabindex="-1"
-                >
-                  Answer
-                </h3>
-
-                <RichContentRenderer
-                  :document="currentCard.content.answer"
-                  :label="`Answer for ${ currentCard.conceptTitle }`"
-                />
-              </m.section>
-            </AnimatePresence>
+            <StudyCardContent
+              ref="studyContent"
+              :card="currentCard"
+              :answer-revealed="answerRevealed"
+              :media="studyMedia"
+            />
           </div>
 
           <footer class="study-card__footer">

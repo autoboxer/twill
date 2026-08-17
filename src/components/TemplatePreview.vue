@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
+import { createCustomTemplateDocument } from '../templates/customFrame';
 import { cloneTemplateContent, templateFields } from '../templates/defaults';
 import RichContentRenderer from './RichContentRenderer.vue';
 
@@ -44,14 +45,21 @@ const representativeContent = {
     }]
   }
 };
+const representativeFields = {
+  title: '<div class="twill-field twill-title">Cell membrane</div>',
+  prompt: '<div class="twill-field"><p>What controls the movement of substances into and out of a cell?</p></div>',
+  answer: '<div class="twill-field"><p>The selectively permeable cell membrane.</p></div>'
+};
 
-const frontDocument = computed( () => customPreviewDocument(
+const frontDocument = computed( () => createCustomTemplateDocument(
   preparedCustom.value.frontHtml,
-  preparedCustom.value.css
+  preparedCustom.value.css,
+  representativeFields
 ) );
-const answerDocument = computed( () => customPreviewDocument(
+const answerDocument = computed( () => createCustomTemplateDocument(
   preparedCustom.value.answerHtml,
-  preparedCustom.value.css
+  preparedCustom.value.css,
+  representativeFields
 ) );
 
 watch( () => props.content, scheduleCustomPreview, {
@@ -102,51 +110,6 @@ async function prepareCustomPreview( request ) {
 
 function fieldDetails( value ) {
   return templateFields.find( ( field ) => field.value === value );
-}
-
-function customPreviewDocument( source, css ) {
-  const content = source.replace(
-    /{{\s*(title|prompt|answer)\s*}}/g,
-    ( _, field ) => representativeHtml( field )
-  );
-
-  return [
-    '<!doctype html>',
-    '<html>',
-    '<head>',
-    '<meta charset="utf-8">',
-    '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; font-src \'none\'; connect-src \'none\'; media-src \'none\'; object-src \'none\'; frame-src \'none\'; base-uri \'none\'; form-action \'none\'">',
-    '<style>',
-    basePreviewCss(),
-    css,
-    '</style>',
-    '</head>',
-    `<body>${ content }</body>`,
-    '</html>'
-  ].join( '' );
-}
-
-function representativeHtml( field ) {
-  const values = {
-    title: '<div class="twill-field twill-title">Cell membrane</div>',
-    prompt: '<div class="twill-field"><p>What controls the movement of substances into and out of a cell?</p></div>',
-    answer: '<div class="twill-field"><p>The selectively permeable cell membrane.</p></div>'
-  };
-
-  return values[ field ];
-}
-
-function basePreviewCss() {
-  return [
-    ':root { color-scheme: light; }',
-    '* { box-sizing: border-box; }',
-    'html, body { min-height: 100%; margin: 0; }',
-    'body { padding: 24px; color: #273029; background: #fbfcfa; font-family: system-ui, sans-serif; overflow-wrap: anywhere; }',
-    '.twill-field > :first-child { margin-top: 0; }',
-    '.twill-field > :last-child { margin-bottom: 0; }',
-    '.twill-title { font-size: 1.3rem; font-weight: 700; }'
-  ].join( '' );
 }
 </script>
 

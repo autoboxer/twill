@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import ConfirmDialog from '../components/ConfirmDialog.vue';
@@ -26,10 +26,12 @@ const {
 } = useConceptLibrary();
 
 const concept = ref( null );
+const currentTime = ref( Date.now() );
 const deleteDialogOpen = ref( false );
 const initialLoading = ref( true );
 const loadError = ref( '' );
 let loadRequestSequence = 0;
+let timeUpdateTimer = null;
 
 const conceptId = computed( () => route.params.conceptId ?? '' );
 const archiveLabel = computed( () => concept.value?.archived ? 'Restore' : 'Archive' );
@@ -37,8 +39,33 @@ const archiveIcon = computed( () => concept.value?.archived
   ? 'i-lucide-archive-restore'
   : 'i-lucide-archive'
 );
+const retrievalProgress = computed( () => {
+  const cards = concept.value?.cards ?? [];
+  const started = cards.filter( ( card ) => card.reviewCount > 0 ).length;
+  const due = concept.value?.archived
+    ? 0
+    : cards.filter( ( card ) => card.dueAt <= currentTime.value ).length;
+
+  return { due, started, total: cards.length };
+});
+const retrievalProgressLabel = computed( () => {
+  const { due, started, total } = retrievalProgress.value;
+
+  return `${ started } of ${ total } started · ${ due } due`;
+});
 
 watch( conceptId, loadConcept, { immediate: true });
+
+onMounted( () => {
+  timeUpdateTimer = window.setInterval( () => {
+    currentTime.value = Date.now();
+  }, 60_000 );
+});
+
+onBeforeUnmount( () => {
+  loadRequestSequence += 1;
+  window.clearInterval( timeUpdateTimer );
+});
 
 async function loadConcept() {
   const request = ++loadRequestSequence;
@@ -96,6 +123,42 @@ function formattedDate( timestamp ) {
     month: 'long',
     year: 'numeric'
   }).format( new Date( timestamp ) );
+}
+
+function formattedDueDate( timestamp ) {
+  if ( concept.value?.archived ) {
+    return 'Paused while archived';
+  }
+
+  if ( timestamp <= currentTime.value ) {
+    return 'Due now';
+  }
+
+  return `Due ${ new Intl.DateTimeFormat( undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format( new Date( timestamp ) ) }`;
+}
+
+function retrievalFormName( card ) {
+  return card.template?.name ?? 'Standard recall';
+}
+
+function reviewCountLabel( count ) {
+  if ( count === 0 ) {
+    return 'Not studied yet';
+  }
+
+  return `${ count } ${ count === 1 ? 'review' : 'reviews' }`;
+}
+
+function schedulingStateDetails( state ) {
+  return {
+    learning: { color: 'warning', label: 'Learning' },
+    new: { color: 'neutral', label: 'New' },
+    relearning: { color: 'error', label: 'Relearning' },
+    review: { color: 'primary', label: 'Review' }
+  }[ state ] ?? { color: 'neutral', label: state };
 }
 </script>
 
@@ -243,10 +306,7 @@ function formattedDate( timestamp ) {
         <div class="concept-detail-panel__heading">
           <div>
             <h2>Retrieval forms</h2>
-            <p>
-              {{ concept.cards.length }}
-              {{ concept.cards.length === 1 ? 'form' : 'forms' }}
-            </p>
+            <p>{{ retrievalProgressLabel }}</p>
           </div>
         </div>
 
@@ -255,11 +315,33 @@ function formattedDate( timestamp ) {
           class="retrieval-form-list"
         >
           <li
-            v-for="( card, index ) in concept.cards"
+            v-for="card in concept.cards"
             :key="card.id"
           >
-            <span>{{ index + 1 }}</span>
-            <strong>Recall</strong>
+            <span
+              class="retrieval-form-list__icon"
+              aria-hidden="true"
+            >
+              <UIcon :name="card.template ? 'i-lucide-panels-top-left' : 'i-lucide-rotate-ccw'" />
+            </span>
+
+            <div class="retrieval-form-list__copy">
+              <strong>{{ retrievalFormName( card ) }}</strong>
+              <span>
+                {{ card.template ? 'Template recall' : 'Built-in layout' }}
+                · {{ reviewCountLabel( card.reviewCount ) }}
+              </span>
+            </div>
+
+            <div class="retrieval-form-list__schedule">
+              <UBadge
+                :label="schedulingStateDetails( card.schedulingState ).label"
+                :color="schedulingStateDetails( card.schedulingState ).color"
+                variant="soft"
+              />
+
+              <span>{{ formattedDueDate( card.dueAt ) }}</span>
+            </div>
           </li>
         </ol>
 

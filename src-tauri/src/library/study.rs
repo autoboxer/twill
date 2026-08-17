@@ -1,12 +1,16 @@
+use std::collections::BTreeSet;
+
 use fsrs::{ItemState, MemoryState, FSRS};
 use rusqlite::{params, Connection};
 use uuid::Uuid;
 
 use crate::data::{current_timestamp, EntityKind, WriteTransaction};
+use crate::library::media::query_media_for_concepts;
+use crate::library::models::TemplateMode;
 use crate::library::{
-    CardSummary, GradingMode, LibraryError, LibraryResult, ReviewOutcome, ReviewRating,
-    SchedulingSettings, SchedulingState, StudyCard, StudyPreferences, StudyQueue,
-    UpdateSchedulingSettingsInput,
+    GradingMode, LibraryError, LibraryResult, RetrievalFormKind, ReviewOutcome,
+    ReviewRating, SchedulingSettings, SchedulingState, StudyCard, StudyPreferences,
+    StudyQueue, StudyTemplate, UpdateSchedulingSettingsInput,
 };
 
 const FSRS_ALGORITHM: &str = "fsrs";
@@ -39,13 +43,25 @@ struct SchedulerConfiguration {
 pub fn create_recall_card(
     transaction: &WriteTransaction<'_>,
     concept_id: &str,
-) -> LibraryResult<CardSummary> {
+    template_id: Option<&str>,
+) -> LibraryResult<()> {
     let entity = transaction.create_entity(EntityKind::Card)?;
 
     transaction.execute(
-        "INSERT INTO cards (entity_id, concept_id, last_change_id)
-        VALUES (?1, ?2, ?3)",
-        params![entity.id, concept_id, entity.last_change_id],
+        "INSERT INTO cards (
+            entity_id,
+            concept_id,
+            retrieval_kind,
+            template_id,
+            last_change_id
+        ) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            entity.id,
+            concept_id,
+            RetrievalFormKind::Recall.as_str(),
+            template_id,
+            entity.last_change_id
+        ],
     )?;
     transaction.execute(
         "INSERT INTO card_scheduling (
@@ -62,7 +78,7 @@ pub fn create_recall_card(
         params![entity.id, entity.created_at],
     )?;
 
-    Ok(CardSummary { id: entity.id })
+    Ok(())
 }
 
 pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<StudyQueue> {
@@ -75,9 +91,15 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             ON concepts.entity_id = cards.concept_id
         INNER JOIN entities AS concept_entities
             ON concept_entities.id = concepts.entity_id
+        LEFT JOIN entities AS template_entities
+            ON template_entities.id = cards.template_id
         WHERE card_entities.deleted_at IS NULL
             AND concept_entities.deleted_at IS NULL
-            AND concepts.archived_at IS NULL",
+            AND concepts.archived_at IS NULL
+            AND (
+                cards.template_id IS NULL
+                OR template_entities.deleted_at IS NULL
+            )",
         [],
         |row| row.get(0),
     )?;
@@ -92,9 +114,15 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             ON concepts.entity_id = cards.concept_id
         INNER JOIN entities AS concept_entities
             ON concept_entities.id = concepts.entity_id
+        LEFT JOIN entities AS template_entities
+            ON template_entities.id = cards.template_id
         WHERE card_entities.deleted_at IS NULL
             AND concept_entities.deleted_at IS NULL
             AND concepts.archived_at IS NULL
+            AND (
+                cards.template_id IS NULL
+                OR template_entities.deleted_at IS NULL
+            )
             AND card_scheduling.due_at > ?1",
         [now],
         |row| row.get(0),
@@ -105,6 +133,10 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             concepts.entity_id,
             concepts.title,
             concepts.content_json,
+            cards.retrieval_kind,
+            templates.entity_id,
+            templates.name,
+            templates.content_json,
             card_scheduling.state,
             card_scheduling.due_at
         FROM card_scheduling
@@ -116,9 +148,17 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             ON concepts.entity_id = cards.concept_id
         INNER JOIN entities AS concept_entities
             ON concept_entities.id = concepts.entity_id
+        LEFT JOIN templates
+            ON templates.entity_id = cards.template_id
+        LEFT JOIN entities AS template_entities
+            ON template_entities.id = cards.template_id
         WHERE card_entities.deleted_at IS NULL
             AND concept_entities.deleted_at IS NULL
             AND concepts.archived_at IS NULL
+            AND (
+                cards.template_id IS NULL
+                OR template_entities.deleted_at IS NULL
+            )
             AND card_scheduling.due_at <= ?1
         ORDER BY card_scheduling.due_at, cards.entity_id",
     )?;
@@ -129,26 +169,67 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             row.get::<_, String>(2)?,
             row.get::<_, String>(3)?,
             row.get::<_, String>(4)?,
-            row.get::<_, i64>(5)?,
+            row.get::<_, Option<String>>(5)?,
+            row.get::<_, Option<String>>(6)?,
+            row.get::<_, Option<String>>(7)?,
+            row.get::<_, String>(8)?,
+            row.get::<_, i64>(9)?,
         ))
     })?;
-    let cards = rows
+    let card_rows = rows.collect::<Result<Vec<_>, _>>()?;
+
+    drop(statement);
+
+    let mut media_concept_ids = BTreeSet::new();
+    let cards = card_rows
+        .into_iter()
         .map(|row| {
-            let (id, concept_id, concept_title, content, state, due_at) = row?;
+            let (
+                id,
+                concept_id,
+                concept_title,
+                content,
+                retrieval_kind,
+                template_id,
+                template_name,
+                template_content,
+                state,
+                due_at,
+            ) = row;
+            let template = match (template_id, template_name, template_content) {
+                (Some(id), Some(name), Some(content)) => Some(StudyTemplate {
+                    id,
+                    name,
+                    content: serde_json::from_str(&content)?,
+                }),
+                (None, None, None) => None,
+                _ => return Err(LibraryError::InvalidRetrievalForm),
+            };
+
+            if template
+                .as_ref()
+                .is_some_and(|template| template.content.mode == TemplateMode::Custom)
+            {
+                media_concept_ids.insert(concept_id.clone());
+            }
 
             Ok(StudyCard {
                 id,
                 concept_id,
                 concept_title,
                 content: serde_json::from_str(&content)?,
+                retrieval_kind: RetrievalFormKind::try_from(retrieval_kind.as_str())?,
+                template,
                 scheduling_state: SchedulingState::try_from(state.as_str())?,
                 due_at,
             })
         })
         .collect::<LibraryResult<Vec<_>>>()?;
+    let media = query_media_for_concepts(connection, &media_concept_ids)?;
 
     Ok(StudyQueue {
         cards,
+        media,
         next_due_at,
         total_cards,
     })
