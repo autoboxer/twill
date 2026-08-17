@@ -141,7 +141,29 @@ function formattedDueDate( timestamp ) {
 }
 
 function retrievalFormName( card ) {
+  if ( card.retrievalKind === 'typeAnswer' ) {
+    return 'Type answer';
+  }
+
   return card.template?.name ?? 'Standard recall';
+}
+
+function retrievalFormIcon( card ) {
+  if ( card.retrievalKind === 'typeAnswer' ) {
+    return 'i-lucide-keyboard';
+  }
+
+  return card.template ? 'i-lucide-panels-top-left' : 'i-lucide-rotate-ccw';
+}
+
+function retrievalFormDescription( card ) {
+  if ( card.retrievalKind === 'typeAnswer' ) {
+    const count = card.typeAnswer.acceptedAnswers.length;
+
+    return `${ count } accepted ${ count === 1 ? 'answer' : 'answers' }`;
+  }
+
+  return card.template ? 'Template recall' : 'Built-in layout';
 }
 
 function reviewCountLabel( count ) {
@@ -322,15 +344,33 @@ function schedulingStateDetails( state ) {
               class="retrieval-form-list__icon"
               aria-hidden="true"
             >
-              <UIcon :name="card.template ? 'i-lucide-panels-top-left' : 'i-lucide-rotate-ccw'" />
+              <UIcon :name="retrievalFormIcon( card )" />
             </span>
 
             <div class="retrieval-form-list__copy">
               <strong>{{ retrievalFormName( card ) }}</strong>
               <span>
-                {{ card.template ? 'Template recall' : 'Built-in layout' }}
+                {{ retrievalFormDescription( card ) }}
                 · {{ reviewCountLabel( card.reviewCount ) }}
               </span>
+
+              <div
+                v-if="card.typeAnswer"
+                class="retrieval-form-list__answers"
+              >
+                <span>{{ card.typeAnswer.acceptedAnswers.length === 1
+                  ? 'Accepted answer'
+                  : 'Accepted answers' }}</span>
+
+                <ul>
+                  <li
+                    v-for="answer in card.typeAnswer.acceptedAnswers"
+                    :key="answer"
+                  >
+                    {{ answer }}
+                  </li>
+                </ul>
+              </div>
             </div>
 
             <div class="retrieval-form-list__schedule">
