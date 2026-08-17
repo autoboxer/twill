@@ -156,6 +156,14 @@ export function createRichContentExtensions({ onEditMath } = {}) {
   ];
 }
 
+export function highlightCode( code, language ) {
+  const highlighted = language && lowlight.registered( language )
+    ? lowlight.highlight( language, code )
+    : lowlight.highlightAuto( code );
+
+  return highlighted.children;
+}
+
 export function richContentStarterKit( editable = true ) {
   return {
     codeBlock: false,

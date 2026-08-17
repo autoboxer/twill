@@ -96,6 +96,7 @@ pub struct StudyCard {
 #[serde(rename_all = "camelCase")]
 pub struct StudyQueue {
     pub cards: Vec<StudyCard>,
+    pub media: Vec<MediaSummary>,
     pub next_due_at: Option<i64>,
     pub total_cards: i64,
 }

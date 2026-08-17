@@ -1,8 +1,12 @@
+use std::collections::BTreeSet;
+
 use fsrs::{ItemState, MemoryState, FSRS};
 use rusqlite::{params, Connection};
 use uuid::Uuid;
 
 use crate::data::{current_timestamp, EntityKind, WriteTransaction};
+use crate::library::media::query_media_for_concepts;
+use crate::library::models::TemplateMode;
 use crate::library::{
     GradingMode, LibraryError, LibraryResult, RetrievalFormKind, ReviewOutcome,
     ReviewRating, SchedulingSettings, SchedulingState, StudyCard, StudyPreferences,
@@ -172,7 +176,13 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             row.get::<_, i64>(9)?,
         ))
     })?;
-    let cards = rows
+    let card_rows = rows.collect::<Result<Vec<_>, _>>()?;
+
+    drop(statement);
+
+    let mut media_concept_ids = BTreeSet::new();
+    let cards = card_rows
+        .into_iter()
         .map(|row| {
             let (
                 id,
@@ -185,7 +195,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 template_content,
                 state,
                 due_at,
-            ) = row?;
+            ) = row;
             let template = match (template_id, template_name, template_content) {
                 (Some(id), Some(name), Some(content)) => Some(StudyTemplate {
                     id,
@@ -195,6 +205,13 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 (None, None, None) => None,
                 _ => return Err(LibraryError::InvalidRetrievalForm),
             };
+
+            if template
+                .as_ref()
+                .is_some_and(|template| template.content.mode == TemplateMode::Custom)
+            {
+                media_concept_ids.insert(concept_id.clone());
+            }
 
             Ok(StudyCard {
                 id,
@@ -208,9 +225,11 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             })
         })
         .collect::<LibraryResult<Vec<_>>>()?;
+    let media = query_media_for_concepts(connection, &media_concept_ids)?;
 
     Ok(StudyQueue {
         cards,
+        media,
         next_due_at,
         total_cards,
     })

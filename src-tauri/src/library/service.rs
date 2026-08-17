@@ -1145,6 +1145,7 @@ mod tests {
 
     use super::ConceptLibrary;
     use crate::data::{DataResult, EntityKind, LocalDataStore};
+    use crate::library::models::TemplateMode;
     use crate::library::{
         ConceptContent, CreateConceptInput, CreateTemplateInput, GradingMode, LibraryError,
         RecordReviewInput, ReviewRating, SchedulingState, TemplateContent, TemplateLibrary,
@@ -1452,6 +1453,7 @@ mod tests {
         assert_eq!(concept.content, content);
         assert_eq!(concept.media, vec![media.clone()]);
         assert_eq!(library.media_bytes(&media.id).unwrap(), image_bytes);
+        assert!(library.study_queue().unwrap().media.is_empty());
 
         let revision = store.entity(&concept.id).unwrap().unwrap().revision;
         let invalid_content = ConceptContent {
@@ -1609,10 +1611,14 @@ mod tests {
         ));
         assert!(library.snapshot(false).unwrap().concepts.is_empty());
 
+        let mut custom_template_content = TemplateContent::default();
+
+        custom_template_content.mode = TemplateMode::Custom;
+
         let first_template = templates
             .create_template(CreateTemplateInput {
                 name: "Answer first".to_owned(),
-                content: TemplateContent::default(),
+                content: custom_template_content,
             })
             .unwrap();
         let second_template = templates
@@ -1621,12 +1627,27 @@ mod tests {
                 content: TemplateContent::default(),
             })
             .unwrap();
+        let media = library.import_image(&png_bytes()).unwrap();
         let concept = library
             .create_concept(CreateConceptInput {
                 title: "Complementary practice".to_owned(),
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
-                content: Default::default(),
+                content: ConceptContent {
+                    schema_version: 1,
+                    prompt: json!({
+                        "type": "doc",
+                        "content": [{
+                            "type": "mediaImage",
+                            "attrs": {
+                                "mediaId": media.id,
+                                "alt": "Practice image",
+                                "title": null
+                            }
+                        }]
+                    }),
+                    answer: ConceptContent::default().answer,
+                },
                 include_standard_recall: false,
                 template_ids: vec![
                     second_template.id.clone(),
@@ -1649,6 +1670,9 @@ mod tests {
         let reviewed_card = concept.cards[0].clone();
         let waiting_card = concept.cards[1].clone();
         let review_time = reviewed_card.due_at.max(waiting_card.due_at);
+        let initial_queue = library.study_queue_at(review_time).unwrap();
+
+        assert_eq!(initial_queue.media, vec![media]);
 
         library
             .record_review_at(
@@ -1663,6 +1687,7 @@ mod tests {
         let queue = library.study_queue_at(review_time).unwrap();
 
         assert_eq!(queue.cards.len(), 1);
+        assert!(queue.media.is_empty());
         assert_eq!(queue.cards[0].id, waiting_card.id);
         assert_eq!(
             queue.cards[0].template.as_ref().unwrap().id,
