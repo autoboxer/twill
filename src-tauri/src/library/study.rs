@@ -7,10 +7,13 @@ use uuid::Uuid;
 use crate::data::{current_timestamp, EntityKind, WriteTransaction};
 use crate::library::media::query_media_for_concepts;
 use crate::library::models::TemplateMode;
+use crate::library::retrieval_forms::{
+    parse_type_answer, retrieval_form_configuration,
+};
 use crate::library::{
     GradingMode, LibraryError, LibraryResult, RetrievalFormKind, ReviewOutcome,
     ReviewRating, SchedulingSettings, SchedulingState, StudyCard, StudyPreferences,
-    StudyQueue, StudyTemplate, UpdateSchedulingSettingsInput,
+    StudyQueue, StudyTemplate, TypeAnswerSettings, UpdateSchedulingSettingsInput,
 };
 
 const FSRS_ALGORITHM: &str = "fsrs";
@@ -45,6 +48,37 @@ pub fn create_recall_card(
     concept_id: &str,
     template_id: Option<&str>,
 ) -> LibraryResult<()> {
+    create_card(
+        transaction,
+        concept_id,
+        RetrievalFormKind::Recall,
+        template_id,
+        None,
+    )
+}
+
+pub fn create_type_answer_card(
+    transaction: &WriteTransaction<'_>,
+    concept_id: &str,
+    settings: &TypeAnswerSettings,
+) -> LibraryResult<()> {
+    create_card(
+        transaction,
+        concept_id,
+        RetrievalFormKind::TypeAnswer,
+        None,
+        Some(settings),
+    )
+}
+
+fn create_card(
+    transaction: &WriteTransaction<'_>,
+    concept_id: &str,
+    retrieval_kind: RetrievalFormKind,
+    template_id: Option<&str>,
+    type_answer: Option<&TypeAnswerSettings>,
+) -> LibraryResult<()> {
+    let configuration = retrieval_form_configuration(retrieval_kind, type_answer)?;
     let entity = transaction.create_entity(EntityKind::Card)?;
 
     transaction.execute(
@@ -52,13 +86,15 @@ pub fn create_recall_card(
             entity_id,
             concept_id,
             retrieval_kind,
+            configuration_json,
             template_id,
             last_change_id
-        ) VALUES (?1, ?2, ?3, ?4, ?5)",
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![
             entity.id,
             concept_id,
-            RetrievalFormKind::Recall.as_str(),
+            retrieval_kind.as_str(),
+            configuration,
             template_id,
             entity.last_change_id
         ],
@@ -134,6 +170,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             concepts.title,
             concepts.content_json,
             cards.retrieval_kind,
+            cards.configuration_json,
             templates.entity_id,
             templates.name,
             templates.content_json,
@@ -169,11 +206,12 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             row.get::<_, String>(2)?,
             row.get::<_, String>(3)?,
             row.get::<_, String>(4)?,
-            row.get::<_, Option<String>>(5)?,
+            row.get::<_, String>(5)?,
             row.get::<_, Option<String>>(6)?,
             row.get::<_, Option<String>>(7)?,
-            row.get::<_, String>(8)?,
-            row.get::<_, i64>(9)?,
+            row.get::<_, Option<String>>(8)?,
+            row.get::<_, String>(9)?,
+            row.get::<_, i64>(10)?,
         ))
     })?;
     let card_rows = rows.collect::<Result<Vec<_>, _>>()?;
@@ -190,6 +228,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 concept_title,
                 content,
                 retrieval_kind,
+                configuration,
                 template_id,
                 template_name,
                 template_content,
@@ -205,6 +244,8 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 (None, None, None) => None,
                 _ => return Err(LibraryError::InvalidRetrievalForm),
             };
+            let retrieval_kind = RetrievalFormKind::try_from(retrieval_kind.as_str())?;
+            let type_answer = parse_type_answer(retrieval_kind, &configuration)?;
 
             if template
                 .as_ref()
@@ -218,7 +259,8 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 concept_id,
                 concept_title,
                 content: serde_json::from_str(&content)?,
-                retrieval_kind: RetrievalFormKind::try_from(retrieval_kind.as_str())?,
+                retrieval_kind,
+                type_answer,
                 template,
                 scheduling_state: SchedulingState::try_from(state.as_str())?,
                 due_at,

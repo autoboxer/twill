@@ -39,6 +39,7 @@ pub struct ConceptSummary {
 pub struct CardSummary {
     pub id: String,
     pub retrieval_kind: RetrievalFormKind,
+    pub type_answer: Option<TypeAnswerSettings>,
     pub template: Option<NamedItem>,
     pub scheduling_state: SchedulingState,
     pub due_at: i64,
@@ -50,12 +51,14 @@ pub struct CardSummary {
 #[serde(rename_all = "camelCase")]
 pub enum RetrievalFormKind {
     Recall,
+    TypeAnswer,
 }
 
 impl RetrievalFormKind {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Recall => "recall",
+            Self::TypeAnswer => "type_answer",
         }
     }
 }
@@ -66,9 +69,16 @@ impl TryFrom<&str> for RetrievalFormKind {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         match value {
             "recall" => Ok(Self::Recall),
+            "type_answer" => Ok(Self::TypeAnswer),
             _ => Err(LibraryError::InvalidRetrievalFormKind(value.to_owned())),
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct TypeAnswerSettings {
+    pub accepted_answers: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -87,6 +97,7 @@ pub struct StudyCard {
     pub concept_title: String,
     pub content: ConceptContent,
     pub retrieval_kind: RetrievalFormKind,
+    pub type_answer: Option<TypeAnswerSettings>,
     pub template: Option<StudyTemplate>,
     pub scheduling_state: SchedulingState,
     pub due_at: i64,
@@ -407,6 +418,8 @@ pub struct CreateConceptInput {
     pub include_standard_recall: bool,
     #[serde(default)]
     pub template_ids: Vec<String>,
+    #[serde(default)]
+    pub type_answer: Option<TypeAnswerSettings>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -424,6 +437,8 @@ pub struct UpdateConceptInput {
     pub include_standard_recall: bool,
     #[serde(default)]
     pub template_ids: Vec<String>,
+    #[serde(default)]
+    pub type_answer: Option<TypeAnswerSettings>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

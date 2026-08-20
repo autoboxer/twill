@@ -33,7 +33,10 @@ impl From<LibraryError> for CommandError {
             | LibraryError::ImageDimensionsTooLarge
             | LibraryError::InvalidDesiredRetention { .. }
             | LibraryError::InvalidMaximumInterval { .. }
-            | LibraryError::MissingRetrievalForm => "validation",
+            | LibraryError::MissingRetrievalForm
+            | LibraryError::MissingAcceptedAnswer
+            | LibraryError::TooManyAcceptedAnswers { .. }
+            | LibraryError::DuplicateAcceptedAnswer => "validation",
             LibraryError::DuplicateName { .. }
             | LibraryError::CardNotDue { .. }
             | LibraryError::TemplateInUse { .. } => "conflict",

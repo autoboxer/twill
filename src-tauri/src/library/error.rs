@@ -78,6 +78,15 @@ pub enum LibraryError {
     #[error("a concept must have at least one retrieval form")]
     MissingRetrievalForm,
 
+    #[error("type answer cards require at least one accepted answer")]
+    MissingAcceptedAnswer,
+
+    #[error("type answer cards cannot have more than {maximum} accepted answers")]
+    TooManyAcceptedAnswers { maximum: usize },
+
+    #[error("accepted answers must be unique")]
+    DuplicateAcceptedAnswer,
+
     #[error("this template is used by {retrieval_form_count} active retrieval forms")]
     TemplateInUse { retrieval_form_count: i64 },
 

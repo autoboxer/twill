@@ -5,12 +5,14 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
+import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
 import {
   conceptLibraryErrorMessage,
   useConceptLibrary
 } from '../composables/useConceptLibrary';
 import { useRecallSession } from '../composables/useRecallSession';
 import { useStudyPreferences } from '../composables/useStudyPreferences';
+import { normalizeTypeAnswer } from '../type-answer/comparison';
 
 const {
   clearError,
@@ -51,6 +53,8 @@ const sessionGradingMode = ref( 'simple' );
 const studyContent = ref( null );
 const studyMedia = ref([]);
 const totalAvailableCards = ref( 0 );
+const typeAnswerResponse = ref( null );
+const typedResponse = ref( '' );
 let loadRequestSequence = 0;
 let viewActive = true;
 
@@ -131,6 +135,28 @@ const gradingOptions = computed( () => {
   return gradingOptionsByMode[ gradingMode.value ];
 });
 
+const typeAnswerSettings = computed( () => {
+  if ( currentCard.value?.retrievalKind !== 'typeAnswer' ) {
+    return null;
+  }
+
+  return currentCard.value.typeAnswer;
+});
+
+const canRevealAnswer = computed( () => (
+  !typeAnswerSettings.value || Boolean( normalizeTypeAnswer( typedResponse.value ) )
+) );
+
+const revealActionCopy = computed( () => typeAnswerSettings.value
+  ? 'Enter an answer before checking it.'
+  : 'Attempt the prompt before revealing the answer.'
+);
+
+const revealActionLabel = computed( () => typeAnswerSettings.value
+  ? 'Check answer'
+  : 'Reveal answer'
+);
+
 const sessionResultItems = computed( () => {
   if ( sessionGradingMode.value === 'simple' ) {
     return [
@@ -193,6 +219,7 @@ async function loadStudyQueue() {
 
     studyMedia.value = queue.media;
     begin( queue.cards );
+    typedResponse.value = '';
     gradingMode.value = preferences.gradingMode;
     nextDueAt.value = queue.nextDueAt;
     sessionGradingMode.value = preferences.gradingMode;
@@ -209,9 +236,18 @@ async function loadStudyQueue() {
 }
 
 async function showAnswer() {
+  if ( !canRevealAnswer.value ) {
+    return;
+  }
+
   revealAnswer();
   await nextTick();
-  studyContent.value?.focus();
+
+  if ( typeAnswerSettings.value ) {
+    typeAnswerResponse.value?.focus();
+  } else {
+    studyContent.value?.focus();
+  }
 }
 
 async function recordAssessment( rating ) {
@@ -247,6 +283,7 @@ async function recordAssessment( rating ) {
     }
 
     assess( rating );
+    typedResponse.value = '';
     await nextTick();
 
     focusCurrentState();
@@ -339,8 +376,20 @@ function focusCurrentState() {
   }
 
   if ( currentCard.value && !answerRevealed.value ) {
-    focusButton( revealButton.value );
+    if ( typeAnswerSettings.value ) {
+      typeAnswerResponse.value?.focus();
+    } else {
+      focusButton( revealButton.value );
+    }
   }
+}
+
+function studyCardName( card ) {
+  if ( card.retrievalKind === 'typeAnswer' ) {
+    return 'Type answer';
+  }
+
+  return card.template?.name ?? 'Standard recall';
 }
 
 function focusButton( button ) {
@@ -430,7 +479,7 @@ function focusButton( button ) {
     <ContentState
       v-else-if="!hasCards && totalAvailableCards === 0"
       title="No cards to study"
-      description="Create or restore a concept to make a recall card available."
+      description="Create or restore a concept to make a study card available."
     >
       <template #actions>
         <UButton
@@ -523,7 +572,7 @@ function focusButton( button ) {
           <header class="study-card__header">
             <div>
               <span class="study-card__eyebrow">
-                {{ currentCard.template?.name ?? 'Standard recall' }}
+                {{ studyCardName( currentCard ) }}
               </span>
               <h2>{{ currentCard.conceptTitle }}</h2>
             </div>
@@ -549,6 +598,15 @@ function focusButton( button ) {
               :answer-revealed="answerRevealed"
               :media="studyMedia"
             />
+
+            <TypeAnswerResponse
+              v-if="typeAnswerSettings"
+              ref="typeAnswerResponse"
+              v-model="typedResponse"
+              :accepted-answers="typeAnswerSettings.acceptedAnswers"
+              :revealed="answerRevealed"
+              @submit="showAnswer"
+            />
           </div>
 
           <footer class="study-card__footer">
@@ -573,15 +631,16 @@ function focusButton( button ) {
                 :animate="{ opacity: 1, y: 0 }"
                 :exit="{ opacity: 0, y: -5 }"
               >
-                <p>Attempt the prompt before revealing the answer.</p>
+                <p>{{ revealActionCopy }}</p>
 
                 <UButton
                   ref="revealButton"
                   leading-icon="i-lucide-eye"
                   size="lg"
+                  :disabled="!canRevealAnswer"
                   @click="showAnswer"
                 >
-                  Reveal answer
+                  {{ revealActionLabel }}
                 </UButton>
               </m.div>
 
