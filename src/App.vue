@@ -3,5 +3,7 @@ import AppShell from './components/AppShell.vue';
 </script>
 
 <template>
-  <AppShell />
+  <UApp>
+    <AppShell />
+  </UApp>
 </template>

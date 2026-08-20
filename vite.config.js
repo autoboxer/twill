@@ -50,6 +50,12 @@ export default defineConfig({
     })
   ],
   clearScreen: false,
+  optimizeDeps: {
+    exclude: [
+      '@tiptap/core',
+      '@tiptap/pm'
+    ]
+  },
   server: {
     host: host || false,
     port: devServerPort,
