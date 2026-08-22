@@ -1,4 +1,4 @@
-import { mergeAttributes, Node } from '@tiptap/core';
+import { Mark, mergeAttributes, Node } from '@tiptap/core';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import Mathematics from '@tiptap/extension-mathematics';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
@@ -96,6 +96,36 @@ const MediaImage = Node.create({
   }
 });
 
+const Cloze = Mark.create({
+  name: 'cloze',
+  exitable: true,
+  inclusive: false,
+
+  addAttributes() {
+    return {
+      groupId: {
+        default: null,
+        parseHTML: ( element ) => element.getAttribute( 'data-cloze-group' ),
+        renderHTML: ( attributes ) => attributes.groupId
+          ? { 'data-cloze-group': attributes.groupId }
+          : {}
+      }
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: 'span[data-cloze-group]' }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return [
+      'span',
+      mergeAttributes( HTMLAttributes, { 'data-type': 'cloze' }),
+      0
+    ];
+  }
+});
+
 export function createEmptyRichDocument() {
   return {
     type: 'doc',
@@ -152,6 +182,7 @@ export function createRichContentExtensions({ onEditMath } = {}) {
         trust: false
       }
     }),
+    Cloze,
     MediaImage
   ];
 }
