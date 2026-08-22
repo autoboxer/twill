@@ -10,7 +10,7 @@ mod templates;
 
 pub use error::{LibraryError, LibraryResult};
 pub use models::{
-    CardSummary, ConceptContent, ConceptDetail, ConceptSummary, CreateConceptInput,
+    CardSummary, ClozeSettings, ConceptContent, ConceptDetail, ConceptSummary, CreateConceptInput,
     CreateNamedItemInput, CreateTemplateInput, EntityIdInput, GradingMode, LibrarySnapshot,
     MediaSummary, NamedItem, OrganizationSummary, RecordReviewInput, RenameNamedItemInput,
     RetrievalFormKind, ReviewOutcome, ReviewRating, SchedulingSettings, SchedulingState,

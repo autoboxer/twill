@@ -2,6 +2,7 @@
 import { AnimatePresence, m } from 'motion-v';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
+import { createClozePrompt } from '../cloze/documents';
 import { useConceptLibrary } from '../composables/useConceptLibrary';
 import { createCustomTemplateDocument } from '../templates/customFrame';
 import { templateFields } from '../templates/defaults';
@@ -35,6 +36,7 @@ const root = ref( null );
 let renderRequestSequence = 0;
 
 const side = computed( () => props.answerRevealed ? 'answer' : 'front' );
+const isCloze = computed( () => props.card.retrievalKind === 'cloze' );
 const isStandard = computed( () => !props.card.template );
 const isVisual = computed( () => {
   return props.card.template?.content.mode === 'visual';
@@ -61,6 +63,17 @@ const visibleBlocks = computed( () => {
 
   return props.card.template.content.visual[ side.value ].blocks;
 });
+const clozePrompt = computed( () => {
+  if ( !isCloze.value || !props.card.cloze?.groupId ) {
+    return props.card.content.prompt;
+  }
+
+  return createClozePrompt(
+    props.card.content.prompt,
+    props.card.cloze.groupId,
+    props.answerRevealed
+  );
+});
 
 watch( () => props.card, prepareCustomDocuments, { immediate: true });
 
@@ -77,6 +90,10 @@ function fieldDetails( value ) {
 function fieldValue( field ) {
   if ( field === 'title' ) {
     return props.card.conceptTitle;
+  }
+
+  if ( field === 'prompt' ) {
+    return clozePrompt.value;
   }
 
   return props.card.content[ field ];
@@ -210,7 +227,10 @@ function normalizeBytes( value ) {
   <div
     ref="root"
     class="study-template"
-    :class="{ 'study-template--standard': isStandard }"
+    :class="{
+      'study-template--cloze': isCloze,
+      'study-template--standard': isStandard
+    }"
     :aria-label="`${ side === 'front' ? 'Front' : 'Answer' } of ${ card.conceptTitle }`"
     role="group"
     tabindex="-1"

@@ -1,12 +1,18 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 
+import ClozePreview from './ClozePreview.vue';
 import RichContentEditor from './RichContentEditor.vue';
+import {
+  collectClozeGroups,
+  removeAllClozeMarks
+} from '../cloze/documents';
 import {
   cloneConceptContent,
   createEmptyConceptContent
 } from '../rich-content/schema';
 
+const CLOZE_ID = 'cloze';
 const STANDARD_RECALL_ID = 'standard-recall';
 const TYPE_ANSWER_ID = 'type-answer';
 const MAXIMUM_ACCEPTED_ANSWERS = 20;
@@ -78,6 +84,11 @@ const retrievalFormItems = computed( () => [
     label: 'Type answer',
     value: TYPE_ANSWER_ID
   },
+  {
+    description: 'Hides marked Prompt passages and reveals them in context.',
+    label: 'Cloze',
+    value: CLOZE_ID
+  },
 
   ...props.templates.map( ( template ) => ({
     description: template.mode === 'custom' ? 'HTML & CSS template' : 'Visual template',
@@ -95,6 +106,8 @@ const titleError = computed( () => {
 });
 
 const titleLength = computed( () => Array.from( form.title ).length );
+const clozeGroups = computed( () => collectClozeGroups( form.content.prompt ) );
+const clozeSelected = computed( () => form.retrievalFormIds.includes( CLOZE_ID ) );
 const typeAnswerSelected = computed( () => form.retrievalFormIds.includes( TYPE_ANSWER_ID ) );
 const atAcceptedAnswerLimit = computed( () => (
   form.typeAnswerAcceptedAnswers.length >= MAXIMUM_ACCEPTED_ANSWERS
@@ -139,6 +152,14 @@ const retrievalFormsError = computed( () => {
   return 'Select at least one retrieval form.';
 });
 
+const clozeError = computed( () => {
+  if ( !submitted.value || !clozeSelected.value || clozeGroups.value.length ) {
+    return '';
+  }
+
+  return 'Mark at least one Prompt passage as an omission.';
+});
+
 const removedRetrievalForms = computed( () => {
   if ( !props.concept ) {
     return [];
@@ -160,7 +181,7 @@ watch( () => props.concept, ( concept ) => {
   form.title = concept?.title ?? '';
   form.deckIds = concept?.decks.map( ( deck ) => deck.id ) ?? [];
   form.retrievalFormIds = concept
-    ? concept.cards.map( retrievalFormId )
+    ? [ ...new Set( concept.cards.map( retrievalFormId ) ) ]
     : [ STANDARD_RECALL_ID ];
   form.tagIds = concept?.tags.map( ( tag ) => tag.id ) ?? [];
   form.typeAnswerAcceptedAnswers = typeAnswer?.typeAnswer?.acceptedAnswers.length
@@ -170,11 +191,26 @@ watch( () => props.concept, ( concept ) => {
 }, { immediate: true });
 
 function retrievalFormId( card ) {
+  if ( card.retrievalKind === 'cloze' ) {
+    return CLOZE_ID;
+  }
+
   if ( card.retrievalKind === 'typeAnswer' ) {
     return TYPE_ANSWER_ID;
   }
 
   return card.template?.id ?? STANDARD_RECALL_ID;
+}
+
+function updateRetrievalForms( retrievalFormIds ) {
+  if (
+    clozeSelected.value
+    && !retrievalFormIds.includes( CLOZE_ID )
+  ) {
+    form.content.prompt = removeAllClozeMarks( form.content.prompt );
+  }
+
+  form.retrievalFormIds = retrievalFormIds;
 }
 
 function normalizeAcceptedAnswer( answer ) {
@@ -207,6 +243,7 @@ function submit() {
   if (
     !form.title.trim()
     || !form.retrievalFormIds.length
+    || Boolean( clozeError.value )
     || !acceptedAnswersValid.value
   ) {
     return;
@@ -224,7 +261,9 @@ function submit() {
     includeStandardRecall: form.retrievalFormIds.includes( STANDARD_RECALL_ID ),
     tagIds: [ ...form.tagIds ],
     templateIds: form.retrievalFormIds.filter( ( id ) => (
-      id !== STANDARD_RECALL_ID && id !== TYPE_ANSWER_ID
+      id !== CLOZE_ID
+      && id !== STANDARD_RECALL_ID
+      && id !== TYPE_ANSWER_ID
     ) ),
     typeAnswer,
     title: form.title
@@ -284,12 +323,18 @@ function submit() {
           v-model="form.content.prompt"
           label="Prompt"
           placeholder="Write a prompt"
+          :cloze-enabled="clozeSelected"
         />
 
         <RichContentEditor
           v-model="form.content.answer"
           label="Answer"
           placeholder="Write an answer"
+        />
+
+        <ClozePreview
+          v-if="clozeSelected"
+          :document="form.content.prompt"
         />
       </div>
     </section>
@@ -303,7 +348,7 @@ function submit() {
       </div>
 
       <UCheckboxGroup
-        v-model="form.retrievalFormIds"
+        :model-value="form.retrievalFormIds"
         :items="retrievalFormItems"
         legend="Retrieval forms"
         value-key="value"
@@ -311,6 +356,7 @@ function submit() {
         class="retrieval-form-options"
         :ui="{ legend: 'sr-only' }"
         required
+        @update:model-value="updateRetrievalForms"
       />
 
       <p
@@ -318,6 +364,13 @@ function submit() {
         class="editor-field-error"
       >
         {{ retrievalFormsError }}
+      </p>
+
+      <p
+        v-if="clozeError"
+        class="editor-field-error"
+      >
+        {{ clozeError }}
       </p>
 
       <div

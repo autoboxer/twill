@@ -6,6 +6,11 @@ import {
   useConceptLibrary
 } from '../composables/useConceptLibrary';
 import {
+  collectClozeGroups,
+  createClozeGroupId,
+  MAXIMUM_CLOZE_GROUPS
+} from '../cloze/documents';
+import {
   codeLanguageItems,
   createRichContentExtensions,
   richContentStarterKit
@@ -15,6 +20,10 @@ const props = defineProps({
   label: {
     type: String,
     required: true
+  },
+  clozeEnabled: {
+    type: Boolean,
+    default: false
   },
   modelValue: {
     type: Object,
@@ -31,6 +40,11 @@ const emit = defineEmits([ 'update:modelValue' ]);
 const { importImage } = useConceptLibrary();
 
 const activeCodeLanguage = ref( 'auto' );
+const clozeDialogOpen = ref( false );
+const clozeExistingGroupId = ref( '' );
+const clozeGroupChoice = ref( 'new' );
+const clozeSelection = ref( null );
+const clozeSelectionAvailable = ref( false );
 const codeBlockActive = ref( false );
 const currentEditor = shallowRef( null );
 const fileInput = ref( null );
@@ -48,6 +62,23 @@ const mathSubmitted = ref( false );
 const document = computed({
   get: () => props.modelValue,
   set: ( value ) => emit( 'update:modelValue', value )
+});
+
+const clozeGroups = computed( () => collectClozeGroups( document.value ) );
+const clozeGroupItems = computed( () => {
+  const items = clozeGroups.value.map( ( group, index ) => ({
+    label: `Card ${ index + 1 } — ${ clozeGroupSummary( group ) }`,
+    value: group.id
+  }) );
+
+  if ( clozeGroups.value.length < MAXIMUM_CLOZE_GROUPS ) {
+    items.unshift({
+      label: 'New card',
+      value: 'new'
+    });
+  }
+
+  return items;
 });
 
 const extensions = createRichContentExtensions({ onEditMath });
@@ -242,6 +273,78 @@ function syncEditorState({ editor }) {
   currentEditor.value = editor;
   codeBlockActive.value = editor.isActive( 'codeBlock' );
   activeCodeLanguage.value = editor.getAttributes( 'codeBlock' ).language ?? 'auto';
+
+  const { from, to } = editor.state.selection;
+  const selectedText = editor.state.doc.textBetween( from, to, ' ' );
+
+  clozeSelectionAvailable.value = editor.isActive( 'cloze' )
+    || Boolean( selectedText.trim() );
+}
+
+function clozeGroupSummary( group ) {
+  const summary = group.passages.join( ' + ' );
+  const characters = Array.from( summary );
+
+  return characters.length > 48
+    ? `${ characters.slice( 0, 47 ).join( '' ) }…`
+    : summary;
+}
+
+function openClozeDialog( editor ) {
+  currentEditor.value = editor;
+
+  if ( editor.isActive( 'cloze' ) ) {
+    editor.chain().focus().extendMarkRange( 'cloze' ).run();
+  }
+
+  const { from, to } = editor.state.selection;
+  const selectedText = editor.state.doc.textBetween( from, to, ' ' );
+
+  if ( from === to || !selectedText.trim() ) {
+    return;
+  }
+
+  clozeSelection.value = { from, to };
+  clozeExistingGroupId.value = editor.getAttributes( 'cloze' ).groupId ?? '';
+  clozeGroupChoice.value = clozeExistingGroupId.value
+    || clozeGroupItems.value[ 0 ]?.value
+    || '';
+  clozeDialogOpen.value = true;
+}
+
+function applyCloze() {
+  if ( !currentEditor.value || !clozeSelection.value || !clozeGroupChoice.value ) {
+    return;
+  }
+
+  const groupId = clozeGroupChoice.value === 'new'
+    ? createClozeGroupId()
+    : clozeGroupChoice.value;
+
+  currentEditor.value
+    .chain()
+    .focus()
+    .setTextSelection( clozeSelection.value )
+    .unsetMark( 'cloze' )
+    .setMark( 'cloze', { groupId })
+    .run();
+
+  clozeDialogOpen.value = false;
+}
+
+function removeCloze() {
+  if ( !currentEditor.value || !clozeSelection.value ) {
+    return;
+  }
+
+  currentEditor.value
+    .chain()
+    .focus()
+    .setTextSelection( clozeSelection.value )
+    .unsetMark( 'cloze' )
+    .run();
+
+  clozeDialogOpen.value = false;
 }
 
 function setCodeLanguage( editor, language ) {
@@ -458,6 +561,22 @@ async function insertImage( event ) {
                 />
               </UTooltip>
 
+              <UTooltip
+                v-if="clozeEnabled"
+                text="Cloze omission"
+              >
+                <UButton
+                  type="button"
+                  icon="i-lucide-text-select"
+                  aria-label="Mark cloze omission"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  :disabled="!clozeSelectionAvailable"
+                  @click="openClozeDialog( editor )"
+                />
+              </UTooltip>
+
               <UTooltip text="Image">
                 <UButton
                   type="button"
@@ -492,6 +611,50 @@ async function insertImage( event ) {
     >
       {{ imageError }}
     </p>
+
+    <UModal
+      v-model:open="clozeDialogOpen"
+      :title="clozeExistingGroupId ? 'Edit omission' : 'Add omission'"
+      description="Each card hides every passage assigned to its group."
+    >
+      <template #body>
+        <UFormField label="Card">
+          <USelect
+            v-model="clozeGroupChoice"
+            :items="clozeGroupItems"
+            value-key="value"
+            class="w-full"
+          />
+        </UFormField>
+      </template>
+
+      <template #footer>
+        <div class="dialog-actions dialog-actions--split">
+          <UButton
+            v-if="clozeExistingGroupId"
+            color="error"
+            variant="ghost"
+            @click="removeCloze"
+          >
+            Remove omission
+          </UButton>
+
+          <span />
+
+          <UButton
+            color="neutral"
+            variant="ghost"
+            @click="clozeDialogOpen = false"
+          >
+            Cancel
+          </UButton>
+
+          <UButton @click="applyCloze">
+            {{ clozeExistingGroupId ? 'Save' : 'Add' }}
+          </UButton>
+        </div>
+      </template>
+    </UModal>
 
     <UModal
       v-model:open="linkDialogOpen"

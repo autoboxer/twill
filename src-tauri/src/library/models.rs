@@ -39,6 +39,7 @@ pub struct ConceptSummary {
 pub struct CardSummary {
     pub id: String,
     pub retrieval_kind: RetrievalFormKind,
+    pub cloze: Option<ClozeSettings>,
     pub type_answer: Option<TypeAnswerSettings>,
     pub template: Option<NamedItem>,
     pub scheduling_state: SchedulingState,
@@ -52,6 +53,7 @@ pub struct CardSummary {
 pub enum RetrievalFormKind {
     Recall,
     TypeAnswer,
+    Cloze,
 }
 
 impl RetrievalFormKind {
@@ -59,6 +61,7 @@ impl RetrievalFormKind {
         match self {
             Self::Recall => "recall",
             Self::TypeAnswer => "type_answer",
+            Self::Cloze => "cloze",
         }
     }
 }
@@ -70,9 +73,16 @@ impl TryFrom<&str> for RetrievalFormKind {
         match value {
             "recall" => Ok(Self::Recall),
             "type_answer" => Ok(Self::TypeAnswer),
+            "cloze" => Ok(Self::Cloze),
             _ => Err(LibraryError::InvalidRetrievalFormKind(value.to_owned())),
         }
     }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ClozeSettings {
+    pub group_id: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -97,6 +107,7 @@ pub struct StudyCard {
     pub concept_title: String,
     pub content: ConceptContent,
     pub retrieval_kind: RetrievalFormKind,
+    pub cloze: Option<ClozeSettings>,
     pub type_answer: Option<TypeAnswerSettings>,
     pub template: Option<StudyTemplate>,
     pub scheduling_state: SchedulingState,

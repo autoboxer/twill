@@ -72,6 +72,7 @@ export default defineConfig({
             'lucide:strikethrough',
             'lucide:tag',
             'lucide:text-quote',
+            'lucide:text-select',
             'lucide:trash-2',
             'lucide:type',
             'lucide:underline',

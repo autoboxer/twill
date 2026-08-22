@@ -147,10 +147,17 @@ const canRevealAnswer = computed( () => (
   !typeAnswerSettings.value || Boolean( normalizeTypeAnswer( typedResponse.value ) )
 ) );
 
-const revealActionCopy = computed( () => typeAnswerSettings.value
-  ? 'Enter an answer before checking it.'
-  : 'Attempt the prompt before revealing the answer.'
-);
+const revealActionCopy = computed( () => {
+  if ( typeAnswerSettings.value ) {
+    return 'Enter an answer before checking it.';
+  }
+
+  if ( currentCard.value?.retrievalKind === 'cloze' ) {
+    return 'Recall the missing text before revealing the answer.';
+  }
+
+  return 'Attempt the prompt before revealing the answer.';
+});
 
 const revealActionLabel = computed( () => typeAnswerSettings.value
   ? 'Check answer'
@@ -385,6 +392,10 @@ function focusCurrentState() {
 }
 
 function studyCardName( card ) {
+  if ( card.retrievalKind === 'cloze' ) {
+    return 'Cloze';
+  }
+
   if ( card.retrievalKind === 'typeAnswer' ) {
     return 'Type answer';
   }
