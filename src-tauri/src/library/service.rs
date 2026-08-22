@@ -14,9 +14,9 @@ use crate::library::retrieval_forms::{
     retrieval_form_configuration,
 };
 use crate::library::study::{
-    create_cloze_card, create_recall_card, create_type_answer_card,
-    query_scheduling_settings, query_study_preferences, query_study_queue,
-    record_review, update_grading_mode, update_scheduling_settings,
+    create_cloze_card, create_image_occlusion_card, create_recall_card,
+    create_type_answer_card, query_scheduling_settings, query_study_preferences,
+    query_study_queue, record_review, update_grading_mode, update_scheduling_settings,
 };
 use crate::library::{
     CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, GradingMode,
@@ -130,6 +130,7 @@ impl<'store> ConceptLibrary<'store> {
             &template_ids,
             type_answer.is_some(),
             !content.cloze_group_ids.is_empty(),
+            !content.image_occlusion_group_ids.is_empty(),
         )?;
 
         self.store.write_result(|transaction| {
@@ -166,6 +167,10 @@ impl<'store> ConceptLibrary<'store> {
 
             for group_id in &content.cloze_group_ids {
                 create_cloze_card(transaction, &entity.id, group_id)?;
+            }
+
+            for group_id in &content.image_occlusion_group_ids {
+                create_image_occlusion_card(transaction, &entity.id, group_id)?;
             }
 
             for template_id in &template_ids {
@@ -215,6 +220,7 @@ impl<'store> ConceptLibrary<'store> {
             &template_ids,
             type_answer.is_some(),
             !content.cloze_group_ids.is_empty(),
+            !content.image_occlusion_group_ids.is_empty(),
         )?;
 
         self.store.write_result(|transaction| {
@@ -249,6 +255,20 @@ impl<'store> ConceptLibrary<'store> {
                 .iter()
                 .cloned()
                 .collect::<BTreeSet<_>>();
+            let current_image_occlusion_group_ids = current
+                .cards
+                .iter()
+                .filter_map(|card| {
+                    card.image_occlusion
+                        .as_ref()
+                        .map(|occlusion| occlusion.group_id.clone())
+                })
+                .collect::<BTreeSet<_>>();
+            let image_occlusion_group_ids = content
+                .image_occlusion_group_ids
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
             let current_template_ids = current
                 .cards
                 .iter()
@@ -263,6 +283,7 @@ impl<'store> ConceptLibrary<'store> {
                 && current_include_standard_recall == input.include_standard_recall
                 && current_type_answer == type_answer
                 && current_cloze_group_ids == cloze_group_ids
+                && current_image_occlusion_group_ids == image_occlusion_group_ids
                 && current_template_ids == template_ids
             {
                 return Ok(current);
@@ -307,6 +328,7 @@ impl<'store> ConceptLibrary<'store> {
                 &template_ids,
                 type_answer.as_ref(),
                 &cloze_group_ids,
+                &image_occlusion_group_ids,
             )?;
 
             query_concept(transaction, &id)
@@ -564,10 +586,12 @@ fn validate_retrieval_form_selection(
     template_ids: &BTreeSet<String>,
     include_type_answer: bool,
     include_cloze: bool,
+    include_image_occlusion: bool,
 ) -> LibraryResult<()> {
     if !include_standard_recall
         && !include_type_answer
         && !include_cloze
+        && !include_image_occlusion
         && template_ids.is_empty()
     {
         return Err(LibraryError::MissingRetrievalForm);
@@ -841,14 +865,14 @@ fn query_cards(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<C
                 lapse_count,
             ) = card?;
             let retrieval_kind = RetrievalFormKind::try_from(retrieval_kind.as_str())?;
-            let (type_answer, cloze) =
-                parse_retrieval_form_configuration(retrieval_kind, &configuration)?;
+            let parsed = parse_retrieval_form_configuration(retrieval_kind, &configuration)?;
 
             Ok(CardSummary {
                 id,
                 retrieval_kind,
-                cloze,
-                type_answer,
+                cloze: parsed.cloze,
+                image_occlusion: parsed.image_occlusion,
+                type_answer: parsed.type_answer,
                 template,
                 scheduling_state: SchedulingState::try_from(scheduling_state.as_str())?,
                 due_at,
@@ -1144,6 +1168,7 @@ fn apply_retrieval_forms(
     template_ids: &BTreeSet<String>,
     type_answer: Option<&TypeAnswerSettings>,
     cloze_group_ids: &BTreeSet<String>,
+    image_occlusion_group_ids: &BTreeSet<String>,
 ) -> LibraryResult<()> {
     for card in current_cards {
         let retained = match card.retrieval_kind {
@@ -1156,6 +1181,12 @@ fn apply_retrieval_forms(
                 .cloze
                 .as_ref()
                 .is_some_and(|cloze| cloze_group_ids.contains(&cloze.group_id)),
+            RetrievalFormKind::ImageOcclusion => card
+                .image_occlusion
+                .as_ref()
+                .is_some_and(|occlusion| {
+                    image_occlusion_group_ids.contains(&occlusion.group_id)
+                }),
         };
 
         if !retained {
@@ -1184,6 +1215,7 @@ fn apply_retrieval_forms(
                 RetrievalFormKind::TypeAnswer,
                 Some(settings),
                 None,
+                None,
             )?;
             let entity = transaction.touch_entity(&card.id)?;
 
@@ -1206,6 +1238,21 @@ fn apply_retrieval_forms(
     for group_id in cloze_group_ids {
         if !current_cloze_group_ids.contains(group_id.as_str()) {
             create_cloze_card(transaction, concept_id, group_id)?;
+        }
+    }
+
+    let current_image_occlusion_group_ids = current_cards
+        .iter()
+        .filter_map(|card| {
+            card.image_occlusion
+                .as_ref()
+                .map(|occlusion| occlusion.group_id.as_str())
+        })
+        .collect::<HashSet<_>>();
+
+    for group_id in image_occlusion_group_ids {
+        if !current_image_occlusion_group_ids.contains(group_id.as_str()) {
+            create_image_occlusion_card(transaction, concept_id, group_id)?;
         }
     }
 
@@ -2146,6 +2193,190 @@ mod tests {
             .cards
             .iter()
             .find(|card| card.cloze.as_ref().unwrap().group_id == second_group)
+            .unwrap();
+
+        assert_ne!(readded_card.id, second_card.id);
+        assert_eq!(readded_card.scheduling_state, SchedulingState::New);
+        assert_eq!(readded_card.review_count, 0);
+    }
+
+    #[test]
+    fn image_occlusion_groups_schedule_independently_and_include_source_media() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let media = library.import_image(&png_bytes()).unwrap();
+        let first_group = "018f1e2d-3c4b-7a69-8f10-123456789ab1";
+        let second_group = "018f1e2d-3c4b-7a69-8f10-123456789ab2";
+        let third_group = "018f1e2d-3c4b-7a69-8f10-123456789ab3";
+        let first_region = "018f1e2d-3c4b-7a69-8f10-123456789ab4";
+        let grouped_region = "018f1e2d-3c4b-7a69-8f10-123456789ab5";
+        let second_region = "018f1e2d-3c4b-7a69-8f10-123456789ab6";
+        let third_region = "018f1e2d-3c4b-7a69-8f10-123456789ab7";
+        let replacement_region = "018f1e2d-3c4b-7a69-8f10-123456789ab8";
+        let region = |id: &str, group_id: &str, x: f64, y: f64| {
+            json!({
+                "id": id,
+                "groupId": group_id,
+                "x": x,
+                "y": y,
+                "width": 0.2,
+                "height": 0.2
+            })
+        };
+        let prompt = |regions| {
+            json!({
+                "type": "doc",
+                "content": [{
+                    "type": "mediaImage",
+                    "attrs": {
+                        "mediaId": media.id,
+                        "alt": "Cell diagram",
+                        "title": null,
+                        "occlusionRegions": regions
+                    }
+                }]
+            })
+        };
+        let initial_content = ConceptContent {
+            schema_version: 1,
+            prompt: prompt(vec![
+                region(first_region, first_group, 0.05, 0.1),
+                region(grouped_region, first_group, 0.35, 0.1),
+                region(second_region, second_group, 0.1, 0.55),
+            ]),
+            answer: ConceptContent::default().answer,
+        };
+        let concept = library
+            .create_concept(CreateConceptInput {
+                title: "Cell diagram".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: initial_content,
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                type_answer: None,
+            })
+            .unwrap();
+        let first_card = concept
+            .cards
+            .iter()
+            .find(|card| {
+                card.image_occlusion.as_ref().unwrap().group_id == first_group
+            })
+            .unwrap()
+            .clone();
+        let second_card = concept
+            .cards
+            .iter()
+            .find(|card| {
+                card.image_occlusion.as_ref().unwrap().group_id == second_group
+            })
+            .unwrap()
+            .clone();
+        let latest_initial_due_at = concept
+            .cards
+            .iter()
+            .map(|card| card.due_at)
+            .max()
+            .unwrap();
+        let queue = library.study_queue_at(latest_initial_due_at).unwrap();
+
+        assert_eq!(concept.cards.len(), 2);
+        assert!(concept.cards.iter().all(|card| {
+            card.retrieval_kind == RetrievalFormKind::ImageOcclusion
+                && card.cloze.is_none()
+                && card.type_answer.is_none()
+                && card.template.is_none()
+        }));
+        assert_eq!(queue.media, vec![media.clone()]);
+        assert_eq!(queue.cards.len(), 2);
+        assert!(queue
+            .cards
+            .iter()
+            .all(|card| card.image_occlusion.is_some()));
+
+        let review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: first_card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                first_card.due_at,
+            )
+            .unwrap();
+        let updated_content = ConceptContent {
+            schema_version: 1,
+            prompt: prompt(vec![
+                region(first_region, first_group, 0.15, 0.15),
+                region(third_region, third_group, 0.6, 0.55),
+            ]),
+            answer: concept.content.answer.clone(),
+        };
+        let updated = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id.clone(),
+                title: concept.title.clone(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: updated_content,
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                type_answer: None,
+            })
+            .unwrap();
+        let retained_card = updated
+            .cards
+            .iter()
+            .find(|card| {
+                card.image_occlusion.as_ref().unwrap().group_id == first_group
+            })
+            .unwrap();
+        let new_card = updated
+            .cards
+            .iter()
+            .find(|card| {
+                card.image_occlusion.as_ref().unwrap().group_id == third_group
+            })
+            .unwrap();
+
+        assert_eq!(updated.cards.len(), 2);
+        assert_eq!(retained_card.id, first_card.id);
+        assert_eq!(retained_card.review_count, 1);
+        assert_eq!(retained_card.due_at, review.due_at);
+        assert_eq!(new_card.scheduling_state, SchedulingState::New);
+        assert!(store
+            .entity(&second_card.id)
+            .unwrap()
+            .unwrap()
+            .deleted_at
+            .is_some());
+
+        let readded_content = ConceptContent {
+            schema_version: 1,
+            prompt: prompt(vec![
+                region(first_region, first_group, 0.15, 0.15),
+                region(replacement_region, second_group, 0.1, 0.55),
+            ]),
+            answer: concept.content.answer,
+        };
+        let readded = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id,
+                title: concept.title,
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: readded_content,
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                type_answer: None,
+            })
+            .unwrap();
+        let readded_card = readded
+            .cards
+            .iter()
+            .find(|card| {
+                card.image_occlusion.as_ref().unwrap().group_id == second_group
+            })
             .unwrap();
 
         assert_ne!(readded_card.id, second_card.id);
