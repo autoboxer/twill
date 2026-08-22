@@ -15,7 +15,7 @@
         "title": "Twill",
         "width": 1100,
         "height": 720,
-        "minWidth": 720,
+        "minWidth": 320,
         "minHeight": 520
       }
     ],
