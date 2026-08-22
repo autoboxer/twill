@@ -6,34 +6,55 @@ export function collectClozeGroups( document ) {
   const groups = [];
   const groupsById = new Map();
 
-  visitTextNodes( document, ( node ) => {
-    const mark = node.marks?.find( ( candidate ) => candidate.type === CLOZE_MARK );
-    const groupId = mark?.attrs?.groupId;
+  collectPassages( document );
 
-    if ( !groupId ) {
-      return;
-    }
-
-    let group = groupsById.get( groupId );
-
-    if ( !group ) {
-      group = {
-        id: groupId,
-        passages: []
-      };
-
-      groupsById.set( groupId, group );
-      groups.push( group );
-    }
-
-    const passage = node.text?.trim();
-
-    if ( passage && !group.passages.includes( passage ) ) {
-      group.passages.push( passage );
-    }
-  });
+  for ( const group of groups ) {
+    group.passages = group.passages
+      .map( ( passage ) => passage.trim() )
+      .filter( Boolean );
+  }
 
   return groups;
+
+  function collectPassages( node ) {
+    let activeGroupId = '';
+
+    for ( const child of ( node?.content ?? []) ) {
+      if ( child.type !== 'text' ) {
+        activeGroupId = '';
+        collectPassages( child );
+        continue;
+      }
+
+      const mark = child.marks?.find( ( candidate ) => candidate.type === CLOZE_MARK );
+      const groupId = mark?.attrs?.groupId ?? '';
+
+      if ( !groupId ) {
+        activeGroupId = '';
+        continue;
+      }
+
+      let group = groupsById.get( groupId );
+
+      if ( !group ) {
+        group = {
+          id: groupId,
+          passages: []
+        };
+
+        groupsById.set( groupId, group );
+        groups.push( group );
+      }
+
+      if ( activeGroupId === groupId ) {
+        group.passages[ group.passages.length - 1 ] += child.text;
+      } else {
+        group.passages.push( child.text );
+      }
+
+      activeGroupId = groupId;
+    }
+  }
 }
 
 export function createClozeGroupId() {
@@ -110,8 +131,7 @@ function transformDocument( document, transformText ) {
       if ( transformed.type === 'clozeBlank' ) {
         if ( !blankPending ) {
           content.push({
-            type: 'text',
-            text: '[…]'
+            type: 'clozeBlank'
           });
         }
 
@@ -130,16 +150,6 @@ function transformDocument( document, transformText ) {
   }
 
   return transformNode( document );
-}
-
-function visitTextNodes( node, visitor ) {
-  if ( node?.type === 'text' ) {
-    visitor( node );
-  }
-
-  for ( const child of ( node?.content ?? []) ) {
-    visitTextNodes( child, visitor );
-  }
 }
 
 function withMarks( node, marks ) {

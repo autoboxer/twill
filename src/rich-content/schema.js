@@ -126,6 +126,30 @@ const Cloze = Mark.create({
   }
 });
 
+const ClozeBlank = Node.create({
+  name: 'clozeBlank',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: false,
+
+  parseHTML() {
+    return [{ tag: 'span[data-type="cloze-blank"]' }];
+  },
+
+  renderHTML() {
+    return [
+      'span',
+      {
+        'aria-label': 'Missing passage',
+        'data-type': 'cloze-blank',
+        role: 'img'
+      },
+      '[…]'
+    ];
+  }
+});
+
 export function createEmptyRichDocument() {
   return {
     type: 'doc',
@@ -183,6 +207,7 @@ export function createRichContentExtensions({ onEditMath } = {}) {
       }
     }),
     Cloze,
+    ClozeBlank,
     MediaImage
   ];
 }

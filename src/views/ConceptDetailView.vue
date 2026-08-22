@@ -6,6 +6,7 @@ import ConfirmDialog from '../components/ConfirmDialog.vue';
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
 import RichContentRenderer from '../components/RichContentRenderer.vue';
+import { collectClozeGroups } from '../cloze/documents';
 import {
   conceptLibraryErrorMessage,
   useConceptLibrary
@@ -53,6 +54,12 @@ const retrievalProgressLabel = computed( () => {
 
   return `${ started } of ${ total } started · ${ due } due`;
 });
+const clozeGroups = computed( () => collectClozeGroups(
+  concept.value?.content.prompt ?? { content: [] }
+) );
+const clozeGroupsById = computed( () => new Map(
+  clozeGroups.value.map( ( group, index ) => [ group.id, { group, index }])
+) );
 
 watch( conceptId, loadConcept, { immediate: true });
 
@@ -141,6 +148,12 @@ function formattedDueDate( timestamp ) {
 }
 
 function retrievalFormName( card ) {
+  if ( card.retrievalKind === 'cloze' ) {
+    const group = clozeGroupDetails( card );
+
+    return group ? `Cloze ${ group.index + 1 }` : 'Cloze';
+  }
+
   if ( card.retrievalKind === 'typeAnswer' ) {
     return 'Type answer';
   }
@@ -149,6 +162,10 @@ function retrievalFormName( card ) {
 }
 
 function retrievalFormIcon( card ) {
+  if ( card.retrievalKind === 'cloze' ) {
+    return 'i-lucide-text-select';
+  }
+
   if ( card.retrievalKind === 'typeAnswer' ) {
     return 'i-lucide-keyboard';
   }
@@ -157,6 +174,12 @@ function retrievalFormIcon( card ) {
 }
 
 function retrievalFormDescription( card ) {
+  if ( card.retrievalKind === 'cloze' ) {
+    const count = clozeGroupDetails( card )?.group.passages.length ?? 0;
+
+    return `${ count } hidden ${ count === 1 ? 'passage' : 'passages' }`;
+  }
+
   if ( card.retrievalKind === 'typeAnswer' ) {
     const count = card.typeAnswer.acceptedAnswers.length;
 
@@ -164,6 +187,19 @@ function retrievalFormDescription( card ) {
   }
 
   return card.template ? 'Template recall' : 'Built-in layout';
+}
+
+function clozeGroupDetails( card ) {
+  return clozeGroupsById.value.get( card.cloze?.groupId );
+}
+
+function clozePassageLabel( passage ) {
+  const normalized = passage.trim().replace( /\s+/gu, ' ' );
+  const characters = Array.from( normalized );
+
+  return characters.length > 120
+    ? `${ characters.slice( 0, 119 ).join( '' ) }…`
+    : normalized;
 }
 
 function reviewCountLabel( count ) {
@@ -368,6 +404,24 @@ function schedulingStateDetails( state ) {
                     :key="answer"
                   >
                     {{ answer }}
+                  </li>
+                </ul>
+              </div>
+
+              <div
+                v-if="card.cloze"
+                class="retrieval-form-list__answers"
+              >
+                <span>{{ clozeGroupDetails( card )?.group.passages.length === 1
+                  ? 'Hidden passage'
+                  : 'Hidden passages' }}</span>
+
+                <ul>
+                  <li
+                    v-for="( passage, index ) in clozeGroupDetails( card )?.group.passages ?? []"
+                    :key="`${ card.cloze.groupId }-${ index }`"
+                  >
+                    {{ clozePassageLabel( passage ) }}
                   </li>
                 </ul>
               </div>
