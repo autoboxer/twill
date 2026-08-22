@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 
 use serde_json::{Map, Value};
+use uuid::Uuid;
 
 use crate::library::{
-    LibraryError, LibraryResult, RetrievalFormKind, TypeAnswerSettings,
+    ClozeSettings, LibraryError, LibraryResult, RetrievalFormKind, TypeAnswerSettings,
 };
 
 const MAXIMUM_ACCEPTED_ANSWERS: usize = 20;
@@ -57,35 +58,49 @@ pub(crate) fn normalize_type_answer(
 pub(crate) fn retrieval_form_configuration(
     retrieval_kind: RetrievalFormKind,
     type_answer: Option<&TypeAnswerSettings>,
+    cloze: Option<&ClozeSettings>,
 ) -> LibraryResult<String> {
-    match (retrieval_kind, type_answer) {
-        (RetrievalFormKind::Recall, None) => Ok(EMPTY_CONFIGURATION.to_owned()),
-        (RetrievalFormKind::TypeAnswer, Some(settings)) => {
+    match (retrieval_kind, type_answer, cloze) {
+        (RetrievalFormKind::Recall, None, None) => Ok(EMPTY_CONFIGURATION.to_owned()),
+        (RetrievalFormKind::TypeAnswer, Some(settings), None) => {
+            serde_json::to_string(settings).map_err(Into::into)
+        }
+        (RetrievalFormKind::Cloze, None, Some(settings)) => {
             serde_json::to_string(settings).map_err(Into::into)
         }
         _ => Err(LibraryError::InvalidRetrievalForm),
     }
 }
 
-pub(crate) fn parse_type_answer(
+pub(crate) fn parse_retrieval_form_configuration(
     retrieval_kind: RetrievalFormKind,
     configuration: &str,
-) -> LibraryResult<Option<TypeAnswerSettings>> {
+) -> LibraryResult<(Option<TypeAnswerSettings>, Option<ClozeSettings>)> {
     match retrieval_kind {
         RetrievalFormKind::Recall => {
             let configuration: Map<String, Value> = serde_json::from_str(configuration)?;
 
             if configuration.is_empty() {
-                Ok(None)
+                Ok((None, None))
             } else {
                 Err(LibraryError::InvalidRetrievalForm)
             }
         }
         RetrievalFormKind::TypeAnswer => {
             let settings = serde_json::from_str(configuration)?;
+            let settings = normalize_type_answer(Some(settings))
+                .map_err(|_| LibraryError::InvalidRetrievalForm)?;
 
-            normalize_type_answer(Some(settings))
-                .map_err(|_| LibraryError::InvalidRetrievalForm)
+            Ok((settings, None))
+        }
+        RetrievalFormKind::Cloze => {
+            let settings: ClozeSettings = serde_json::from_str(configuration)?;
+
+            if Uuid::parse_str(&settings.group_id).is_err() {
+                return Err(LibraryError::InvalidRetrievalForm);
+            }
+
+            Ok((None, Some(settings)))
         }
     }
 }

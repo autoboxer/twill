@@ -53,7 +53,7 @@ CREATE TABLE cards (
     entity_id TEXT PRIMARY KEY NOT NULL,
     concept_id TEXT NOT NULL,
     retrieval_kind TEXT NOT NULL CHECK (
-        retrieval_kind IN ('recall', 'type_answer')
+        retrieval_kind IN ('recall', 'type_answer', 'cloze')
     ),
     configuration_json TEXT NOT NULL DEFAULT '{}' CHECK (
         json_valid(configuration_json)
@@ -304,6 +304,13 @@ WHEN NOT EXISTS (
         WHERE existing_cards.concept_id = NEW.concept_id
             AND existing_cards.retrieval_kind = NEW.retrieval_kind
             AND existing_cards.template_id IS NEW.template_id
+            AND (
+                NEW.retrieval_kind != 'cloze'
+                OR json_extract(
+                    existing_cards.configuration_json,
+                    '$.groupId'
+                ) = json_extract(NEW.configuration_json, '$.groupId')
+            )
             AND existing_entities.deleted_at IS NULL
     )
 BEGIN
@@ -317,6 +324,10 @@ WHEN NEW.entity_id != OLD.entity_id
     OR NEW.concept_id != OLD.concept_id
     OR NEW.retrieval_kind != OLD.retrieval_kind
     OR NEW.template_id IS NOT OLD.template_id
+    OR (
+        OLD.retrieval_kind = 'cloze'
+        AND NEW.configuration_json != OLD.configuration_json
+    )
     OR NEW.last_change_id = OLD.last_change_id
     OR NOT EXISTS (
         SELECT 1

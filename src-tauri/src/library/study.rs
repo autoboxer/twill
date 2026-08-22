@@ -8,10 +8,10 @@ use crate::data::{current_timestamp, EntityKind, WriteTransaction};
 use crate::library::media::query_media_for_concepts;
 use crate::library::models::TemplateMode;
 use crate::library::retrieval_forms::{
-    parse_type_answer, retrieval_form_configuration,
+    parse_retrieval_form_configuration, retrieval_form_configuration,
 };
 use crate::library::{
-    GradingMode, LibraryError, LibraryResult, RetrievalFormKind, ReviewOutcome,
+    ClozeSettings, GradingMode, LibraryError, LibraryResult, RetrievalFormKind, ReviewOutcome,
     ReviewRating, SchedulingSettings, SchedulingState, StudyCard, StudyPreferences,
     StudyQueue, StudyTemplate, TypeAnswerSettings, UpdateSchedulingSettingsInput,
 };
@@ -54,6 +54,7 @@ pub fn create_recall_card(
         RetrievalFormKind::Recall,
         template_id,
         None,
+        None,
     )
 }
 
@@ -68,6 +69,26 @@ pub fn create_type_answer_card(
         RetrievalFormKind::TypeAnswer,
         None,
         Some(settings),
+        None,
+    )
+}
+
+pub fn create_cloze_card(
+    transaction: &WriteTransaction<'_>,
+    concept_id: &str,
+    group_id: &str,
+) -> LibraryResult<()> {
+    let settings = ClozeSettings {
+        group_id: group_id.to_owned(),
+    };
+
+    create_card(
+        transaction,
+        concept_id,
+        RetrievalFormKind::Cloze,
+        None,
+        None,
+        Some(&settings),
     )
 }
 
@@ -77,8 +98,9 @@ fn create_card(
     retrieval_kind: RetrievalFormKind,
     template_id: Option<&str>,
     type_answer: Option<&TypeAnswerSettings>,
+    cloze: Option<&ClozeSettings>,
 ) -> LibraryResult<()> {
-    let configuration = retrieval_form_configuration(retrieval_kind, type_answer)?;
+    let configuration = retrieval_form_configuration(retrieval_kind, type_answer, cloze)?;
     let entity = transaction.create_entity(EntityKind::Card)?;
 
     transaction.execute(
@@ -245,7 +267,8 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 _ => return Err(LibraryError::InvalidRetrievalForm),
             };
             let retrieval_kind = RetrievalFormKind::try_from(retrieval_kind.as_str())?;
-            let type_answer = parse_type_answer(retrieval_kind, &configuration)?;
+            let (type_answer, cloze) =
+                parse_retrieval_form_configuration(retrieval_kind, &configuration)?;
 
             if template
                 .as_ref()
@@ -260,6 +283,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 concept_title,
                 content: serde_json::from_str(&content)?,
                 retrieval_kind,
+                cloze,
                 type_answer,
                 template,
                 scheduling_state: SchedulingState::try_from(state.as_str())?,

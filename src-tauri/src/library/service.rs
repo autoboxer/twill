@@ -10,12 +10,13 @@ use crate::library::media::{
     active_concept_media_ids, query_concept_media, validate_media_ids,
 };
 use crate::library::retrieval_forms::{
-    normalize_type_answer, parse_type_answer, retrieval_form_configuration,
+    normalize_type_answer, parse_retrieval_form_configuration,
+    retrieval_form_configuration,
 };
 use crate::library::study::{
-    create_recall_card, create_type_answer_card, query_scheduling_settings,
-    query_study_preferences, query_study_queue, record_review, update_grading_mode,
-    update_scheduling_settings,
+    create_cloze_card, create_recall_card, create_type_answer_card,
+    query_scheduling_settings, query_study_preferences, query_study_queue,
+    record_review, update_grading_mode, update_scheduling_settings,
 };
 use crate::library::{
     CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, GradingMode,
@@ -128,6 +129,7 @@ impl<'store> ConceptLibrary<'store> {
             input.include_standard_recall,
             &template_ids,
             type_answer.is_some(),
+            !content.cloze_group_ids.is_empty(),
         )?;
 
         self.store.write_result(|transaction| {
@@ -160,6 +162,10 @@ impl<'store> ConceptLibrary<'store> {
 
             if let Some(settings) = &type_answer {
                 create_type_answer_card(transaction, &entity.id, settings)?;
+            }
+
+            for group_id in &content.cloze_group_ids {
+                create_cloze_card(transaction, &entity.id, group_id)?;
             }
 
             for template_id in &template_ids {
@@ -208,6 +214,7 @@ impl<'store> ConceptLibrary<'store> {
             input.include_standard_recall,
             &template_ids,
             type_answer.is_some(),
+            !content.cloze_group_ids.is_empty(),
         )?;
 
         self.store.write_result(|transaction| {
@@ -232,6 +239,16 @@ impl<'store> ConceptLibrary<'store> {
                 .cards
                 .iter()
                 .find_map(|card| card.type_answer.clone());
+            let current_cloze_group_ids = current
+                .cards
+                .iter()
+                .filter_map(|card| card.cloze.as_ref().map(|cloze| cloze.group_id.clone()))
+                .collect::<BTreeSet<_>>();
+            let cloze_group_ids = content
+                .cloze_group_ids
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
             let current_template_ids = current
                 .cards
                 .iter()
@@ -245,6 +262,7 @@ impl<'store> ConceptLibrary<'store> {
                 && current_media == content.media_ids
                 && current_include_standard_recall == input.include_standard_recall
                 && current_type_answer == type_answer
+                && current_cloze_group_ids == cloze_group_ids
                 && current_template_ids == template_ids
             {
                 return Ok(current);
@@ -288,6 +306,7 @@ impl<'store> ConceptLibrary<'store> {
                 input.include_standard_recall,
                 &template_ids,
                 type_answer.as_ref(),
+                &cloze_group_ids,
             )?;
 
             query_concept(transaction, &id)
@@ -544,8 +563,13 @@ fn validate_retrieval_form_selection(
     include_standard_recall: bool,
     template_ids: &BTreeSet<String>,
     include_type_answer: bool,
+    include_cloze: bool,
 ) -> LibraryResult<()> {
-    if !include_standard_recall && !include_type_answer && template_ids.is_empty() {
+    if !include_standard_recall
+        && !include_type_answer
+        && !include_cloze
+        && template_ids.is_empty()
+    {
         return Err(LibraryError::MissingRetrievalForm);
     }
 
@@ -817,11 +841,13 @@ fn query_cards(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<C
                 lapse_count,
             ) = card?;
             let retrieval_kind = RetrievalFormKind::try_from(retrieval_kind.as_str())?;
-            let type_answer = parse_type_answer(retrieval_kind, &configuration)?;
+            let (type_answer, cloze) =
+                parse_retrieval_form_configuration(retrieval_kind, &configuration)?;
 
             Ok(CardSummary {
                 id,
                 retrieval_kind,
+                cloze,
                 type_answer,
                 template,
                 scheduling_state: SchedulingState::try_from(scheduling_state.as_str())?,
@@ -1117,6 +1143,7 @@ fn apply_retrieval_forms(
     include_standard_recall: bool,
     template_ids: &BTreeSet<String>,
     type_answer: Option<&TypeAnswerSettings>,
+    cloze_group_ids: &BTreeSet<String>,
 ) -> LibraryResult<()> {
     for card in current_cards {
         let retained = match card.retrieval_kind {
@@ -1125,6 +1152,10 @@ fn apply_retrieval_forms(
                 None => include_standard_recall,
             },
             RetrievalFormKind::TypeAnswer => type_answer.is_some(),
+            RetrievalFormKind::Cloze => card
+                .cloze
+                .as_ref()
+                .is_some_and(|cloze| cloze_group_ids.contains(&cloze.group_id)),
         };
 
         if !retained {
@@ -1152,6 +1183,7 @@ fn apply_retrieval_forms(
             let configuration = retrieval_form_configuration(
                 RetrievalFormKind::TypeAnswer,
                 Some(settings),
+                None,
             )?;
             let entity = transaction.touch_entity(&card.id)?;
 
@@ -1164,6 +1196,17 @@ fn apply_retrieval_forms(
             )?;
         }
         _ => {}
+    }
+
+    let current_cloze_group_ids = current_cards
+        .iter()
+        .filter_map(|card| card.cloze.as_ref().map(|cloze| cloze.group_id.as_str()))
+        .collect::<HashSet<_>>();
+
+    for group_id in cloze_group_ids {
+        if !current_cloze_group_ids.contains(group_id.as_str()) {
+            create_cloze_card(transaction, concept_id, group_id)?;
+        }
     }
 
     let current_template_ids = current_cards
@@ -1951,6 +1994,161 @@ mod tests {
             .unwrap();
 
         assert_ne!(readded_card.id, original_card.id);
+        assert_eq!(readded_card.scheduling_state, SchedulingState::New);
+        assert_eq!(readded_card.review_count, 0);
+    }
+
+    #[test]
+    fn cloze_groups_schedule_independently_and_reconcile_by_identity() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let first_group = "018f1e2d-3c4b-7a69-8f10-123456789ab1";
+        let second_group = "018f1e2d-3c4b-7a69-8f10-123456789ab2";
+        let third_group = "018f1e2d-3c4b-7a69-8f10-123456789ab3";
+        let cloze_text = |text: &str, group_id: &str| {
+            json!({
+                "type": "text",
+                "text": text,
+                "marks": [{
+                    "type": "cloze",
+                    "attrs": { "groupId": group_id }
+                }]
+            })
+        };
+        let prompt = |nodes| {
+            json!({
+                "type": "doc",
+                "content": [{
+                    "type": "paragraph",
+                    "content": nodes
+                }]
+            })
+        };
+        let initial_content = ConceptContent {
+            schema_version: 1,
+            prompt: prompt(vec![
+                json!({ "type": "text", "text": "The " }),
+                cloze_text("inner mitochondrial membrane", first_group),
+                json!({ "type": "text", "text": " produces " }),
+                cloze_text("ATP", first_group),
+                json!({ "type": "text", "text": " during " }),
+                cloze_text("respiration", second_group),
+            ]),
+            answer: ConceptContent::default().answer,
+        };
+        let concept = library
+            .create_concept(CreateConceptInput {
+                title: "Cellular respiration".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: initial_content,
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                type_answer: None,
+            })
+            .unwrap();
+        let first_card = concept
+            .cards
+            .iter()
+            .find(|card| card.cloze.as_ref().unwrap().group_id == first_group)
+            .unwrap()
+            .clone();
+        let second_card = concept
+            .cards
+            .iter()
+            .find(|card| card.cloze.as_ref().unwrap().group_id == second_group)
+            .unwrap()
+            .clone();
+
+        assert_eq!(concept.cards.len(), 2);
+        assert!(concept.cards.iter().all(|card| {
+            card.retrieval_kind == RetrievalFormKind::Cloze
+                && card.type_answer.is_none()
+                && card.template.is_none()
+        }));
+
+        let review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: first_card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                first_card.due_at,
+            )
+            .unwrap();
+        let updated_content = ConceptContent {
+            schema_version: 1,
+            prompt: prompt(vec![
+                json!({ "type": "text", "text": "Most " }),
+                cloze_text("ATP", first_group),
+                json!({ "type": "text", "text": " is made by " }),
+                cloze_text("oxidative phosphorylation", third_group),
+            ]),
+            answer: concept.content.answer.clone(),
+        };
+        let updated = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id.clone(),
+                title: concept.title.clone(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: updated_content,
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                type_answer: None,
+            })
+            .unwrap();
+        let retained_card = updated
+            .cards
+            .iter()
+            .find(|card| card.cloze.as_ref().unwrap().group_id == first_group)
+            .unwrap();
+        let new_card = updated
+            .cards
+            .iter()
+            .find(|card| card.cloze.as_ref().unwrap().group_id == third_group)
+            .unwrap();
+
+        assert_eq!(updated.cards.len(), 2);
+        assert_eq!(retained_card.id, first_card.id);
+        assert_eq!(retained_card.review_count, 1);
+        assert_eq!(retained_card.due_at, review.due_at);
+        assert_eq!(new_card.scheduling_state, SchedulingState::New);
+        assert!(store
+            .entity(&second_card.id)
+            .unwrap()
+            .unwrap()
+            .deleted_at
+            .is_some());
+
+        let readded_content = ConceptContent {
+            schema_version: 1,
+            prompt: prompt(vec![
+                cloze_text("ATP", first_group),
+                json!({ "type": "text", "text": " supports " }),
+                cloze_text("cellular work", second_group),
+            ]),
+            answer: concept.content.answer,
+        };
+        let readded = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id,
+                title: concept.title,
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: readded_content,
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                type_answer: None,
+            })
+            .unwrap();
+        let readded_card = readded
+            .cards
+            .iter()
+            .find(|card| card.cloze.as_ref().unwrap().group_id == second_group)
+            .unwrap();
+
+        assert_ne!(readded_card.id, second_card.id);
         assert_eq!(readded_card.scheduling_state, SchedulingState::New);
         assert_eq!(readded_card.review_count, 0);
     }

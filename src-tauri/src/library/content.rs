@@ -14,8 +14,10 @@ const MAXIMUM_DOCUMENT_TEXT: usize = 500_000;
 const MAXIMUM_LATEX_LENGTH: usize = 10_000;
 const MAXIMUM_LINK_LENGTH: usize = 2_048;
 const MAXIMUM_ATTRIBUTE_TEXT_LENGTH: usize = 500;
+const MAXIMUM_CLOZE_GROUPS: usize = 100;
 
 pub struct ValidatedContent {
+    pub cloze_group_ids: Vec<String>,
     pub content: ConceptContent,
     pub media_ids: HashSet<String>,
     pub serialized: String,
@@ -30,6 +32,8 @@ enum NodeContext {
 }
 
 struct ValidationState {
+    cloze_group_ids: Vec<String>,
+    cloze_group_set: HashSet<String>,
     media_ids: HashSet<String>,
     node_count: usize,
     text_length: usize,
@@ -50,6 +54,8 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
     }
 
     let mut state = ValidationState {
+        cloze_group_ids: Vec::new(),
+        cloze_group_set: HashSet::new(),
         media_ids: HashSet::new(),
         node_count: 0,
         text_length: 0,
@@ -59,6 +65,7 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
     validate_document(&content.answer, "Answer", &mut state)?;
 
     Ok(ValidatedContent {
+        cloze_group_ids: state.cloze_group_ids,
         content,
         media_ids: state.media_ids,
         serialized,
@@ -335,13 +342,20 @@ fn validate_text(
     }
 
     if !matches!(context, NodeContext::Code) {
-        validate_marks(object, field)?;
+        validate_marks(object, text, field, state)?;
     }
 
     Ok(())
 }
 
-fn validate_marks(object: &Map<String, Value>, field: &'static str) -> LibraryResult<()> {
+fn validate_marks(
+    object: &Map<String, Value>,
+    text: &str,
+    field: &'static str,
+    state: &mut ValidationState,
+) -> LibraryResult<()> {
+    let mut has_cloze_mark = false;
+
     for mark in optional_array(object, "marks", field)? {
         let mark = required_object(mark, field)?;
         let mark_type = required_string(mark, "type", field)?;
@@ -351,6 +365,16 @@ fn validate_marks(object: &Map<String, Value>, field: &'static str) -> LibraryRe
                 ensure_keys(mark, &["type"], field)?;
             }
             "link" => validate_link(mark, field)?,
+            "cloze" if has_cloze_mark => {
+                return Err(invalid_content(
+                    field,
+                    "contains overlapping cloze omissions",
+                ));
+            }
+            "cloze" => {
+                validate_cloze(mark, text, field, state)?;
+                has_cloze_mark = true;
+            }
             _ => {
                 return Err(invalid_content(
                     field,
@@ -358,6 +382,54 @@ fn validate_marks(object: &Map<String, Value>, field: &'static str) -> LibraryRe
                 ));
             }
         }
+    }
+
+    Ok(())
+}
+
+fn validate_cloze(
+    mark: &Map<String, Value>,
+    text: &str,
+    field: &'static str,
+    state: &mut ValidationState,
+) -> LibraryResult<()> {
+    if field != "Prompt" {
+        return Err(invalid_content(
+            field,
+            "cannot contain cloze omissions",
+        ));
+    }
+
+    if text.trim().is_empty() {
+        return Err(invalid_content(
+            field,
+            "contains an empty cloze omission",
+        ));
+    }
+
+    ensure_keys(mark, &["type", "attrs"], field)?;
+
+    let attributes = required_attributes(mark, field)?;
+    ensure_keys(attributes, &["groupId"], field)?;
+
+    let group_id = required_string(attributes, "groupId", field)?;
+
+    if Uuid::parse_str(group_id).is_err() {
+        return Err(invalid_content(
+            field,
+            "contains an invalid cloze group",
+        ));
+    }
+
+    if state.cloze_group_set.insert(group_id.to_owned()) {
+        if state.cloze_group_ids.len() >= MAXIMUM_CLOZE_GROUPS {
+            return Err(invalid_content(
+                field,
+                format!("cannot contain more than {MAXIMUM_CLOZE_GROUPS} cloze groups"),
+            ));
+        }
+
+        state.cloze_group_ids.push(group_id.to_owned());
     }
 
     Ok(())
@@ -597,6 +669,7 @@ mod tests {
     #[test]
     fn allowlisted_documents_collect_media_references() {
         let media_id = "018f1e2d-3c4b-7a69-8f10-123456789abc";
+        let cloze_group_id = "018f1e2d-3c4b-7a69-8f10-123456789abd";
         let content = ConceptContent {
             schema_version: 1,
             prompt: json!({
@@ -616,6 +689,11 @@ mod tests {
                                     "rel": "noopener noreferrer nofollow",
                                     "class": null,
                                     "title": null
+                                }
+                            }, {
+                                "type": "cloze",
+                                "attrs": {
+                                    "groupId": cloze_group_id
                                 }
                             }]
                         }]
@@ -644,8 +722,56 @@ mod tests {
 
         let validated = validate_content(content).unwrap();
 
+        assert_eq!(validated.cloze_group_ids, vec![cloze_group_id]);
         assert_eq!(validated.media_ids, [media_id.to_owned()].into());
         assert!(validated.serialized.contains("Cell membrane"));
+    }
+
+    #[test]
+    fn cloze_marks_require_valid_prompt_groups() {
+        let group_id = "018f1e2d-3c4b-7a69-8f10-123456789abc";
+        let marked_text = |text: &str, id: &str| {
+            json!({
+                "type": "text",
+                "text": text,
+                "marks": [{
+                    "type": "cloze",
+                    "attrs": { "groupId": id }
+                }]
+            })
+        };
+        let document = |node| {
+            json!({
+                "type": "doc",
+                "content": [{
+                    "type": "paragraph",
+                    "content": [node]
+                }]
+            })
+        };
+
+        let answer_mark = ConceptContent {
+            schema_version: 1,
+            prompt: ConceptContent::default().prompt,
+            answer: document(marked_text("Answer", group_id)),
+        };
+        let invalid_group = ConceptContent {
+            schema_version: 1,
+            prompt: document(marked_text("Prompt", "not-a-uuid")),
+            answer: ConceptContent::default().answer,
+        };
+        let empty_omission = ConceptContent {
+            schema_version: 1,
+            prompt: document(marked_text("   ", group_id)),
+            answer: ConceptContent::default().answer,
+        };
+
+        for content in [answer_mark, invalid_group, empty_omission] {
+            assert!(matches!(
+                validate_content(content),
+                Err(LibraryError::InvalidContent { .. })
+            ));
+        }
     }
 
     #[test]
