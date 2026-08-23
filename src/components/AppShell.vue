@@ -10,6 +10,8 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 import AppNavigation from './AppNavigation.vue';
+import CommandCenter from './CommandCenter.vue';
+import { COMMAND_IDS } from '../commands/registry';
 import { provideCommands } from '../composables/useCommands';
 
 const routeTransition = {
@@ -19,8 +21,9 @@ const routeTransition = {
 
 const animateRouteEntrance = ref( false );
 const router = useRouter();
-
-provideCommands( router );
+const commands = provideCommands( router );
+const paletteCommand = commands.command( COMMAND_IDS.commandPaletteOpen );
+const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
 
 onMounted( () => {
   animateRouteEntrance.value = true;
@@ -49,6 +52,28 @@ onMounted( () => {
           >
             Twill
           </RouterLink>
+
+          <div class="mobile-command-actions">
+            <UButton
+              icon="i-lucide-search"
+              :aria-label="paletteCommand.label"
+              :aria-keyshortcuts="paletteCommand.ariaKeyshortcuts"
+              :title="paletteCommand.tooltip"
+              color="neutral"
+              variant="subtle"
+              @click="commands.execute( COMMAND_IDS.commandPaletteOpen )"
+            />
+
+            <UButton
+              icon="i-lucide-keyboard"
+              :aria-label="referenceCommand.label"
+              :aria-keyshortcuts="referenceCommand.ariaKeyshortcuts"
+              :title="referenceCommand.tooltip"
+              color="neutral"
+              variant="subtle"
+              @click="commands.execute( COMMAND_IDS.commandReferenceOpen )"
+            />
+          </div>
         </header>
 
         <AppNavigation />
@@ -81,6 +106,8 @@ onMounted( () => {
           </RouterView>
         </div>
       </div>
+
+      <CommandCenter />
     </LazyMotion>
   </MotionConfig>
 </template>

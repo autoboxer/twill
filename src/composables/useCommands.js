@@ -14,6 +14,7 @@ import {
   commandMatchesKeyboardEvent,
   commandRegistry,
   commandShortcutLabel,
+  commandShortcutParts,
   isApplePlatform
 } from '../commands/registry';
 
@@ -88,6 +89,7 @@ function createCommandRuntime( router ) {
   function command( commandId ) {
     const definition = commandDefinition( commandId );
     const shortcutLabel = commandShortcutLabel( definition, applePlatform );
+    const shortcutParts = commandShortcutParts( definition, applePlatform );
 
     return {
       ...definition,
@@ -95,6 +97,7 @@ function createCommandRuntime( router ) {
       available: isAvailable( definition ),
       enabled: isEnabled( definition ),
       shortcutLabel,
+      shortcutParts,
       tooltip: `${ definition.label } (${ shortcutLabel })`
     };
   }

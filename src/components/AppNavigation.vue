@@ -1,8 +1,11 @@
 <script setup>
+import { COMMAND_IDS } from '../commands/registry';
 import { primaryNavigation } from '../config/navigation';
 import { useCommands } from '../composables/useCommands';
 
 const commands = useCommands();
+const paletteCommand = commands.command( COMMAND_IDS.commandPaletteOpen );
+const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
 </script>
 
 <template>
@@ -37,5 +40,40 @@ const commands = useCommands();
         block
       />
     </nav>
+
+    <div class="command-center-navigation">
+      <UButton
+        :aria-label="paletteCommand.label"
+        :aria-keyshortcuts="paletteCommand.ariaKeyshortcuts"
+        :title="paletteCommand.tooltip"
+        leading-icon="i-lucide-search"
+        color="neutral"
+        variant="subtle"
+        class="command-entry"
+        block
+        @click="commands.execute( COMMAND_IDS.commandPaletteOpen )"
+      >
+        <span class="command-entry__label">Commands</span>
+        <UKbd
+          :value="paletteCommand.shortcutLabel"
+          size="sm"
+          class="command-entry__shortcut"
+        />
+      </UButton>
+
+      <UButton
+        :aria-label="referenceCommand.label"
+        :aria-keyshortcuts="referenceCommand.ariaKeyshortcuts"
+        :title="referenceCommand.tooltip"
+        leading-icon="i-lucide-keyboard"
+        color="neutral"
+        variant="subtle"
+        class="command-entry"
+        block
+        @click="commands.execute( COMMAND_IDS.commandReferenceOpen )"
+      >
+        <span class="command-entry__label">Shortcuts</span>
+      </UButton>
+    </div>
   </aside>
 </template>

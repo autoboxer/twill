@@ -1,4 +1,6 @@
 export const COMMAND_IDS = Object.freeze({
+  commandPaletteOpen: 'command.palette.open',
+  commandReferenceOpen: 'command.reference.open',
   conceptCreate: 'concept.create',
   conceptSave: 'concept.save',
   navigateLibrary: 'navigate.library',
@@ -16,8 +18,27 @@ export const COMMAND_IDS = Object.freeze({
 });
 
 export const commandRegistry = Object.freeze([
+  localCommand({
+    id: COMMAND_IDS.commandPaletteOpen,
+    context: 'Outside editors and dialogs',
+    description: 'Search and run available actions.',
+    group: 'Application',
+    icon: 'i-lucide-search',
+    label: 'Command palette',
+    shortcut: 'Mod+Shift+P'
+  }),
+  localCommand({
+    id: COMMAND_IDS.commandReferenceOpen,
+    context: 'Outside editors and dialogs',
+    description: 'View the available keyboard shortcuts.',
+    group: 'Application',
+    icon: 'i-lucide-keyboard',
+    label: 'Keyboard shortcuts',
+    shortcut: 'Mod+/'
+  }),
   navigationCommand({
     id: COMMAND_IDS.navigateStudy,
+    description: 'Go to the study queue.',
     icon: 'i-lucide-book-open-check',
     label: 'Open Study',
     routeName: 'study',
@@ -25,6 +46,7 @@ export const commandRegistry = Object.freeze([
   }),
   navigationCommand({
     id: COMMAND_IDS.navigateLibrary,
+    description: 'View and organize concepts.',
     icon: 'i-lucide-library',
     label: 'Open Library',
     routeName: 'library',
@@ -32,6 +54,7 @@ export const commandRegistry = Object.freeze([
   }),
   navigationCommand({
     id: COMMAND_IDS.conceptCreate,
+    description: 'Open a new concept editor.',
     icon: 'i-lucide-square-pen',
     label: 'New concept',
     routeName: 'create',
@@ -39,6 +62,7 @@ export const commandRegistry = Object.freeze([
   }),
   navigationCommand({
     id: COMMAND_IDS.navigateSettings,
+    description: 'Change application preferences.',
     icon: 'i-lucide-settings',
     label: 'Open Settings',
     routeName: 'settings',
@@ -47,6 +71,8 @@ export const commandRegistry = Object.freeze([
   localCommand({
     id: COMMAND_IDS.conceptSave,
     allowInEditable: true,
+    context: 'Concept editor',
+    description: 'Save the current concept.',
     group: 'Authoring',
     icon: 'i-lucide-save',
     label: 'Save concept',
@@ -55,6 +81,8 @@ export const commandRegistry = Object.freeze([
   localCommand({
     id: COMMAND_IDS.templateSave,
     allowInEditable: true,
+    context: 'Template editor',
+    description: 'Save the current template.',
     group: 'Authoring',
     icon: 'i-lucide-save',
     label: 'Save template',
@@ -63,6 +91,8 @@ export const commandRegistry = Object.freeze([
   localCommand({
     id: COMMAND_IDS.schedulingSave,
     allowInEditable: true,
+    context: 'Scheduling settings',
+    description: 'Save the scheduling form.',
     group: 'Settings',
     icon: 'i-lucide-save',
     label: 'Save scheduling settings',
@@ -70,6 +100,8 @@ export const commandRegistry = Object.freeze([
   }),
   localCommand({
     id: COMMAND_IDS.studyReveal,
+    context: 'Study, before answer reveal',
+    description: 'Reveal the current answer.',
     group: 'Study',
     icon: 'i-lucide-eye',
     label: 'Reveal answer',
@@ -77,36 +109,42 @@ export const commandRegistry = Object.freeze([
   }),
   studyGradeCommand({
     id: COMMAND_IDS.studyGradeSimpleForgot,
+    mode: 'Simple',
     label: 'Forgot',
     rating: 'again',
     shortcut: '1'
   }),
   studyGradeCommand({
     id: COMMAND_IDS.studyGradeSimpleRemembered,
+    mode: 'Simple',
     label: 'Remembered',
     rating: 'good',
     shortcut: '2'
   }),
   studyGradeCommand({
     id: COMMAND_IDS.studyGradeAdvancedAgain,
+    mode: 'Advanced',
     label: 'Again',
     rating: 'again',
     shortcut: '1'
   }),
   studyGradeCommand({
     id: COMMAND_IDS.studyGradeAdvancedHard,
+    mode: 'Advanced',
     label: 'Hard',
     rating: 'hard',
     shortcut: '2'
   }),
   studyGradeCommand({
     id: COMMAND_IDS.studyGradeAdvancedGood,
+    mode: 'Advanced',
     label: 'Good',
     rating: 'good',
     shortcut: '3'
   }),
   studyGradeCommand({
     id: COMMAND_IDS.studyGradeAdvancedEasy,
+    mode: 'Advanced',
     label: 'Easy',
     rating: 'easy',
     shortcut: '4'
@@ -129,10 +167,14 @@ export function commandDefinition( commandId ) {
 }
 
 export function commandShortcutLabel( command, applePlatform = isApplePlatform() ) {
+  return commandShortcutParts( command, applePlatform )
+    .join( applePlatform ? '' : '+' );
+}
+
+export function commandShortcutParts( command, applePlatform = isApplePlatform() ) {
   return command.shortcut
     .split( '+' )
-    .map( ( part ) => shortcutPartLabel( part, applePlatform ) )
-    .join( applePlatform ? '' : '+' );
+    .map( ( part ) => shortcutPartLabel( part, applePlatform ) );
 }
 
 export function commandAriaShortcut( command, applePlatform = isApplePlatform() ) {
@@ -168,8 +210,10 @@ export function isApplePlatform() {
   return /mac|iphone|ipad|ipod/i.test( platform );
 }
 
-function navigationCommand({ id, icon, label, routeName, shortcut }) {
+function navigationCommand({ description, id, icon, label, routeName, shortcut }) {
   return Object.freeze({
+    context: 'Outside editors and dialogs',
+    description,
     group: 'Navigation',
     handler: ({ router }) => router.push({ name: routeName }),
     id,
@@ -181,6 +225,8 @@ function navigationCommand({ id, icon, label, routeName, shortcut }) {
 
 function localCommand({
   allowInEditable = false,
+  context,
+  description,
   group,
   icon,
   id,
@@ -189,6 +235,8 @@ function localCommand({
 }) {
   return Object.freeze({
     allowInEditable,
+    context,
+    description,
     group,
     handler: ({ binding }) => binding.execute(),
     id,
@@ -199,9 +247,11 @@ function localCommand({
   });
 }
 
-function studyGradeCommand({ id, label, rating, shortcut }) {
+function studyGradeCommand({ id, label, mode, rating, shortcut }) {
   return Object.freeze({
     ...localCommand({
+      context: `Study, ${ mode } grading after reveal`,
+      description: `Grade the current answer as ${ label }.`,
       group: 'Study',
       icon: 'i-lucide-list-checks',
       id,
