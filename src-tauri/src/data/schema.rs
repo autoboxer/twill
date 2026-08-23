@@ -92,13 +92,13 @@ mod tests {
             )
             .unwrap();
         let parameters: Vec<f32> = serde_json::from_str(&parameters_json).unwrap();
-        let grading_mode: String = connection
+        let preferences: (String, String) = connection
             .query_row(
-                "SELECT grading_mode
+                "SELECT grading_mode, startup_destination
                 FROM device_preferences
                 WHERE singleton = 1",
                 [],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .unwrap();
 
@@ -108,7 +108,7 @@ mod tests {
         assert_eq!(configuration.3, 0.9);
         assert_eq!(configuration.4, 36_500);
         assert_eq!(parameters, fsrs::DEFAULT_PARAMETERS);
-        assert_eq!(grading_mode, "simple");
+        assert_eq!(preferences, ("simple".to_owned(), "study".to_owned()));
     }
 
     #[test]

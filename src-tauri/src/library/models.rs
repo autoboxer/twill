@@ -159,10 +159,18 @@ pub enum GradingMode {
     Advanced,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StartupDestination {
+    Study,
+    Library,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StudyPreferences {
+pub struct DevicePreferences {
     pub grading_mode: GradingMode,
+    pub startup_destination: StartupDestination,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -346,6 +354,12 @@ pub struct UpdateTemplateInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SetGradingModeInput {
     pub grading_mode: GradingMode,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SetStartupDestinationInput {
+    pub startup_destination: StartupDestination,
 }
 
 #[derive(Clone, Debug, Deserialize)]

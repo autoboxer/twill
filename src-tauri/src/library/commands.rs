@@ -5,11 +5,12 @@ use tauri::State;
 use crate::data::LocalDataStore;
 use crate::library::{
     ConceptDetail, ConceptLibrary, CreateConceptInput, CreateNamedItemInput, CreateTemplateInput,
-    EntityIdInput, LibraryError, LibrarySnapshot, OrganizationSummary, RenameNamedItemInput,
-    RecordReviewInput, ReviewOutcome, SchedulingSettings, SetConceptArchivedInput,
-    SetGradingModeInput, StudyPreferences, StudyQueue, TemplateCatalog, TemplateDetail,
-    TemplateContent, TemplateLibrary, UpdateConceptInput, UpdateSchedulingSettingsInput,
-    UpdateTemplateInput,
+    DevicePreferences, EntityIdInput, LibraryError, LibrarySnapshot, OrganizationSummary,
+    RecordReviewInput, RenameNamedItemInput, ReviewOutcome, SchedulingSettings,
+    SetConceptArchivedInput,
+    SetGradingModeInput, SetStartupDestinationInput, StudyQueue, TemplateCatalog,
+    TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
+    UpdateSchedulingSettingsInput, UpdateTemplateInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -55,6 +56,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidRetrievalFormKind(_)
             | LibraryError::InvalidRetrievalForm
             | LibraryError::InvalidGradingMode(_)
+            | LibraryError::InvalidStartupDestination(_)
             | LibraryError::InvalidSchedule
             | LibraryError::Scheduler(_) => "storage",
         };
@@ -68,6 +70,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidRetrievalFormKind(_)
             | LibraryError::InvalidRetrievalForm
             | LibraryError::InvalidGradingMode(_)
+            | LibraryError::InvalidStartupDestination(_)
             | LibraryError::InvalidSchedule
             | LibraryError::Scheduler(_) => {
                 "Local data could not be accessed.".to_owned()
@@ -119,11 +122,11 @@ pub(crate) fn record_review(
 }
 
 #[tauri::command(async)]
-pub(crate) fn get_study_preferences(
+pub(crate) fn get_device_preferences(
     local_data: State<'_, LocalDataStore>,
-) -> CommandResult<StudyPreferences> {
+) -> CommandResult<DevicePreferences> {
     ConceptLibrary::new(local_data.inner())
-        .study_preferences()
+        .device_preferences()
         .map_err(Into::into)
 }
 
@@ -131,9 +134,19 @@ pub(crate) fn get_study_preferences(
 pub(crate) fn set_grading_mode(
     local_data: State<'_, LocalDataStore>,
     input: SetGradingModeInput,
-) -> CommandResult<StudyPreferences> {
+) -> CommandResult<DevicePreferences> {
     ConceptLibrary::new(local_data.inner())
         .set_grading_mode(input.grading_mode)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn set_startup_destination(
+    local_data: State<'_, LocalDataStore>,
+    input: SetStartupDestinationInput,
+) -> CommandResult<DevicePreferences> {
+    ConceptLibrary::new(local_data.inner())
+        .set_startup_destination(input.startup_destination)
         .map_err(Into::into)
 }
 

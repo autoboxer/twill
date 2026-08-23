@@ -2,11 +2,16 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 
 import LibraryView from '../views/LibraryView.vue';
 import SettingsView from '../views/SettingsView.vue';
+import StartupView from '../views/StartupView.vue';
 
 const routes = [
   {
     path: '/',
-    redirect: '/study'
+    name: 'startup',
+    component: StartupView,
+    meta: {
+      title: ''
+    }
   },
 
   {
@@ -102,7 +107,9 @@ const router = createRouter({
 });
 
 router.afterEach( ( to ) => {
-  document.title = `${ to.meta.title } · Twill`;
+  document.title = to.meta.title
+    ? `${ to.meta.title } · Twill`
+    : 'Twill';
 });
 
 export default router;
