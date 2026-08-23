@@ -11,13 +11,14 @@ mod templates;
 pub use error::{LibraryError, LibraryResult};
 pub use models::{
     CardSummary, ClozeSettings, ConceptContent, ConceptDetail, ConceptSummary, CreateConceptInput,
-    CreateNamedItemInput, CreateTemplateInput, EntityIdInput, GradingMode, LibrarySnapshot,
-    MediaSummary, NamedItem, OrganizationSummary, RecordReviewInput, RenameNamedItemInput,
-    RetrievalFormKind, ReviewOutcome, ReviewRating, SchedulingSettings, SchedulingState,
-    SetConceptArchivedInput, SetGradingModeInput, StudyCard, StudyPreferences, StudyQueue,
-    StudyTemplate, TemplateBlock, TemplateCatalog, TemplateContent, TemplateDetail,
-    TemplateSummary, TypeAnswerSettings, UpdateConceptInput, UpdateSchedulingSettingsInput,
-    UpdateTemplateInput, RICH_CONTENT_SCHEMA_VERSION, TEMPLATE_SCHEMA_VERSION,
+    CreateNamedItemInput, CreateTemplateInput, EntityIdInput, GradingMode,
+    ImageOcclusionSettings, LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary,
+    RecordReviewInput, RenameNamedItemInput, RetrievalFormKind, ReviewOutcome, ReviewRating,
+    SchedulingSettings, SchedulingState, SetConceptArchivedInput, SetGradingModeInput, StudyCard,
+    StudyPreferences, StudyQueue, StudyTemplate, TemplateBlock, TemplateCatalog, TemplateContent,
+    TemplateDetail, TemplateSummary, TypeAnswerSettings, UpdateConceptInput,
+    UpdateSchedulingSettingsInput, UpdateTemplateInput, RICH_CONTENT_SCHEMA_VERSION,
+    TEMPLATE_SCHEMA_VERSION,
 };
 pub use service::ConceptLibrary;
 pub use templates::TemplateLibrary;

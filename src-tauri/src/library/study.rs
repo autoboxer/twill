@@ -11,9 +11,10 @@ use crate::library::retrieval_forms::{
     parse_retrieval_form_configuration, retrieval_form_configuration,
 };
 use crate::library::{
-    ClozeSettings, GradingMode, LibraryError, LibraryResult, RetrievalFormKind, ReviewOutcome,
-    ReviewRating, SchedulingSettings, SchedulingState, StudyCard, StudyPreferences,
-    StudyQueue, StudyTemplate, TypeAnswerSettings, UpdateSchedulingSettingsInput,
+    ClozeSettings, GradingMode, ImageOcclusionSettings, LibraryError, LibraryResult,
+    RetrievalFormKind, ReviewOutcome, ReviewRating, SchedulingSettings, SchedulingState,
+    StudyCard, StudyPreferences, StudyQueue, StudyTemplate, TypeAnswerSettings,
+    UpdateSchedulingSettingsInput,
 };
 
 const FSRS_ALGORITHM: &str = "fsrs";
@@ -55,6 +56,7 @@ pub fn create_recall_card(
         template_id,
         None,
         None,
+        None,
     )
 }
 
@@ -69,6 +71,7 @@ pub fn create_type_answer_card(
         RetrievalFormKind::TypeAnswer,
         None,
         Some(settings),
+        None,
         None,
     )
 }
@@ -89,6 +92,27 @@ pub fn create_cloze_card(
         None,
         None,
         Some(&settings),
+        None,
+    )
+}
+
+pub fn create_image_occlusion_card(
+    transaction: &WriteTransaction<'_>,
+    concept_id: &str,
+    group_id: &str,
+) -> LibraryResult<()> {
+    let settings = ImageOcclusionSettings {
+        group_id: group_id.to_owned(),
+    };
+
+    create_card(
+        transaction,
+        concept_id,
+        RetrievalFormKind::ImageOcclusion,
+        None,
+        None,
+        None,
+        Some(&settings),
     )
 }
 
@@ -99,8 +123,14 @@ fn create_card(
     template_id: Option<&str>,
     type_answer: Option<&TypeAnswerSettings>,
     cloze: Option<&ClozeSettings>,
+    image_occlusion: Option<&ImageOcclusionSettings>,
 ) -> LibraryResult<()> {
-    let configuration = retrieval_form_configuration(retrieval_kind, type_answer, cloze)?;
+    let configuration = retrieval_form_configuration(
+        retrieval_kind,
+        type_answer,
+        cloze,
+        image_occlusion,
+    )?;
     let entity = transaction.create_entity(EntityKind::Card)?;
 
     transaction.execute(
@@ -267,12 +297,12 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 _ => return Err(LibraryError::InvalidRetrievalForm),
             };
             let retrieval_kind = RetrievalFormKind::try_from(retrieval_kind.as_str())?;
-            let (type_answer, cloze) =
-                parse_retrieval_form_configuration(retrieval_kind, &configuration)?;
+            let parsed = parse_retrieval_form_configuration(retrieval_kind, &configuration)?;
 
             if template
                 .as_ref()
                 .is_some_and(|template| template.content.mode == TemplateMode::Custom)
+                || retrieval_kind == RetrievalFormKind::ImageOcclusion
             {
                 media_concept_ids.insert(concept_id.clone());
             }
@@ -283,8 +313,9 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 concept_title,
                 content: serde_json::from_str(&content)?,
                 retrieval_kind,
-                cloze,
-                type_answer,
+                cloze: parsed.cloze,
+                image_occlusion: parsed.image_occlusion,
+                type_answer: parsed.type_answer,
                 template,
                 scheduling_state: SchedulingState::try_from(state.as_str())?,
                 due_at,

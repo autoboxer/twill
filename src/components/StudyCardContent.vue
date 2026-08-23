@@ -37,7 +37,13 @@ let renderRequestSequence = 0;
 
 const side = computed( () => props.answerRevealed ? 'answer' : 'front' );
 const isCloze = computed( () => props.card.retrievalKind === 'cloze' );
+const isImageOcclusion = computed( () => (
+  props.card.retrievalKind === 'imageOcclusion'
+) );
 const isStandard = computed( () => !props.card.template );
+const imageOcclusionGroupId = computed( () => (
+  isImageOcclusion.value ? props.card.imageOcclusion?.groupId ?? '' : ''
+) );
 const isVisual = computed( () => {
   return props.card.template?.content.mode === 'visual';
 });
@@ -229,6 +235,7 @@ function normalizeBytes( value ) {
     class="study-template"
     :class="{
       'study-template--cloze': isCloze,
+      'study-template--image-occlusion': isImageOcclusion,
       'study-template--standard': isStandard
     }"
     :aria-label="`${ side === 'front' ? 'Front' : 'Answer' } of ${ card.conceptTitle }`"
@@ -271,6 +278,10 @@ function normalizeBytes( value ) {
             <RichContentRenderer
               v-else
               :document="fieldValue( block.field )"
+              :image-occlusion-group-id="block.field === 'prompt'
+                ? imageOcclusionGroupId
+                : ''"
+              :image-occlusion-revealed="answerRevealed"
               :label="`${ fieldDetails( block.field )?.label } for ${ card.conceptTitle }`"
             />
           </template>

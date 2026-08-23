@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Map, Value};
 use uuid::Uuid;
@@ -15,10 +15,13 @@ const MAXIMUM_LATEX_LENGTH: usize = 10_000;
 const MAXIMUM_LINK_LENGTH: usize = 2_048;
 const MAXIMUM_ATTRIBUTE_TEXT_LENGTH: usize = 500;
 const MAXIMUM_CLOZE_GROUPS: usize = 100;
+const MAXIMUM_IMAGE_OCCLUSION_GROUPS: usize = 100;
+const MAXIMUM_IMAGE_OCCLUSION_REGIONS: usize = 500;
 
 pub struct ValidatedContent {
     pub cloze_group_ids: Vec<String>,
     pub content: ConceptContent,
+    pub image_occlusion_group_ids: Vec<String>,
     pub media_ids: HashSet<String>,
     pub serialized: String,
 }
@@ -34,6 +37,9 @@ enum NodeContext {
 struct ValidationState {
     cloze_group_ids: Vec<String>,
     cloze_group_set: HashSet<String>,
+    image_occlusion_group_ids: Vec<String>,
+    image_occlusion_group_sources: HashMap<String, usize>,
+    image_occlusion_region_ids: HashSet<String>,
     media_ids: HashSet<String>,
     node_count: usize,
     text_length: usize,
@@ -56,6 +62,9 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
     let mut state = ValidationState {
         cloze_group_ids: Vec::new(),
         cloze_group_set: HashSet::new(),
+        image_occlusion_group_ids: Vec::new(),
+        image_occlusion_group_sources: HashMap::new(),
+        image_occlusion_region_ids: HashSet::new(),
         media_ids: HashSet::new(),
         node_count: 0,
         text_length: 0,
@@ -67,6 +76,7 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
     Ok(ValidatedContent {
         cloze_group_ids: state.cloze_group_ids,
         content,
+        image_occlusion_group_ids: state.image_occlusion_group_ids,
         media_ids: state.media_ids,
         serialized,
     })
@@ -495,7 +505,11 @@ fn validate_media_image(
     ensure_keys(object, &["type", "attrs"], field)?;
 
     let attributes = required_attributes(object, field)?;
-    ensure_keys(attributes, &["mediaId", "alt", "title"], field)?;
+    ensure_keys(
+        attributes,
+        &["mediaId", "alt", "title", "occlusionRegions"],
+        field,
+    )?;
 
     let media_id = required_string(attributes, "mediaId", field)?;
 
@@ -515,8 +529,115 @@ fn validate_media_image(
         MAXIMUM_ATTRIBUTE_TEXT_LENGTH,
         field,
     )?;
+    validate_image_occlusion_regions(attributes, field, state)?;
 
     state.media_ids.insert(media_id.to_owned());
+
+    Ok(())
+}
+
+fn validate_image_occlusion_regions(
+    attributes: &Map<String, Value>,
+    field: &'static str,
+    state: &mut ValidationState,
+) -> LibraryResult<()> {
+    let regions = optional_array(attributes, "occlusionRegions", field)?;
+
+    if regions.is_empty() {
+        return Ok(());
+    }
+
+    if field != "Prompt" {
+        return Err(invalid_content(
+            field,
+            "cannot contain image occlusion regions",
+        ));
+    }
+
+    let image_node_index = state.node_count;
+
+    for region in regions {
+        if state.image_occlusion_region_ids.len() >= MAXIMUM_IMAGE_OCCLUSION_REGIONS {
+            return Err(invalid_content(
+                field,
+                format!(
+                    "cannot contain more than {MAXIMUM_IMAGE_OCCLUSION_REGIONS} image occlusion regions"
+                ),
+            ));
+        }
+
+        let region = required_object(region, field)?;
+
+        ensure_keys(
+            region,
+            &["id", "groupId", "x", "y", "width", "height"],
+            field,
+        )?;
+
+        let region_id = required_string(region, "id", field)?;
+        let group_id = required_string(region, "groupId", field)?;
+
+        if Uuid::parse_str(region_id).is_err()
+            || !state
+                .image_occlusion_region_ids
+                .insert(region_id.to_owned())
+        {
+            return Err(invalid_content(
+                field,
+                "contains an invalid or duplicate image occlusion region",
+            ));
+        }
+
+        if Uuid::parse_str(group_id).is_err() {
+            return Err(invalid_content(
+                field,
+                "contains an invalid image occlusion group",
+            ));
+        }
+
+        match state.image_occlusion_group_sources.get(group_id) {
+            Some(source) if *source != image_node_index => {
+                return Err(invalid_content(
+                    field,
+                    "contains an image occlusion group shared by multiple images",
+                ));
+            }
+            Some(_) => {}
+            None => {
+                if state.image_occlusion_group_ids.len() >= MAXIMUM_IMAGE_OCCLUSION_GROUPS {
+                    return Err(invalid_content(
+                        field,
+                        format!(
+                            "cannot contain more than {MAXIMUM_IMAGE_OCCLUSION_GROUPS} image occlusion groups"
+                        ),
+                    ));
+                }
+
+                state
+                    .image_occlusion_group_sources
+                    .insert(group_id.to_owned(), image_node_index);
+                state.image_occlusion_group_ids.push(group_id.to_owned());
+            }
+        }
+
+        let x = required_number(region, "x", field)?;
+        let y = required_number(region, "y", field)?;
+        let width = required_number(region, "width", field)?;
+        let height = required_number(region, "height", field)?;
+        let outside_image = x < 0.0
+            || y < 0.0
+            || width <= 0.0
+            || height <= 0.0
+            || x + width > 1.0 + 1e-9
+            || y + height > 1.0 + 1e-9;
+
+        if outside_image {
+            return Err(invalid_content(
+                field,
+                "contains an image occlusion region outside its image",
+            ));
+        }
+    }
 
     Ok(())
 }
@@ -570,6 +691,17 @@ fn required_integer(
     object
         .get(key)
         .and_then(Value::as_i64)
+        .ok_or_else(|| invalid_content(field, format!("contains an invalid {key} value")))
+}
+
+fn required_number(
+    object: &Map<String, Value>,
+    key: &str,
+    field: &'static str,
+) -> LibraryResult<f64> {
+    object
+        .get(key)
+        .and_then(Value::as_f64)
         .ok_or_else(|| invalid_content(field, format!("contains an invalid {key} value")))
 }
 
@@ -661,7 +793,7 @@ fn invalid_content(
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use serde_json::{json, Value};
 
     use super::validate_content;
     use crate::library::{ConceptContent, LibraryError};
@@ -670,6 +802,8 @@ mod tests {
     fn allowlisted_documents_collect_media_references() {
         let media_id = "018f1e2d-3c4b-7a69-8f10-123456789abc";
         let cloze_group_id = "018f1e2d-3c4b-7a69-8f10-123456789abd";
+        let occlusion_group_id = "018f1e2d-3c4b-7a69-8f10-123456789abe";
+        let occlusion_region_id = "018f1e2d-3c4b-7a69-8f10-123456789abf";
         let content = ConceptContent {
             schema_version: 1,
             prompt: json!({
@@ -703,7 +837,15 @@ mod tests {
                         "attrs": {
                             "mediaId": media_id,
                             "alt": "Cell membrane diagram",
-                            "title": null
+                            "title": null,
+                            "occlusionRegions": [{
+                                "id": occlusion_region_id,
+                                "groupId": occlusion_group_id,
+                                "x": 0.1,
+                                "y": 0.2,
+                                "width": 0.3,
+                                "height": 0.25
+                            }]
                         }
                     }
                 ]
@@ -723,6 +865,10 @@ mod tests {
         let validated = validate_content(content).unwrap();
 
         assert_eq!(validated.cloze_group_ids, vec![cloze_group_id]);
+        assert_eq!(
+            validated.image_occlusion_group_ids,
+            vec![occlusion_group_id]
+        );
         assert_eq!(validated.media_ids, [media_id.to_owned()].into());
         assert!(validated.serialized.contains("Cell membrane"));
     }
@@ -767,6 +913,103 @@ mod tests {
         };
 
         for content in [answer_mark, invalid_group, empty_omission] {
+            assert!(matches!(
+                validate_content(content),
+                Err(LibraryError::InvalidContent { .. })
+            ));
+        }
+    }
+
+    #[test]
+    fn image_occlusion_regions_require_valid_prompt_geometry() {
+        let first_media = "018f1e2d-3c4b-7a69-8f10-123456789ab1";
+        let second_media = "018f1e2d-3c4b-7a69-8f10-123456789ab2";
+        let first_region = "018f1e2d-3c4b-7a69-8f10-123456789ab3";
+        let second_region = "018f1e2d-3c4b-7a69-8f10-123456789ab4";
+        let group_id = "018f1e2d-3c4b-7a69-8f10-123456789ab5";
+        let document = |nodes: Vec<Value>| json!({ "type": "doc", "content": nodes });
+        let image = |media_id: &str, regions: Vec<Value>| {
+            json!({
+                "type": "mediaImage",
+                "attrs": {
+                    "mediaId": media_id,
+                    "alt": null,
+                    "title": null,
+                    "occlusionRegions": regions
+                }
+            })
+        };
+        let region = |id: &str, group: &str, x: f64, width: f64| {
+            json!({
+                "id": id,
+                "groupId": group,
+                "x": x,
+                "y": 0.2,
+                "width": width,
+                "height": 0.25
+            })
+        };
+        let invalid_contents = [
+            ConceptContent {
+                schema_version: 1,
+                prompt: ConceptContent::default().prompt,
+                answer: document(vec![image(
+                    first_media,
+                    vec![region(first_region, group_id, 0.1, 0.3)],
+                )]),
+            },
+            ConceptContent {
+                schema_version: 1,
+                prompt: document(vec![image(
+                    first_media,
+                    vec![region(first_region, "not-a-uuid", 0.1, 0.3)],
+                )]),
+                answer: ConceptContent::default().answer,
+            },
+            ConceptContent {
+                schema_version: 1,
+                prompt: document(vec![image(
+                    first_media,
+                    vec![region(first_region, group_id, 0.1, 0.0)],
+                )]),
+                answer: ConceptContent::default().answer,
+            },
+            ConceptContent {
+                schema_version: 1,
+                prompt: document(vec![image(
+                    first_media,
+                    vec![region(first_region, group_id, 0.8, 0.3)],
+                )]),
+                answer: ConceptContent::default().answer,
+            },
+            ConceptContent {
+                schema_version: 1,
+                prompt: document(vec![image(
+                    first_media,
+                    vec![
+                        region(first_region, group_id, 0.1, 0.3),
+                        region(first_region, group_id, 0.5, 0.3),
+                    ],
+                )]),
+                answer: ConceptContent::default().answer,
+            },
+            ConceptContent {
+                schema_version: 1,
+                prompt: document(vec![
+                    image(
+                        first_media,
+                        vec![region(first_region, group_id, 0.1, 0.3)],
+                    ),
+                    image(
+                        second_media,
+                        vec![region(second_region, group_id, 0.2, 0.3)],
+                    ),
+                ]),
+                answer: ConceptContent::default().answer,
+            },
+        ];
+
+        for content in invalid_contents {
             assert!(matches!(
                 validate_content(content),
                 Err(LibraryError::InvalidContent { .. })

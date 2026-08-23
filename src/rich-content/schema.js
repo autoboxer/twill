@@ -54,6 +54,14 @@ const MediaImage = Node.create({
   draggable: true,
   isolating: true,
 
+  addOptions() {
+    return {
+      imageOcclusionDocument: null,
+      imageOcclusionDisplay: null,
+      imageOcclusionEnabled: false
+    };
+  },
+
   addAttributes() {
     return {
       mediaId: {
@@ -76,6 +84,10 @@ const MediaImage = Node.create({
         renderHTML: ( attributes ) => attributes.title
           ? { 'data-title': attributes.title }
           : {}
+      },
+      occlusionRegions: {
+        default: [],
+        rendered: false
       }
     };
   },
@@ -169,7 +181,12 @@ export function cloneConceptContent( content ) {
   return JSON.parse( JSON.stringify( content ?? createEmptyConceptContent() ) );
 }
 
-export function createRichContentExtensions({ onEditMath } = {}) {
+export function createRichContentExtensions({
+  imageOcclusionDocument = null,
+  imageOcclusionDisplay = null,
+  imageOcclusionEnabled = false,
+  onEditMath
+} = {}) {
   const editInlineMath = onEditMath
     ? ( node, position ) => onEditMath({
       latex: node.attrs.latex,
@@ -208,7 +225,11 @@ export function createRichContentExtensions({ onEditMath } = {}) {
     }),
     Cloze,
     ClozeBlank,
-    MediaImage
+    MediaImage.configure({
+      imageOcclusionDocument,
+      imageOcclusionDisplay,
+      imageOcclusionEnabled
+    })
   ];
 }
 

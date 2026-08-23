@@ -156,6 +156,10 @@ const revealActionCopy = computed( () => {
     return 'Recall the missing text before revealing the answer.';
   }
 
+  if ( currentCard.value?.retrievalKind === 'imageOcclusion' ) {
+    return 'Recall what is hidden before revealing the answer.';
+  }
+
   return 'Attempt the prompt before revealing the answer.';
 });
 
@@ -398,6 +402,10 @@ function studyCardName( card ) {
 
   if ( card.retrievalKind === 'typeAnswer' ) {
     return 'Type answer';
+  }
+
+  if ( card.retrievalKind === 'imageOcclusion' ) {
+    return 'Image occlusion';
   }
 
   return card.template?.name ?? 'Standard recall';

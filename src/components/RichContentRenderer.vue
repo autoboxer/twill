@@ -11,13 +11,26 @@ const props = defineProps({
     type: Object,
     required: true
   },
+  imageOcclusionGroupId: {
+    type: String,
+    default: ''
+  },
+  imageOcclusionRevealed: {
+    type: Boolean,
+    default: false
+  },
   label: {
     type: String,
     required: true
   }
 });
 
-const extensions = createRichContentExtensions();
+const extensions = createRichContentExtensions({
+  imageOcclusionDisplay: () => ({
+    groupId: props.imageOcclusionGroupId,
+    revealed: props.imageOcclusionRevealed
+  })
+});
 const hasContent = computed( () => props.document.content?.some( ( node ) => {
   return node.type !== 'paragraph' || Boolean( node.content?.length );
 }) );
