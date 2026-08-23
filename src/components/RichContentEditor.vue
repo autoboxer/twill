@@ -25,6 +25,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  imageOcclusionEnabled: {
+    type: Boolean,
+    default: false
+  },
   modelValue: {
     type: Object,
     required: true
@@ -81,7 +85,11 @@ const clozeGroupItems = computed( () => {
   return items;
 });
 
-const extensions = createRichContentExtensions({ onEditMath });
+const extensions = createRichContentExtensions({
+  imageOcclusionDocument: () => document.value,
+  imageOcclusionEnabled: () => props.imageOcclusionEnabled,
+  onEditMath
+});
 const starterKit = richContentStarterKit( true );
 
 const linkError = computed( () => {
@@ -493,7 +501,8 @@ async function insertImage( event ) {
         attrs: {
           mediaId: media.id,
           alt: Array.from( file.name ).slice( 0, 500 ).join( '' ),
-          title: null
+          title: null,
+          occlusionRegions: []
         }
       })
       .run();

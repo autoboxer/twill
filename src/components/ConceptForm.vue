@@ -2,17 +2,23 @@
 import { computed, reactive, ref, watch } from 'vue';
 
 import ClozePreview from './ClozePreview.vue';
+import ImageOcclusionPreview from './ImageOcclusionPreview.vue';
 import RichContentEditor from './RichContentEditor.vue';
 import {
   collectClozeGroups,
   removeAllClozeMarks
 } from '../cloze/documents';
 import {
+  collectImageOcclusionGroups,
+  removeAllImageOcclusionRegions
+} from '../image-occlusion/documents';
+import {
   cloneConceptContent,
   createEmptyConceptContent
 } from '../rich-content/schema';
 
 const CLOZE_ID = 'cloze';
+const IMAGE_OCCLUSION_ID = 'image-occlusion';
 const STANDARD_RECALL_ID = 'standard-recall';
 const TYPE_ANSWER_ID = 'type-answer';
 const MAXIMUM_ACCEPTED_ANSWERS = 20;
@@ -89,6 +95,11 @@ const retrievalFormItems = computed( () => [
     label: 'Cloze',
     value: CLOZE_ID
   },
+  {
+    description: 'Hides selected regions of a Prompt image.',
+    label: 'Image occlusion',
+    value: IMAGE_OCCLUSION_ID
+  },
 
   ...props.templates.map( ( template ) => ({
     description: template.mode === 'custom' ? 'HTML & CSS template' : 'Visual template',
@@ -108,6 +119,12 @@ const titleError = computed( () => {
 const titleLength = computed( () => Array.from( form.title ).length );
 const clozeGroups = computed( () => collectClozeGroups( form.content.prompt ) );
 const clozeSelected = computed( () => form.retrievalFormIds.includes( CLOZE_ID ) );
+const imageOcclusionGroups = computed( () => (
+  collectImageOcclusionGroups( form.content.prompt )
+) );
+const imageOcclusionSelected = computed( () => (
+  form.retrievalFormIds.includes( IMAGE_OCCLUSION_ID )
+) );
 const typeAnswerSelected = computed( () => form.retrievalFormIds.includes( TYPE_ANSWER_ID ) );
 const atAcceptedAnswerLimit = computed( () => (
   form.typeAnswerAcceptedAnswers.length >= MAXIMUM_ACCEPTED_ANSWERS
@@ -160,6 +177,18 @@ const clozeError = computed( () => {
   return 'Mark at least one Prompt passage as an omission.';
 });
 
+const imageOcclusionError = computed( () => {
+  if (
+    !submitted.value
+    || !imageOcclusionSelected.value
+    || imageOcclusionGroups.value.length
+  ) {
+    return '';
+  }
+
+  return 'Add at least one mask to a Prompt image.';
+});
+
 const removedRetrievalForms = computed( () => {
   if ( !props.concept ) {
     return [];
@@ -199,6 +228,10 @@ function retrievalFormId( card ) {
     return TYPE_ANSWER_ID;
   }
 
+  if ( card.retrievalKind === 'imageOcclusion' ) {
+    return IMAGE_OCCLUSION_ID;
+  }
+
   return card.template?.id ?? STANDARD_RECALL_ID;
 }
 
@@ -208,6 +241,13 @@ function updateRetrievalForms( retrievalFormIds ) {
     && !retrievalFormIds.includes( CLOZE_ID )
   ) {
     form.content.prompt = removeAllClozeMarks( form.content.prompt );
+  }
+
+  if (
+    imageOcclusionSelected.value
+    && !retrievalFormIds.includes( IMAGE_OCCLUSION_ID )
+  ) {
+    form.content.prompt = removeAllImageOcclusionRegions( form.content.prompt );
   }
 
   form.retrievalFormIds = retrievalFormIds;
@@ -244,6 +284,7 @@ function submit() {
     !form.title.trim()
     || !form.retrievalFormIds.length
     || Boolean( clozeError.value )
+    || Boolean( imageOcclusionError.value )
     || !acceptedAnswersValid.value
   ) {
     return;
@@ -262,6 +303,7 @@ function submit() {
     tagIds: [ ...form.tagIds ],
     templateIds: form.retrievalFormIds.filter( ( id ) => (
       id !== CLOZE_ID
+      && id !== IMAGE_OCCLUSION_ID
       && id !== STANDARD_RECALL_ID
       && id !== TYPE_ANSWER_ID
     ) ),
@@ -324,6 +366,7 @@ function submit() {
           label="Prompt"
           placeholder="Write a prompt"
           :cloze-enabled="clozeSelected"
+          :image-occlusion-enabled="imageOcclusionSelected"
         />
 
         <RichContentEditor
@@ -334,6 +377,11 @@ function submit() {
 
         <ClozePreview
           v-if="clozeSelected"
+          :document="form.content.prompt"
+        />
+
+        <ImageOcclusionPreview
+          v-if="imageOcclusionSelected"
           :document="form.content.prompt"
         />
       </div>
@@ -371,6 +419,13 @@ function submit() {
         class="editor-field-error"
       >
         {{ clozeError }}
+      </p>
+
+      <p
+        v-if="imageOcclusionError"
+        class="editor-field-error"
+      >
+        {{ imageOcclusionError }}
       </p>
 
       <div
