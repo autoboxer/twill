@@ -6,6 +6,8 @@ import ConceptForm from '../components/ConceptForm.vue';
 import ContentState from '../components/ContentState.vue';
 import OrganizationManager from '../components/OrganizationManager.vue';
 import PageHeader from '../components/PageHeader.vue';
+import { COMMAND_IDS } from '../commands/registry';
+import { useCommandHandler } from '../composables/useCommands';
 import {
   conceptLibraryErrorMessage,
   useConceptLibrary
@@ -33,6 +35,7 @@ const {
 } = useTemplateLibrary();
 
 const concept = ref( null );
+const conceptForm = ref( null );
 const initialLoading = ref( true );
 const loadError = ref( '' );
 const library = ref({
@@ -48,6 +51,10 @@ let loadRequestSequence = 0;
 const conceptId = computed( () => route.params.conceptId ?? '' );
 const isEditing = computed( () => Boolean( conceptId.value ) );
 const pageTitle = computed( () => isEditing.value ? 'Edit concept' : 'Create concept' );
+const saveCommand = useCommandHandler( COMMAND_IDS.conceptSave, {
+  enabled: computed( () => !initialLoading.value && !loadError.value && !isPending.value ),
+  execute: () => conceptForm.value?.submit()
+});
 
 watch( conceptId, loadData, { immediate: true });
 
@@ -163,6 +170,7 @@ function cancel() {
 
     <ConceptForm
       v-else
+      ref="conceptForm"
       :mode="isEditing ? 'edit' : 'create'"
       :concept="concept"
       :decks="library.decks"
@@ -170,6 +178,7 @@ function cancel() {
       :templates="templates"
       :error="error"
       :loading="isPending"
+      :save-command="saveCommand"
       @cancel="cancel"
       @manage="organizationManagerOpen = true"
       @submit="saveConcept"

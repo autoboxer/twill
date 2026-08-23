@@ -6,10 +6,15 @@ import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
+import { COMMAND_IDS } from '../commands/registry';
 import {
   conceptLibraryErrorMessage,
   useConceptLibrary
 } from '../composables/useConceptLibrary';
+import {
+  useCommandHandler,
+  useCommands
+} from '../composables/useCommands';
 import { useDevicePreferences } from '../composables/useDevicePreferences';
 import { useRecallSession } from '../composables/useRecallSession';
 import { normalizeTypeAnswer } from '../type-answer/comparison';
@@ -37,6 +42,7 @@ const {
   revealAnswer,
   totalCards
 } = useRecallSession();
+const commands = useCommands();
 
 const assessmentError = ref( '' );
 const assessmentPending = ref( false );
@@ -72,56 +78,50 @@ const gradingOptionsByMode = {
   simple: [
     {
       color: 'error',
+      commandId: COMMAND_IDS.studyGradeSimpleForgot,
       icon: 'i-lucide-rotate-ccw',
-      label: 'Forgot',
       rating: 'again',
-      shortcut: '1',
       variant: 'soft'
     },
 
     {
       color: 'primary',
+      commandId: COMMAND_IDS.studyGradeSimpleRemembered,
       icon: 'i-lucide-check',
-      label: 'Remembered',
       rating: 'good',
-      shortcut: '2',
       variant: 'solid'
     }
   ],
   advanced: [
     {
       color: 'error',
+      commandId: COMMAND_IDS.studyGradeAdvancedAgain,
       icon: 'i-lucide-rotate-ccw',
-      label: 'Again',
       rating: 'again',
-      shortcut: '1',
       variant: 'soft'
     },
 
     {
       color: 'warning',
+      commandId: COMMAND_IDS.studyGradeAdvancedHard,
       icon: 'i-lucide-gauge',
-      label: 'Hard',
       rating: 'hard',
-      shortcut: '2',
       variant: 'soft'
     },
 
     {
       color: 'primary',
+      commandId: COMMAND_IDS.studyGradeAdvancedGood,
       icon: 'i-lucide-check',
-      label: 'Good',
       rating: 'good',
-      shortcut: '3',
       variant: 'soft'
     },
 
     {
       color: 'success',
+      commandId: COMMAND_IDS.studyGradeAdvancedEasy,
       icon: 'i-lucide-sparkles',
-      label: 'Easy',
       rating: 'easy',
-      shortcut: '4',
       variant: 'soft'
     }
   ]
@@ -132,7 +132,7 @@ const gradingModeLocked = computed( () => {
 });
 
 const gradingOptions = computed( () => {
-  return gradingOptionsByMode[ gradingMode.value ];
+  return gradingOptionsForMode( gradingMode.value );
 });
 
 const typeAnswerSettings = computed( () => {
@@ -176,7 +176,7 @@ const sessionResultItems = computed( () => {
     ];
   }
 
-  return gradingOptionsByMode.advanced.map( ( option ) => ({
+  return gradingOptionsForMode( 'advanced' ).map( ( option ) => ({
     label: option.label,
     rating: option.rating
   }) );
@@ -196,15 +196,56 @@ const nextReviewDescription = computed( () => {
 });
 
 onMounted( () => {
-  window.addEventListener( 'keydown', handleStudyKeydown );
   loadStudyQueue();
 });
 
 onBeforeUnmount( () => {
   viewActive = false;
   loadRequestSequence += 1;
-  window.removeEventListener( 'keydown', handleStudyKeydown );
 });
+
+const revealCommand = useCommandHandler( COMMAND_IDS.studyReveal, {
+  enabled: computed( () => (
+    Boolean( currentCard.value )
+    && !initialLoading.value
+    && !answerRevealed.value
+    && !assessmentPending.value
+    && !gradingModePending.value
+    && canRevealAnswer.value
+  ) ),
+  execute: showAnswer
+});
+
+registerGradingCommand(
+  COMMAND_IDS.studyGradeSimpleForgot,
+  'simple',
+  'again'
+);
+registerGradingCommand(
+  COMMAND_IDS.studyGradeSimpleRemembered,
+  'simple',
+  'good'
+);
+registerGradingCommand(
+  COMMAND_IDS.studyGradeAdvancedAgain,
+  'advanced',
+  'again'
+);
+registerGradingCommand(
+  COMMAND_IDS.studyGradeAdvancedHard,
+  'advanced',
+  'hard'
+);
+registerGradingCommand(
+  COMMAND_IDS.studyGradeAdvancedGood,
+  'advanced',
+  'good'
+);
+registerGradingCommand(
+  COMMAND_IDS.studyGradeAdvancedEasy,
+  'advanced',
+  'easy'
+);
 
 async function loadStudyQueue() {
   if ( gradingModePending.value ) {
@@ -347,37 +388,29 @@ async function updateGradingMode( nextMode ) {
   }
 }
 
-function handleStudyKeydown( event ) {
-  const target = event.target;
-  const editing = target instanceof HTMLElement && (
-    target.isContentEditable
-    || [ 'INPUT', 'SELECT', 'TEXTAREA' ].includes( target.tagName )
-    || Boolean( target.closest( '[role="combobox"], [role="listbox"]' ) )
-  );
+function gradingOptionsForMode( mode ) {
+  return gradingOptionsByMode[ mode ].map( ( option ) => {
+    const command = commands.command( option.commandId );
 
-  if (
-    editing
-    || event.defaultPrevented
-    || event.repeat
-    || event.altKey
-    || event.ctrlKey
-    || event.metaKey
-    || event.shiftKey
-    || !answerRevealed.value
-    || assessmentPending.value
-    || gradingModePending.value
-  ) {
-    return;
-  }
-
-  const option = gradingOptions.value.find( ( item ) => {
-    return item.shortcut === event.key;
+    return {
+      ...option,
+      command,
+      label: command.label,
+      shortcut: command.shortcutLabel
+    };
   });
+}
 
-  if ( option ) {
-    event.preventDefault();
-    recordAssessment( option.rating );
-  }
+function registerGradingCommand( commandId, mode, rating ) {
+  useCommandHandler( commandId, {
+    enabled: computed( () => (
+      gradingMode.value === mode
+      && answerRevealed.value
+      && !assessmentPending.value
+      && !gradingModePending.value
+    ) ),
+    execute: () => recordAssessment( rating )
+  });
 }
 
 function focusCurrentState() {
@@ -657,6 +690,8 @@ function focusButton( button ) {
                   leading-icon="i-lucide-eye"
                   size="lg"
                   :disabled="!canRevealAnswer"
+                  :aria-keyshortcuts="revealCommand.ariaKeyshortcuts"
+                  :title="revealCommand.tooltip"
                   @click="showAnswer"
                 >
                   {{ revealActionLabel }}
@@ -682,7 +717,8 @@ function focusButton( button ) {
                     :variant="option.variant"
                     :disabled="assessmentPending || gradingModePending"
                     :loading="assessmentPending && pendingAssessment === option.rating"
-                    :aria-keyshortcuts="option.shortcut"
+                    :aria-keyshortcuts="option.command.ariaKeyshortcuts"
+                    :title="option.command.tooltip"
                     size="lg"
                     class="study-grade-button"
                     @click="recordAssessment( option.rating )"
