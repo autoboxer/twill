@@ -57,6 +57,7 @@ const MediaImage = Node.create({
   addOptions() {
     return {
       imageOcclusionDocument: null,
+      imageOcclusionDisplay: null,
       imageOcclusionEnabled: false
     };
   },
@@ -182,6 +183,7 @@ export function cloneConceptContent( content ) {
 
 export function createRichContentExtensions({
   imageOcclusionDocument = null,
+  imageOcclusionDisplay = null,
   imageOcclusionEnabled = false,
   onEditMath
 } = {}) {
@@ -225,6 +227,7 @@ export function createRichContentExtensions({
     ClozeBlank,
     MediaImage.configure({
       imageOcclusionDocument,
+      imageOcclusionDisplay,
       imageOcclusionEnabled
     })
   ];

@@ -42,6 +42,24 @@ const isEditable = computed( () => props.editor.isEditable );
 const mediaId = computed( () => props.node.attrs.mediaId ?? '' );
 const occlusionDialogOpen = ref( false );
 const regions = computed( () => imageOcclusionRegions( props.node ) );
+const studyDisplay = computed( () => {
+  const configuredDisplay = props.extension.options.imageOcclusionDisplay;
+  const display = typeof configuredDisplay === 'function'
+    ? configuredDisplay()
+    : configuredDisplay;
+  const groupId = display?.groupId ?? '';
+
+  if ( !regions.value.some( ( region ) => region.groupId === groupId ) ) {
+    return { groupId: '', revealed: false };
+  }
+
+  return {
+    groupId,
+    revealed: Boolean( display.revealed )
+  };
+});
+const studyGroupId = computed( () => studyDisplay.value.groupId );
+const studyRevealed = computed( () => studyDisplay.value.revealed );
 const selectedRegionId = ref( '' );
 const imageOcclusionEnabled = computed( () => {
   const enabled = props.extension.options.imageOcclusionEnabled;
@@ -251,6 +269,15 @@ function regionCardLabel( region ) {
         <UIcon name="i-lucide-image-off" />
         <span>Image could not be loaded.</span>
       </div>
+
+      <ImageOcclusionCanvas
+        v-else-if="studyGroupId"
+        :alt="alt"
+        :image-url="imageUrl"
+        :regions="regions"
+        :revealed="studyRevealed"
+        :visible-group-id="studyGroupId"
+      />
 
       <img
         v-else

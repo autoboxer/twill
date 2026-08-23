@@ -11,6 +11,7 @@ import {
   conceptLibraryErrorMessage,
   useConceptLibrary
 } from '../composables/useConceptLibrary';
+import { collectImageOcclusionGroups } from '../image-occlusion/documents';
 
 const route = useRoute();
 const router = useRouter();
@@ -59,6 +60,12 @@ const clozeGroups = computed( () => collectClozeGroups(
 ) );
 const clozeGroupsById = computed( () => new Map(
   clozeGroups.value.map( ( group, index ) => [ group.id, { group, index }])
+) );
+const imageOcclusionGroups = computed( () => collectImageOcclusionGroups(
+  concept.value?.content.prompt ?? { content: [] }
+) );
+const imageOcclusionGroupsById = computed( () => new Map(
+  imageOcclusionGroups.value.map( ( group, index ) => [ group.id, { group, index }])
 ) );
 
 watch( conceptId, loadConcept, { immediate: true });
@@ -158,6 +165,12 @@ function retrievalFormName( card ) {
     return 'Type answer';
   }
 
+  if ( card.retrievalKind === 'imageOcclusion' ) {
+    const group = imageOcclusionGroupDetails( card );
+
+    return group ? `Image occlusion ${ group.index + 1 }` : 'Image occlusion';
+  }
+
   return card.template?.name ?? 'Standard recall';
 }
 
@@ -168,6 +181,10 @@ function retrievalFormIcon( card ) {
 
   if ( card.retrievalKind === 'typeAnswer' ) {
     return 'i-lucide-keyboard';
+  }
+
+  if ( card.retrievalKind === 'imageOcclusion' ) {
+    return 'i-lucide-scan';
   }
 
   return card.template ? 'i-lucide-panels-top-left' : 'i-lucide-rotate-ccw';
@@ -186,11 +203,21 @@ function retrievalFormDescription( card ) {
     return `${ count } accepted ${ count === 1 ? 'answer' : 'answers' }`;
   }
 
+  if ( card.retrievalKind === 'imageOcclusion' ) {
+    const count = imageOcclusionGroupDetails( card )?.group.regions.length ?? 0;
+
+    return `${ count } masked ${ count === 1 ? 'region' : 'regions' }`;
+  }
+
   return card.template ? 'Template recall' : 'Built-in layout';
 }
 
 function clozeGroupDetails( card ) {
   return clozeGroupsById.value.get( card.cloze?.groupId );
+}
+
+function imageOcclusionGroupDetails( card ) {
+  return imageOcclusionGroupsById.value.get( card.imageOcclusion?.groupId );
 }
 
 function clozePassageLabel( passage ) {
@@ -422,6 +449,20 @@ function schedulingStateDetails( state ) {
                     :key="`${ card.cloze.groupId }-${ index }`"
                   >
                     {{ clozePassageLabel( passage ) }}
+                  </li>
+                </ul>
+              </div>
+
+              <div
+                v-if="card.imageOcclusion"
+                class="retrieval-form-list__answers"
+              >
+                <span>Source image</span>
+
+                <ul>
+                  <li>
+                    {{ imageOcclusionGroupDetails( card )?.group.image.alt
+                      || 'Prompt image' }}
                   </li>
                 </ul>
               </div>

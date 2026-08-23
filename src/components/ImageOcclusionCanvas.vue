@@ -34,6 +34,10 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  revealed: {
+    type: Boolean,
+    default: false
+  },
   selectedRegionId: {
     type: String,
     default: ''
@@ -332,7 +336,10 @@ function clamp( value, minimum, maximum ) {
   <div
     ref="surface"
     class="image-occlusion-canvas"
-    :class="{ 'image-occlusion-canvas--editable': editable }"
+    :class="{
+      'image-occlusion-canvas--editable': editable,
+      'image-occlusion-canvas--revealed': revealed
+    }"
     @pointerdown="startPointerAction"
     @pointermove="updatePointerAction"
     @pointerup="finishPointerAction"

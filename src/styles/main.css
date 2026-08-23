@@ -1085,6 +1085,11 @@ button {
   touch-action: none;
 }
 
+.rich-image__frame > .image-occlusion-canvas {
+  border: 0;
+  border-radius: 0;
+}
+
 .image-occlusion-region {
   position: absolute;
   z-index: 1;
@@ -1113,6 +1118,15 @@ button {
   border-color: white;
   outline: 3px solid color-mix(in srgb, var(--ui-primary) 65%, transparent);
   outline-offset: 2px;
+}
+
+.image-occlusion-canvas--revealed .image-occlusion-region {
+  background: color-mix(in srgb, var(--ui-primary) 12%, transparent);
+  border-color: var(--ui-primary);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, white 65%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--ui-primary) 20%, transparent);
+  animation: image-occlusion-reveal 420ms var(--ease-standard);
 }
 
 .image-occlusion-region__label {
@@ -1487,6 +1501,11 @@ button {
 
 .study-template--cloze [data-type="cloze"] {
   animation: cloze-reveal 420ms var(--ease-standard);
+}
+
+.study-template--image-occlusion .rich-image {
+  width: min(100%, 52rem);
+  margin-inline: auto;
 }
 
 .study-template-block__label {
@@ -2835,6 +2854,13 @@ button {
 @keyframes cloze-reveal {
   from {
     background: color-mix(in srgb, var(--ui-primary) 32%, transparent);
+  }
+}
+
+@keyframes image-occlusion-reveal {
+  from {
+    background: color-mix(in srgb, var(--ui-primary) 72%, black);
+    border-color: color-mix(in srgb, var(--ui-primary) 38%, white);
   }
 }
 
