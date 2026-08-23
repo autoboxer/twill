@@ -11,9 +11,9 @@ use crate::library::retrieval_forms::{
     parse_retrieval_form_configuration, retrieval_form_configuration,
 };
 use crate::library::{
-    ClozeSettings, GradingMode, ImageOcclusionSettings, LibraryError, LibraryResult,
+    ClozeSettings, ImageOcclusionSettings, LibraryError, LibraryResult,
     RetrievalFormKind, ReviewOutcome, ReviewRating, SchedulingSettings, SchedulingState,
-    StudyCard, StudyPreferences, StudyQueue, StudyTemplate, TypeAnswerSettings,
+    StudyCard, StudyQueue, StudyTemplate, TypeAnswerSettings,
     UpdateSchedulingSettingsInput,
 };
 
@@ -330,35 +330,6 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
         next_due_at,
         total_cards,
     })
-}
-
-pub fn query_study_preferences(connection: &Connection) -> LibraryResult<StudyPreferences> {
-    let grading_mode: String = connection.query_row(
-        "SELECT grading_mode
-        FROM device_preferences
-        WHERE singleton = 1",
-        [],
-        |row| row.get(0),
-    )?;
-
-    Ok(StudyPreferences {
-        grading_mode: GradingMode::try_from(grading_mode.as_str())?,
-    })
-}
-
-pub fn update_grading_mode(
-    transaction: &WriteTransaction<'_>,
-    grading_mode: GradingMode,
-) -> LibraryResult<StudyPreferences> {
-    transaction.execute(
-        "UPDATE device_preferences
-        SET grading_mode = ?1
-        WHERE singleton = 1
-            AND grading_mode != ?1",
-        [grading_mode.as_str()],
-    )?;
-
-    query_study_preferences(transaction)
 }
 
 pub fn query_scheduling_settings(
@@ -749,27 +720,6 @@ fn calculate_due_at(now: i64, interval_days: f64) -> LibraryResult<i64> {
 impl ReviewRating {
     const fn value(self) -> i64 {
         self as i64
-    }
-}
-
-impl GradingMode {
-    const fn as_str(self) -> &'static str {
-        match self {
-            Self::Simple => "simple",
-            Self::Advanced => "advanced",
-        }
-    }
-}
-
-impl TryFrom<&str> for GradingMode {
-    type Error = LibraryError;
-
-    fn try_from(value: &str) -> LibraryResult<Self> {
-        match value {
-            "simple" => Ok(Self::Simple),
-            "advanced" => Ok(Self::Advanced),
-            _ => Err(LibraryError::InvalidGradingMode(value.to_owned())),
-        }
     }
 }
 

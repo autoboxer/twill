@@ -2,6 +2,9 @@ CREATE TABLE device_preferences (
     singleton INTEGER PRIMARY KEY NOT NULL CHECK (singleton = 1),
     grading_mode TEXT NOT NULL CHECK (
         grading_mode IN ('simple', 'advanced')
+    ),
+    startup_destination TEXT NOT NULL CHECK (
+        startup_destination IN ('study', 'library')
     )
 ) STRICT;
 
@@ -20,5 +23,9 @@ BEGIN
     SELECT RAISE(ABORT, 'device preferences are required');
 END;
 
-INSERT INTO device_preferences (singleton, grading_mode)
-VALUES (1, 'simple');
+INSERT INTO device_preferences (
+    singleton,
+    grading_mode,
+    startup_destination
+)
+VALUES (1, 'simple', 'study');

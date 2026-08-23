@@ -10,8 +10,8 @@ import {
   conceptLibraryErrorMessage,
   useConceptLibrary
 } from '../composables/useConceptLibrary';
+import { useDevicePreferences } from '../composables/useDevicePreferences';
 import { useRecallSession } from '../composables/useRecallSession';
-import { useStudyPreferences } from '../composables/useStudyPreferences';
 import { normalizeTypeAnswer } from '../type-answer/comparison';
 
 const {
@@ -20,9 +20,9 @@ const {
   recordReview
 } = useConceptLibrary();
 const {
-  getStudyPreferences,
+  getDevicePreferences,
   setGradingMode
-} = useStudyPreferences();
+} = useDevicePreferences();
 const {
   answerRevealed,
   assess,
@@ -221,7 +221,7 @@ async function loadStudyQueue() {
   try {
     const [ queue, preferences ] = await Promise.all([
       getStudyQueue(),
-      getStudyPreferences()
+      getDevicePreferences()
     ]);
 
     if ( request !== loadRequestSequence ) {

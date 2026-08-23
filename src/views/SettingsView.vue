@@ -5,32 +5,66 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
+import { useDevicePreferences } from '../composables/useDevicePreferences';
 import { useSchedulingSettings } from '../composables/useSchedulingSettings';
 
 const DEFAULT_DESIRED_RETENTION_PERCENT = 90;
+const DEFAULT_GRADING_MODE = 'simple';
 const DEFAULT_MAXIMUM_INTERVAL_DAYS = 36_500;
+const DEFAULT_STARTUP_DESTINATION = 'study';
 const MINIMUM_DESIRED_RETENTION_PERCENT = 80;
 const MAXIMUM_DESIRED_RETENTION_PERCENT = 97;
 const MINIMUM_INTERVAL_DAYS = 1;
 const MAXIMUM_INTERVAL_DAYS = 36_500;
 
+const gradingModeItems = [
+  { label: 'Simple', value: 'simple' },
+  { label: 'Advanced', value: 'advanced' }
+];
+
+const settingsSections = [
+  { id: 'general', icon: 'i-lucide-settings-2', label: 'General' },
+  { id: 'study', icon: 'i-lucide-graduation-cap', label: 'Study' },
+  { id: 'scheduling', icon: 'i-lucide-calendar-sync', label: 'Scheduling' }
+];
+
+const startupDestinationItems = [
+  { label: 'Study', value: 'study' },
+  { label: 'Library', value: 'library' }
+];
+
+const {
+  getDevicePreferences,
+  setGradingMode,
+  setStartupDestination
+} = useDevicePreferences();
 const {
   getSchedulingSettings,
   updateSchedulingSettings
 } = useSchedulingSettings();
 
-const form = reactive({
+const schedulingForm = reactive({
   desiredRetentionPercent: DEFAULT_DESIRED_RETENTION_PERCENT,
   maximumIntervalDays: DEFAULT_MAXIMUM_INTERVAL_DAYS
 });
 
+const gradingMode = ref( DEFAULT_GRADING_MODE );
+const gradingModeError = ref( '' );
+const gradingModePending = ref( false );
+const gradingModeStatus = ref( '' );
 const initialLoading = ref( true );
 const loadError = ref( '' );
-const saveAttempted = ref( false );
-const saveError = ref( '' );
-const savePending = ref( false );
-const saveStatus = ref( '' );
-const savedSettings = ref( null );
+const savedGradingMode = ref( DEFAULT_GRADING_MODE );
+const savedSchedulingSettings = ref( null );
+const savedStartupDestination = ref( DEFAULT_STARTUP_DESTINATION );
+const schedulingSaveAttempted = ref( false );
+const schedulingSaveError = ref( '' );
+const schedulingSavePending = ref( false );
+const schedulingSaveStatus = ref( '' );
+const startupDestination = ref( DEFAULT_STARTUP_DESTINATION );
+const startupDestinationError = ref( '' );
+const startupDestinationPending = ref( false );
+const startupDestinationStatus = ref( '' );
 let loadRequestSequence = 0;
 let viewActive = true;
 
@@ -40,15 +74,15 @@ const panelTransition = {
 };
 
 const desiredRetention = computed( () => {
-  return Number( form.desiredRetentionPercent ) / 100;
+  return Number( schedulingForm.desiredRetentionPercent ) / 100;
 });
 
 const desiredRetentionError = computed( () => {
-  if ( !saveAttempted.value ) {
+  if ( !schedulingSaveAttempted.value ) {
     return '';
   }
 
-  const value = Number( form.desiredRetentionPercent );
+  const value = Number( schedulingForm.desiredRetentionPercent );
 
   if (
     !Number.isFinite( value )
@@ -62,11 +96,11 @@ const desiredRetentionError = computed( () => {
 });
 
 const maximumIntervalError = computed( () => {
-  if ( !saveAttempted.value ) {
+  if ( !schedulingSaveAttempted.value ) {
     return '';
   }
 
-  const value = Number( form.maximumIntervalDays );
+  const value = Number( schedulingForm.maximumIntervalDays );
 
   if (
     !Number.isInteger( value )
@@ -79,9 +113,9 @@ const maximumIntervalError = computed( () => {
   return '';
 });
 
-const formValid = computed( () => {
-  const retention = Number( form.desiredRetentionPercent );
-  const maximumInterval = Number( form.maximumIntervalDays );
+const schedulingFormValid = computed( () => {
+  const retention = Number( schedulingForm.desiredRetentionPercent );
+  const maximumInterval = Number( schedulingForm.maximumIntervalDays );
 
   return Number.isFinite( retention )
     && retention >= MINIMUM_DESIRED_RETENTION_PERCENT
@@ -91,27 +125,29 @@ const formValid = computed( () => {
     && maximumInterval <= MAXIMUM_INTERVAL_DAYS;
 });
 
-const hasChanges = computed( () => {
-  if ( !savedSettings.value || !formValid.value ) {
+const schedulingHasChanges = computed( () => {
+  if ( !savedSchedulingSettings.value || !schedulingFormValid.value ) {
     return false;
   }
 
-  return desiredRetention.value !== savedSettings.value.desiredRetention
-    || Number( form.maximumIntervalDays ) !== savedSettings.value.maximumIntervalDays;
+  return desiredRetention.value !== savedSchedulingSettings.value.desiredRetention
+    || Number( schedulingForm.maximumIntervalDays )
+      !== savedSchedulingSettings.value.maximumIntervalDays;
 });
 
-const defaultsActive = computed( () => {
-  return Number( form.desiredRetentionPercent )
+const schedulingDefaultsActive = computed( () => {
+  return Number( schedulingForm.desiredRetentionPercent )
       === DEFAULT_DESIRED_RETENTION_PERCENT
-    && Number( form.maximumIntervalDays ) === DEFAULT_MAXIMUM_INTERVAL_DAYS
-    && savedSettings.value?.desiredRetention
+    && Number( schedulingForm.maximumIntervalDays )
+      === DEFAULT_MAXIMUM_INTERVAL_DAYS
+    && savedSchedulingSettings.value?.desiredRetention
       === DEFAULT_DESIRED_RETENTION_PERCENT / 100
-    && savedSettings.value?.maximumIntervalDays
+    && savedSchedulingSettings.value?.maximumIntervalDays
       === DEFAULT_MAXIMUM_INTERVAL_DAYS;
 });
 
 const maximumIntervalSummary = computed( () => {
-  const days = Number( form.maximumIntervalDays );
+  const days = Number( schedulingForm.maximumIntervalDays );
 
   if ( !Number.isFinite( days ) || days < 1 ) {
     return '';
@@ -148,17 +184,21 @@ async function loadSettings() {
 
   initialLoading.value = true;
   loadError.value = '';
-  saveError.value = '';
-  saveStatus.value = '';
+  clearPreferenceFeedback();
+  clearSchedulingSaveFeedback();
 
   try {
-    const settings = await getSchedulingSettings();
+    const [ preferences, schedulingSettings ] = await Promise.all([
+      getDevicePreferences(),
+      getSchedulingSettings()
+    ]);
 
     if ( request !== loadRequestSequence ) {
       return;
     }
 
-    applySettings( settings );
+    applyDevicePreferences( preferences );
+    applySchedulingSettings( schedulingSettings );
   } catch ( cause ) {
     if ( request === loadRequestSequence ) {
       loadError.value = conceptLibraryErrorMessage( cause );
@@ -170,16 +210,30 @@ async function loadSettings() {
   }
 }
 
-function applySettings( settings ) {
-  savedSettings.value = settings;
-  form.desiredRetentionPercent = settings.desiredRetention * 100;
-  form.maximumIntervalDays = settings.maximumIntervalDays;
-  saveAttempted.value = false;
+function applyDevicePreferences( preferences ) {
+  gradingMode.value = preferences.gradingMode;
+  savedGradingMode.value = preferences.gradingMode;
+  startupDestination.value = preferences.startupDestination;
+  savedStartupDestination.value = preferences.startupDestination;
 }
 
-function clearSaveFeedback() {
-  saveError.value = '';
-  saveStatus.value = '';
+function applySchedulingSettings( settings ) {
+  savedSchedulingSettings.value = settings;
+  schedulingForm.desiredRetentionPercent = settings.desiredRetention * 100;
+  schedulingForm.maximumIntervalDays = settings.maximumIntervalDays;
+  schedulingSaveAttempted.value = false;
+}
+
+function clearPreferenceFeedback() {
+  gradingModeError.value = '';
+  gradingModeStatus.value = '';
+  startupDestinationError.value = '';
+  startupDestinationStatus.value = '';
+}
+
+function clearSchedulingSaveFeedback() {
+  schedulingSaveError.value = '';
+  schedulingSaveStatus.value = '';
 }
 
 function formatApproximateDuration( value, unit, maximumFractionDigits ) {
@@ -193,44 +247,131 @@ function formatApproximateDuration( value, unit, maximumFractionDigits ) {
   return `About ${ duration }`;
 }
 
-async function saveSettings() {
-  saveAttempted.value = true;
-  saveError.value = '';
-  saveStatus.value = '';
+function scrollToSection( sectionId ) {
+  document.getElementById( `settings-${ sectionId }` )?.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start'
+  });
+}
 
-  if ( !formValid.value || savePending.value ) {
+async function updateStartupDestination(
+  nextDestination,
+  successMessage = 'Startup destination saved.'
+) {
+  if (
+    startupDestinationPending.value
+    || !startupDestinationItems.some( ( item ) => item.value === nextDestination )
+    || nextDestination === savedStartupDestination.value
+  ) {
     return;
   }
 
-  await persistSettings(
+  const previousDestination = savedStartupDestination.value;
+
+  startupDestination.value = nextDestination;
+  startupDestinationError.value = '';
+  startupDestinationStatus.value = '';
+  startupDestinationPending.value = true;
+
+  try {
+    const preferences = await setStartupDestination( nextDestination );
+
+    if ( !viewActive ) {
+      return;
+    }
+
+    startupDestination.value = preferences.startupDestination;
+    savedStartupDestination.value = preferences.startupDestination;
+    startupDestinationStatus.value = successMessage;
+  } catch ( cause ) {
+    if ( viewActive ) {
+      startupDestination.value = previousDestination;
+      startupDestinationError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      startupDestinationPending.value = false;
+    }
+  }
+}
+
+async function updateGradingMode(
+  nextMode,
+  successMessage = 'Grading mode saved.'
+) {
+  if (
+    gradingModePending.value
+    || !gradingModeItems.some( ( item ) => item.value === nextMode )
+    || nextMode === savedGradingMode.value
+  ) {
+    return;
+  }
+
+  const previousMode = savedGradingMode.value;
+
+  gradingMode.value = nextMode;
+  gradingModeError.value = '';
+  gradingModeStatus.value = '';
+  gradingModePending.value = true;
+
+  try {
+    const preferences = await setGradingMode( nextMode );
+
+    if ( !viewActive ) {
+      return;
+    }
+
+    gradingMode.value = preferences.gradingMode;
+    savedGradingMode.value = preferences.gradingMode;
+    gradingModeStatus.value = successMessage;
+  } catch ( cause ) {
+    if ( viewActive ) {
+      gradingMode.value = previousMode;
+      gradingModeError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      gradingModePending.value = false;
+    }
+  }
+}
+
+async function saveSchedulingSettings() {
+  schedulingSaveAttempted.value = true;
+  clearSchedulingSaveFeedback();
+
+  if ( !schedulingFormValid.value || schedulingSavePending.value ) {
+    return;
+  }
+
+  await persistSchedulingSettings(
     desiredRetention.value,
-    Number( form.maximumIntervalDays ),
+    Number( schedulingForm.maximumIntervalDays ),
     'Scheduling settings saved.'
   );
 }
 
-async function restoreDefaults() {
-  if ( savePending.value || defaultsActive.value ) {
+async function restoreSchedulingDefaults() {
+  if ( schedulingSavePending.value || schedulingDefaultsActive.value ) {
     return;
   }
 
-  saveAttempted.value = false;
-  saveError.value = '';
-  saveStatus.value = '';
+  schedulingSaveAttempted.value = false;
+  clearSchedulingSaveFeedback();
 
-  await persistSettings(
+  await persistSchedulingSettings(
     DEFAULT_DESIRED_RETENTION_PERCENT / 100,
     DEFAULT_MAXIMUM_INTERVAL_DAYS,
     'Scheduling defaults restored.'
   );
 }
 
-async function persistSettings(
+async function persistSchedulingSettings(
   desiredRetentionValue,
   maximumIntervalDays,
   successMessage
 ) {
-  savePending.value = true;
+  schedulingSavePending.value = true;
 
   try {
     const settings = await updateSchedulingSettings(
@@ -242,15 +383,15 @@ async function persistSettings(
       return;
     }
 
-    applySettings( settings );
-    saveStatus.value = successMessage;
+    applySchedulingSettings( settings );
+    schedulingSaveStatus.value = successMessage;
   } catch ( cause ) {
     if ( viewActive ) {
-      saveError.value = conceptLibraryErrorMessage( cause );
+      schedulingSaveError.value = conceptLibraryErrorMessage( cause );
     }
   } finally {
     if ( viewActive ) {
-      savePending.value = false;
+      schedulingSavePending.value = false;
     }
   }
 }
@@ -286,122 +427,287 @@ async function persistSettings(
       v-else
       class="settings-layout"
     >
-      <m.form
-        class="settings-panel"
-        novalidate
-        :initial="{ opacity: 0, y: 10 }"
-        :animate="{ opacity: 1, y: 0 }"
-        :transition="panelTransition"
-        @submit.prevent="saveSettings"
+      <nav
+        class="settings-navigation"
+        aria-label="Settings sections"
       >
-        <header class="settings-panel__header">
-          <span
-            class="settings-panel__icon"
-            aria-hidden="true"
-          >
-            <UIcon name="i-lucide-calendar-sync" />
-          </span>
-
-          <div>
-            <p class="settings-panel__version">
-              FSRS {{ savedSettings.algorithmVersion }}
-            </p>
-            <h2>Scheduling</h2>
-            <p>Adjust long-term retention and the longest review interval.</p>
-          </div>
-        </header>
-
-        <UAlert
-          description="Existing due dates stay unchanged. New values apply when each card is reviewed."
-          icon="i-lucide-info"
+        <UButton
+          v-for="section in settingsSections"
+          :key="section.id"
+          type="button"
           color="neutral"
-          variant="soft"
-        />
+          variant="subtle"
+          :leading-icon="section.icon"
+          :aria-controls="`settings-${ section.id }`"
+          @click="scrollToSection( section.id )"
+        >
+          {{ section.label }}
+        </UButton>
+      </nav>
 
-        <div class="settings-fields">
-          <UFormField
-            label="Target retention"
-            description="Higher values shorten intervals and increase the number of reviews."
-            :error="desiredRetentionError"
-            required
-          >
-            <div class="settings-input-row">
-              <UInput
-                v-model="form.desiredRetentionPercent"
-                type="number"
-                :min="MINIMUM_DESIRED_RETENTION_PERCENT"
-                :max="MAXIMUM_DESIRED_RETENTION_PERCENT"
-                step="1"
-                inputmode="decimal"
-                class="settings-number-input"
-                size="xl"
-                @input="clearSaveFeedback"
-              />
-              <span>%</span>
+      <div class="settings-sections">
+        <m.section
+          id="settings-general"
+          class="settings-panel"
+          :initial="{ opacity: 0, y: 10 }"
+          :animate="{ opacity: 1, y: 0 }"
+          :transition="panelTransition"
+        >
+          <header class="settings-panel__header">
+            <span
+              class="settings-panel__icon"
+              aria-hidden="true"
+            >
+              <UIcon name="i-lucide-settings-2" />
+            </span>
+
+            <div>
+              <h2>General</h2>
+              <p>Choose what opens when Twill starts.</p>
             </div>
-          </UFormField>
+          </header>
 
-          <UFormField
-            label="Maximum interval"
-            description="Shorter limits prevent distant due dates but can substantially increase reviews."
-            :hint="maximumIntervalSummary"
-            :error="maximumIntervalError"
-            required
-          >
-            <div class="settings-input-row">
-              <UInput
-                v-model="form.maximumIntervalDays"
-                type="number"
-                :min="MINIMUM_INTERVAL_DAYS"
-                :max="MAXIMUM_INTERVAL_DAYS"
-                step="1"
-                inputmode="numeric"
-                class="settings-number-input"
-                size="xl"
-                @input="clearSaveFeedback"
-              />
-              <span>days</span>
+          <div class="settings-preference-row">
+            <div>
+              <label for="startup-destination">Startup destination</label>
+              <p>Deep links still open their requested page.</p>
             </div>
-          </UFormField>
-        </div>
 
-        <UAlert
-          v-if="saveError"
-          :description="saveError"
-          icon="i-lucide-circle-alert"
-          color="error"
-          variant="soft"
-        />
+            <USelect
+              id="startup-destination"
+              :model-value="startupDestination"
+              :items="startupDestinationItems"
+              :loading="startupDestinationPending"
+              :disabled="startupDestinationPending"
+              value-key="value"
+              leading-icon="i-lucide-house"
+              class="settings-select"
+              @update:model-value="updateStartupDestination"
+            />
+          </div>
 
-        <footer class="settings-actions">
-          <p
-            class="settings-save-status"
-            aria-live="polite"
-          >
-            {{ saveStatus }}
-          </p>
+          <UAlert
+            v-if="startupDestinationError"
+            :description="startupDestinationError"
+            icon="i-lucide-circle-alert"
+            color="error"
+            variant="subtle"
+          />
 
-          <UButton
-            type="button"
+          <footer class="settings-section-actions">
+            <p
+              class="settings-save-status"
+              aria-live="polite"
+            >
+              {{ startupDestinationStatus }}
+            </p>
+
+            <UButton
+              type="button"
+              color="neutral"
+              variant="subtle"
+              :disabled="savedStartupDestination === DEFAULT_STARTUP_DESTINATION
+                || startupDestinationPending"
+              @click="updateStartupDestination(
+                DEFAULT_STARTUP_DESTINATION,
+                'General defaults restored.'
+              )"
+            >
+              Restore default
+            </UButton>
+          </footer>
+        </m.section>
+
+        <m.section
+          id="settings-study"
+          class="settings-panel"
+          :initial="{ opacity: 0, y: 10 }"
+          :animate="{ opacity: 1, y: 0 }"
+          :transition="{ ...panelTransition, delay: 0.04 }"
+        >
+          <header class="settings-panel__header">
+            <span
+              class="settings-panel__icon"
+              aria-hidden="true"
+            >
+              <UIcon name="i-lucide-graduation-cap" />
+            </span>
+
+            <div>
+              <h2>Study</h2>
+              <p>Set the controls used for review sessions.</p>
+            </div>
+          </header>
+
+          <div class="settings-preference-row">
+            <div>
+              <label for="settings-grading-mode">Grading mode</label>
+              <p>Simple uses Forgot and Remembered. Advanced adds Hard and Easy.</p>
+            </div>
+
+            <USelect
+              id="settings-grading-mode"
+              :model-value="gradingMode"
+              :items="gradingModeItems"
+              :loading="gradingModePending"
+              :disabled="gradingModePending"
+              value-key="value"
+              leading-icon="i-lucide-list-checks"
+              class="settings-select"
+              @update:model-value="updateGradingMode"
+            />
+          </div>
+
+          <UAlert
+            v-if="gradingModeError"
+            :description="gradingModeError"
+            icon="i-lucide-circle-alert"
+            color="error"
+            variant="subtle"
+          />
+
+          <footer class="settings-section-actions">
+            <p
+              class="settings-save-status"
+              aria-live="polite"
+            >
+              {{ gradingModeStatus }}
+            </p>
+
+            <UButton
+              type="button"
+              color="neutral"
+              variant="subtle"
+              :disabled="savedGradingMode === DEFAULT_GRADING_MODE
+                || gradingModePending"
+              @click="updateGradingMode(
+                DEFAULT_GRADING_MODE,
+                'Study defaults restored.'
+              )"
+            >
+              Restore default
+            </UButton>
+          </footer>
+        </m.section>
+
+        <m.form
+          id="settings-scheduling"
+          class="settings-panel"
+          novalidate
+          :initial="{ opacity: 0, y: 10 }"
+          :animate="{ opacity: 1, y: 0 }"
+          :transition="{ ...panelTransition, delay: 0.08 }"
+          @submit.prevent="saveSchedulingSettings"
+        >
+          <header class="settings-panel__header">
+            <span
+              class="settings-panel__icon"
+              aria-hidden="true"
+            >
+              <UIcon name="i-lucide-calendar-sync" />
+            </span>
+
+            <div>
+              <p class="settings-panel__version">
+                FSRS {{ savedSchedulingSettings.algorithmVersion }}
+              </p>
+              <h2>Scheduling</h2>
+              <p>Adjust long-term retention and the longest review interval.</p>
+            </div>
+          </header>
+
+          <UAlert
+            description="Existing due dates stay unchanged. New values apply when each card is reviewed."
+            icon="i-lucide-info"
             color="neutral"
-            variant="ghost"
-            :disabled="defaultsActive || savePending"
-            @click="restoreDefaults"
-          >
-            Restore defaults
-          </UButton>
+            variant="subtle"
+          />
 
-          <UButton
-            type="submit"
-            leading-icon="i-lucide-check"
-            :disabled="formValid && !hasChanges"
-            :loading="savePending"
-            size="lg"
-          >
-            Save settings
-          </UButton>
-        </footer>
-      </m.form>
+          <div class="settings-fields">
+            <UFormField
+              label="Target retention"
+              description="Higher values shorten intervals and increase the number of reviews."
+              :error="desiredRetentionError"
+              required
+            >
+              <div class="settings-input-row">
+                <UInput
+                  v-model="schedulingForm.desiredRetentionPercent"
+                  type="number"
+                  :min="MINIMUM_DESIRED_RETENTION_PERCENT"
+                  :max="MAXIMUM_DESIRED_RETENTION_PERCENT"
+                  step="1"
+                  inputmode="decimal"
+                  class="settings-number-input"
+                  size="xl"
+                  @input="clearSchedulingSaveFeedback"
+                />
+                <span>%</span>
+              </div>
+            </UFormField>
+
+            <UFormField
+              label="Maximum interval"
+              description="Shorter limits prevent distant due dates but can substantially increase reviews."
+              :hint="maximumIntervalSummary"
+              :error="maximumIntervalError"
+              required
+            >
+              <div class="settings-input-row">
+                <UInput
+                  v-model="schedulingForm.maximumIntervalDays"
+                  type="number"
+                  :min="MINIMUM_INTERVAL_DAYS"
+                  :max="MAXIMUM_INTERVAL_DAYS"
+                  step="1"
+                  inputmode="numeric"
+                  class="settings-number-input"
+                  size="xl"
+                  @input="clearSchedulingSaveFeedback"
+                />
+                <span>days</span>
+              </div>
+            </UFormField>
+          </div>
+
+          <UAlert
+            v-if="schedulingSaveError"
+            :description="schedulingSaveError"
+            icon="i-lucide-circle-alert"
+            color="error"
+            variant="subtle"
+          />
+
+          <footer class="settings-actions">
+            <p
+              class="settings-save-status"
+              aria-live="polite"
+            >
+              {{ schedulingSaveStatus }}
+            </p>
+
+            <UButton
+              type="button"
+              color="neutral"
+              variant="subtle"
+              :disabled="schedulingDefaultsActive || schedulingSavePending"
+              @click="restoreSchedulingDefaults"
+            >
+              Restore defaults
+            </UButton>
+
+            <UButton
+              type="submit"
+              leading-icon="i-lucide-check"
+              :disabled="schedulingFormValid && !schedulingHasChanges"
+              :loading="schedulingSavePending"
+              size="lg"
+            >
+              Save settings
+            </UButton>
+          </footer>
+        </m.form>
+      </div>
     </div>
   </div>
 </template>

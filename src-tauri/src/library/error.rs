@@ -93,6 +93,9 @@ pub enum LibraryError {
     #[error("stored grading mode is not valid: {0}")]
     InvalidGradingMode(String),
 
+    #[error("stored startup destination is not valid: {0}")]
+    InvalidStartupDestination(String),
+
     #[error("target retention must be between {minimum}% and {maximum}%")]
     InvalidDesiredRetention { minimum: i64, maximum: i64 },
 
