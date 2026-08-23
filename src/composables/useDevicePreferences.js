@@ -9,6 +9,10 @@ export function useDevicePreferences() {
     setStartupDestination: ( startupDestination ) => invoke(
       'set_startup_destination',
       { input: { startupDestination } }
+    ),
+    setAppearancePreferences: ( appearance ) => invoke(
+      'set_appearance_preferences',
+      { input: { appearance } }
     )
   };
 }

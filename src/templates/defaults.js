@@ -61,15 +61,15 @@ export function createDefaultTemplateContent() {
         '.card {',
         '  max-width: 42rem;',
         '  margin: 0 auto;',
-        '  color: #172019;',
-        '  font-family: system-ui, sans-serif;',
+        '  color: var(--twill-text-highlighted);',
+        '  font-family: var(--twill-reading-font);',
         '  line-height: 1.6;',
         '}',
         '',
         'hr {',
         '  margin: 2rem 0;',
         '  border: 0;',
-        '  border-top: 1px solid #d7ded5;',
+        '  border-top: 1px solid var(--twill-border);',
         '}'
       ].join( '\n' )
     }

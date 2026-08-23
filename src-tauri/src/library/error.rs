@@ -96,6 +96,12 @@ pub enum LibraryError {
     #[error("stored startup destination is not valid: {0}")]
     InvalidStartupDestination(String),
 
+    #[error("stored {field} device preference is not valid: {value}")]
+    InvalidDevicePreference {
+        field: &'static str,
+        value: String,
+    },
+
     #[error("target retention must be between {minimum}% and {maximum}%")]
     InvalidDesiredRetention { minimum: i64, maximum: i64 },
 

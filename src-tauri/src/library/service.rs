@@ -10,7 +10,8 @@ use crate::library::media::{
     active_concept_media_ids, query_concept_media, validate_media_ids,
 };
 use crate::library::preferences::{
-    query_device_preferences, update_grading_mode, update_startup_destination,
+    query_device_preferences, update_appearance_preferences, update_grading_mode,
+    update_startup_destination,
 };
 use crate::library::retrieval_forms::{
     normalize_type_answer, parse_retrieval_form_configuration,
@@ -22,9 +23,9 @@ use crate::library::study::{
     update_scheduling_settings,
 };
 use crate::library::{
-    CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput, DevicePreferences,
-    GradingMode, LibraryError, LibraryResult, LibrarySnapshot, MediaSummary, NamedItem,
-    OrganizationSummary, RecordReviewInput, RetrievalFormKind, ReviewOutcome,
+    AppearancePreferences, CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput,
+    DevicePreferences, GradingMode, LibraryError, LibraryResult, LibrarySnapshot, MediaSummary,
+    NamedItem, OrganizationSummary, RecordReviewInput, RetrievalFormKind, ReviewOutcome,
     SchedulingSettings, SchedulingState, StartupDestination, StudyQueue, TypeAnswerSettings,
     UpdateConceptInput, UpdateSchedulingSettingsInput,
 };
@@ -84,6 +85,15 @@ impl<'store> ConceptLibrary<'store> {
     ) -> LibraryResult<DevicePreferences> {
         self.store.write_result(|transaction| {
             update_startup_destination(transaction, startup_destination)
+        })
+    }
+
+    pub fn set_appearance_preferences(
+        &self,
+        appearance: AppearancePreferences,
+    ) -> LibraryResult<DevicePreferences> {
+        self.store.write_result(|transaction| {
+            update_appearance_preferences(transaction, appearance)
         })
     }
 
@@ -1316,11 +1326,11 @@ mod tests {
     use crate::data::{DataResult, EntityKind, LocalDataStore};
     use crate::library::models::TemplateMode;
     use crate::library::{
-        ConceptContent, CreateConceptInput, CreateTemplateInput, GradingMode, LibraryError,
-        RecordReviewInput, RetrievalFormKind, ReviewRating, SchedulingState,
-        StartupDestination,
-        TemplateContent, TemplateLibrary, TypeAnswerSettings, UpdateConceptInput,
-        UpdateSchedulingSettingsInput, UpdateTemplateInput,
+        AppearancePreferences, AppearanceTheme, ConceptContent, CreateConceptInput,
+        CreateTemplateInput, GradingMode, LibraryError, MotionPreference, ReadingFont,
+        ReadingTextSize, RecordReviewInput, RetrievalFormKind, ReviewRating, SchedulingState,
+        StartupDestination, TemplateContent, TemplateLibrary, TypeAnswerSettings,
+        UpdateConceptInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
     };
 
     fn test_store() -> (TempDir, LocalDataStore) {
@@ -2576,6 +2586,15 @@ mod tests {
 
             assert_eq!(defaults.grading_mode, GradingMode::Simple);
             assert_eq!(defaults.startup_destination, StartupDestination::Study);
+            assert_eq!(
+                defaults.appearance,
+                AppearancePreferences {
+                    theme: AppearanceTheme::Aubergine,
+                    reading_font: ReadingFont::Inter,
+                    reading_text_size: ReadingTextSize::Medium,
+                    motion_preference: MotionPreference::System,
+                }
+            );
 
             let changes_before = store.changes_after(0, 100).unwrap();
             let preferences = library.set_grading_mode(GradingMode::Advanced).unwrap();
@@ -2595,6 +2614,23 @@ mod tests {
                 preferences.startup_destination,
                 StartupDestination::Library
             );
+
+            let appearance = AppearancePreferences {
+                theme: AppearanceTheme::RosePineDawn,
+                reading_font: ReadingFont::SourceSerif4,
+                reading_text_size: ReadingTextSize::Large,
+                motion_preference: MotionPreference::Reduced,
+            };
+            let preferences = library
+                .set_appearance_preferences(appearance.clone())
+                .unwrap();
+
+            assert_eq!(preferences.grading_mode, GradingMode::Advanced);
+            assert_eq!(
+                preferences.startup_destination,
+                StartupDestination::Library
+            );
+            assert_eq!(preferences.appearance, appearance);
             assert_eq!(store.changes_after(0, 100).unwrap(), changes_before);
         }
 
@@ -2607,6 +2643,15 @@ mod tests {
         assert_eq!(
             preferences.startup_destination,
             StartupDestination::Library
+        );
+        assert_eq!(
+            preferences.appearance,
+            AppearancePreferences {
+                theme: AppearanceTheme::RosePineDawn,
+                reading_font: ReadingFont::SourceSerif4,
+                reading_text_size: ReadingTextSize::Large,
+                motion_preference: MotionPreference::Reduced,
+            }
         );
     }
 

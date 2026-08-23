@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [
     vue(),
     ui({
-      colorMode: true,
+      colorMode: false,
       dts: false,
       icon: {
         clientBundle: {

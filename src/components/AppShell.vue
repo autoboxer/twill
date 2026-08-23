@@ -12,6 +12,7 @@ import { useRouter } from 'vue-router';
 import AppNavigation from './AppNavigation.vue';
 import CommandCenter from './CommandCenter.vue';
 import { COMMAND_IDS } from '../commands/registry';
+import { useAppearance } from '../composables/useAppearance';
 import { provideCommands } from '../composables/useCommands';
 
 const routeTransition = {
@@ -22,6 +23,7 @@ const routeTransition = {
 const animateRouteEntrance = ref( false );
 const router = useRouter();
 const commands = provideCommands( router );
+const { motionConfigPreference } = useAppearance();
 const paletteCommand = commands.command( COMMAND_IDS.commandPaletteOpen );
 const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
 
@@ -33,7 +35,7 @@ onMounted( () => {
 <template>
   <MotionConfig
     :transition="routeTransition"
-    reduced-motion="user"
+    :reduced-motion="motionConfigPreference"
   >
     <a
       class="skip-link"

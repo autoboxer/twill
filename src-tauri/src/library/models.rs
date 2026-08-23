@@ -166,11 +166,66 @@ pub enum StartupDestination {
     Library,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AppearanceTheme {
+    Aubergine,
+    Dracula,
+    OneDark,
+    TokyoNight,
+    CatppuccinMocha,
+    Nord,
+    GruvboxDark,
+    SolarizedDark,
+    GithubLight,
+    OneLight,
+    CatppuccinLatte,
+    GruvboxLight,
+    SolarizedLight,
+    RosePineDawn,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReadingFont {
+    Inter,
+    SystemUi,
+    IbmPlexSans,
+    SourceSerif4,
+    JetBrainsMono,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReadingTextSize {
+    Small,
+    Medium,
+    Large,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MotionPreference {
+    System,
+    Full,
+    Reduced,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AppearancePreferences {
+    pub theme: AppearanceTheme,
+    pub reading_font: ReadingFont,
+    pub reading_text_size: ReadingTextSize,
+    pub motion_preference: MotionPreference,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DevicePreferences {
     pub grading_mode: GradingMode,
     pub startup_destination: StartupDestination,
+    pub appearance: AppearancePreferences,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -293,14 +348,14 @@ impl Default for TemplateContent {
                     ".card {\n",
                     "  max-width: 42rem;\n",
                     "  margin: 0 auto;\n",
-                    "  color: #172019;\n",
-                    "  font-family: system-ui, sans-serif;\n",
+                    "  color: var(--twill-text-highlighted);\n",
+                    "  font-family: var(--twill-reading-font);\n",
                     "  line-height: 1.6;\n",
                     "}\n\n",
                     "hr {\n",
                     "  margin: 2rem 0;\n",
                     "  border: 0;\n",
-                    "  border-top: 1px solid #d7ded5;\n",
+                    "  border-top: 1px solid var(--twill-border);\n",
                     "}",
                 )
                 .to_owned(),
@@ -360,6 +415,12 @@ pub struct SetGradingModeInput {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SetStartupDestinationInput {
     pub startup_destination: StartupDestination,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SetAppearancePreferencesInput {
+    pub appearance: AppearancePreferences,
 }
 
 #[derive(Clone, Debug, Deserialize)]
