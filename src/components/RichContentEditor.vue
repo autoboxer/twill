@@ -652,7 +652,7 @@ async function insertImage( event ) {
 
           <UButton
             color="neutral"
-            variant="ghost"
+            variant="link"
             @click="clozeDialogOpen = false"
           >
             Cancel
@@ -701,7 +701,7 @@ async function insertImage( event ) {
 
           <UButton
             color="neutral"
-            variant="ghost"
+            variant="link"
             @click="linkDialogOpen = false"
           >
             Cancel
@@ -775,7 +775,7 @@ async function insertImage( event ) {
 
           <UButton
             color="neutral"
-            variant="ghost"
+            variant="link"
             @click="mathDialogOpen = false"
           >
             Cancel

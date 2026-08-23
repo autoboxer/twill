@@ -487,7 +487,7 @@ defineExpose({ submit });
           label="Add alternative"
           leading-icon="i-lucide-plus"
           color="neutral"
-          variant="soft"
+          variant="subtle"
           :disabled="atAcceptedAnswerLimit"
           class="type-answer-settings__add"
           @click="addAcceptedAnswer"
@@ -515,7 +515,7 @@ defineExpose({ submit });
           type="button"
           leading-icon="i-lucide-settings-2"
           color="neutral"
-          variant="soft"
+          variant="subtle"
           @click="emit( 'manage' )"
         >
           Manage
@@ -569,7 +569,7 @@ defineExpose({ submit });
       <UButton
         type="button"
         color="neutral"
-        variant="ghost"
+        variant="link"
         :disabled="loading"
         @click="emit( 'cancel' )"
       >

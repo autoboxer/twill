@@ -138,7 +138,7 @@ function cancel() {
         <UButton
           leading-icon="i-lucide-arrow-left"
           color="neutral"
-          variant="ghost"
+          variant="link"
           @click="cancel"
         >
           Back

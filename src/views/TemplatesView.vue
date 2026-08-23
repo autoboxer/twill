@@ -113,7 +113,7 @@ function formattedDate( timestamp ) {
           :to="{ name: 'library' }"
           leading-icon="i-lucide-arrow-left"
           color="neutral"
-          variant="ghost"
+          variant="link"
         >
           Library
         </UButton>

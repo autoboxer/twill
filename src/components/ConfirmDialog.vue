@@ -43,7 +43,7 @@ const isOpen = computed({
       <div class="dialog-actions">
         <UButton
           color="neutral"
-          variant="ghost"
+          variant="link"
           :disabled="loading"
           @click="isOpen = false"
         >
