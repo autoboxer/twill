@@ -46,6 +46,10 @@ const props = defineProps({
     default: 'create',
     validator: ( value ) => [ 'create', 'edit' ].includes( value )
   },
+  saveCommand: {
+    type: Object,
+    required: true
+  },
   tags: {
     type: Array,
     default: () => []
@@ -311,6 +315,8 @@ function submit() {
     title: form.title
   });
 }
+
+defineExpose({ submit });
 </script>
 
 <template>
@@ -574,6 +580,8 @@ function submit() {
         type="submit"
         leading-icon="i-lucide-check"
         :loading="loading"
+        :aria-keyshortcuts="saveCommand.ariaKeyshortcuts"
+        :title="saveCommand.tooltip"
         size="lg"
       >
         {{ submitLabel }}

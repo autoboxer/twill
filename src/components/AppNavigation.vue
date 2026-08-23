@@ -1,5 +1,8 @@
 <script setup>
 import { primaryNavigation } from '../config/navigation';
+import { useCommands } from '../composables/useCommands';
+
+const commands = useCommands();
 </script>
 
 <template>
@@ -23,6 +26,8 @@ import { primaryNavigation } from '../config/navigation';
         :label="item.label"
         :leading-icon="item.icon"
         :aria-label="item.label"
+        :aria-keyshortcuts="commands.command( item.commandId ).ariaKeyshortcuts"
+        :title="commands.command( item.commandId ).tooltip"
         color="neutral"
         active-color="primary"
         variant="ghost"

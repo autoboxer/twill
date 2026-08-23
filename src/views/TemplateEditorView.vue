@@ -7,6 +7,8 @@ import PageHeader from '../components/PageHeader.vue';
 import TemplateMarkupEditor from '../components/TemplateMarkupEditor.vue';
 import TemplatePreview from '../components/TemplatePreview.vue';
 import TemplateVisualSideEditor from '../components/TemplateVisualSideEditor.vue';
+import { COMMAND_IDS } from '../commands/registry';
+import { useCommandHandler } from '../composables/useCommands';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
 import {
@@ -77,6 +79,15 @@ const formValid = computed( () => {
 });
 const hasChanges = computed( () => {
   return JSON.stringify({ name: form.name, content: form.content }) !== savedSnapshot.value;
+});
+const saveCommand = useCommandHandler( COMMAND_IDS.templateSave, {
+  enabled: computed( () => (
+    !initialLoading.value
+    && !loadError.value
+    && !isPending.value
+    && hasChanges.value
+  ) ),
+  execute: saveTemplate
 });
 
 watch( templateId, loadTemplate, { immediate: true });
@@ -462,6 +473,8 @@ function cancel() {
           leading-icon="i-lucide-check"
           :disabled="!hasChanges"
           :loading="isPending"
+          :aria-keyshortcuts="saveCommand.ariaKeyshortcuts"
+          :title="saveCommand.tooltip"
           size="lg"
         >
           {{ isEditing ? 'Save template' : 'Create template' }}

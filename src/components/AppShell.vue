@@ -7,8 +7,10 @@ import {
   MotionConfig
 } from 'motion-v';
 import { onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import AppNavigation from './AppNavigation.vue';
+import { provideCommands } from '../composables/useCommands';
 
 const routeTransition = {
   duration: 0.18,
@@ -16,6 +18,9 @@ const routeTransition = {
 };
 
 const animateRouteEntrance = ref( false );
+const router = useRouter();
+
+provideCommands( router );
 
 onMounted( () => {
   animateRouteEntrance.value = true;

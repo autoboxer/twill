@@ -4,6 +4,8 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
+import { COMMAND_IDS } from '../commands/registry';
+import { useCommandHandler } from '../composables/useCommands';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useDevicePreferences } from '../composables/useDevicePreferences';
 import { useSchedulingSettings } from '../composables/useSchedulingSettings';
@@ -170,6 +172,15 @@ const maximumIntervalSummary = computed( () => {
   }
 
   return `${ days } ${ days === 1 ? 'day' : 'days' }`;
+});
+const schedulingSaveCommand = useCommandHandler( COMMAND_IDS.schedulingSave, {
+  enabled: computed( () => (
+    !initialLoading.value
+    && !loadError.value
+    && !schedulingSavePending.value
+    && !( schedulingFormValid.value && !schedulingHasChanges.value )
+  ) ),
+  execute: saveSchedulingSettings
 });
 
 onMounted( loadSettings );
@@ -701,6 +712,8 @@ async function persistSchedulingSettings(
               leading-icon="i-lucide-check"
               :disabled="schedulingFormValid && !schedulingHasChanges"
               :loading="schedulingSavePending"
+              :aria-keyshortcuts="schedulingSaveCommand.ariaKeyshortcuts"
+              :title="schedulingSaveCommand.tooltip"
               size="lg"
             >
               Save settings
