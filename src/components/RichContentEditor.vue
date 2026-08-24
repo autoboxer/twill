@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 
 import {
   conceptLibraryErrorMessage,
@@ -22,6 +22,10 @@ const props = defineProps({
     required: true
   },
   clozeEnabled: {
+    type: Boolean,
+    default: false
+  },
+  disabled: {
     type: Boolean,
     default: false
   },
@@ -62,6 +66,16 @@ const mathDraft = ref( '' );
 const mathMode = ref( 'inline' );
 const mathPosition = ref( null );
 const mathSubmitted = ref( false );
+
+watch( () => props.disabled, ( disabled ) => {
+  currentEditor.value?.setEditable( !disabled );
+
+  if ( disabled ) {
+    clozeDialogOpen.value = false;
+    linkDialogOpen.value = false;
+    mathDialogOpen.value = false;
+  }
+});
 
 const document = computed({
   get: () => props.modelValue,
@@ -524,6 +538,7 @@ async function insertImage( event ) {
       <UEditor
         v-model="document"
         :aria-label="label"
+        :editable="!disabled"
         :extensions="extensions"
         :handlers="editorHandlers"
         :image="false"
@@ -555,6 +570,7 @@ async function insertImage( event ) {
                 leading-icon="i-lucide-braces"
                 size="sm"
                 class="rich-editor__language"
+                :disabled="disabled"
                 @update:model-value="setCodeLanguage( editor, $event )"
               />
 
@@ -566,6 +582,7 @@ async function insertImage( event ) {
                   color="neutral"
                   variant="ghost"
                   size="sm"
+                  :disabled="disabled"
                   @click="openMathDialog( editor )"
                 />
               </UTooltip>
@@ -581,7 +598,7 @@ async function insertImage( event ) {
                   color="neutral"
                   variant="ghost"
                   size="sm"
-                  :disabled="!clozeSelectionAvailable"
+                  :disabled="disabled || !clozeSelectionAvailable"
                   @click="openClozeDialog( editor )"
                 />
               </UTooltip>
@@ -594,6 +611,7 @@ async function insertImage( event ) {
                   color="neutral"
                   variant="ghost"
                   size="sm"
+                  :disabled="disabled"
                   :loading="imageImporting"
                   @click="chooseImage( editor )"
                 />
@@ -609,6 +627,7 @@ async function insertImage( event ) {
         accept="image/gif,image/jpeg,image/png,image/webp"
         class="sr-only"
         tabindex="-1"
+        :disabled="disabled"
         @change="insertImage"
       >
     </div>

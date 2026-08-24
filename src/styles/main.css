@@ -875,6 +875,33 @@ button {
   gap: 1.25rem;
 }
 
+.draft-persistence {
+  display: grid;
+  width: min(100%, 56rem);
+  margin: 0 auto;
+  gap: 0.75rem;
+}
+
+.draft-persistence__status {
+  display: flex;
+  min-height: 1.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  margin: 0;
+  gap: 0.4rem;
+  color: var(--ui-text-muted);
+  font-size: 0.82rem;
+}
+
+.draft-persistence__status > svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.draft-persistence__status > .i-lucide-loader-circle {
+  animation: spin 900ms linear infinite;
+}
+
 .editor-section,
 .concept-detail-panel {
   padding: clamp(1.25rem, 4vw, 2rem);
