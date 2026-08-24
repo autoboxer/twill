@@ -749,6 +749,7 @@ fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDeta
                 concepts.title,
                 entities.created_at,
                 entities.updated_at,
+                entities.last_change_id,
                 concepts.archived_at,
                 concepts.content_json
             FROM concepts
@@ -762,13 +763,14 @@ fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDeta
                     row.get::<_, String>(1)?,
                     row.get::<_, i64>(2)?,
                     row.get::<_, i64>(3)?,
-                    row.get::<_, Option<i64>>(4)?,
-                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<i64>>(5)?,
+                    row.get::<_, String>(6)?,
                 ))
             },
         )
         .optional()?;
-    let Some((id, title, created_at, updated_at, archived_at, content)) = concept else {
+    let Some((id, title, created_at, updated_at, last_change_id, archived_at, content)) = concept else {
         return Err(LibraryError::ConceptNotFound(id.to_owned()));
     };
 
@@ -782,6 +784,7 @@ fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDeta
         title,
         created_at,
         updated_at,
+        last_change_id,
         archived: archived_at.is_some(),
     })
 }

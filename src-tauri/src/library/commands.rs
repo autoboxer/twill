@@ -4,14 +4,16 @@ use tauri::State;
 
 use crate::data::LocalDataStore;
 use crate::library::{
-    ConceptDetail, ConceptLibrary, CreateConceptInput, CreateCssSnippetInput,
-    CreateNamedItemInput, CreateTemplateInput, CssSnippet, CssSnippetCatalog,
-    CssSnippetLibrary, DevicePreferences, EntityIdInput, LibraryError, LibrarySnapshot,
+    AuthoringDraft, AuthoringDraftLibrary, AuthoringDraftLocator, ConceptDetail,
+    ConceptLibrary, CreateConceptInput, CreateCssSnippetInput, CreateNamedItemInput,
+    CreateTemplateInput, CssSnippet, CssSnippetCatalog, CssSnippetLibrary,
+    DevicePreferences, EntityIdInput, LibraryError, LibrarySnapshot,
     OrganizationSummary, RecordReviewInput, RenameNamedItemInput, ReviewOutcome,
     SchedulingSettings, SetAppearancePreferencesInput, SetConceptArchivedInput,
-    SetCssSnippetEnabledInput, SetGradingModeInput, SetStartupDestinationInput, StudyQueue,
-    TemplateCatalog, TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
-    UpdateCssSnippetInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
+    SetCssSnippetEnabledInput, SetGradingModeInput, SetStartupDestinationInput,
+    StudyQueue, TemplateCatalog, TemplateContent, TemplateDetail, TemplateLibrary,
+    UpdateConceptInput, UpdateCssSnippetInput, UpdateSchedulingSettingsInput,
+    UpdateTemplateInput, UpsertAuthoringDraftInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -31,6 +33,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidContent { .. }
             | LibraryError::InvalidTemplate { .. }
             | LibraryError::InvalidCss { .. }
+            | LibraryError::InvalidAuthoringDraft { .. }
             | LibraryError::ImageTooLarge { .. }
             | LibraryError::UnsupportedImage
             | LibraryError::ImageDimensionsTooLarge
@@ -339,6 +342,36 @@ pub(crate) fn delete_css_snippet(
 ) -> CommandResult<()> {
     CssSnippetLibrary::new(local_data.inner())
         .delete_snippet(&input.id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_authoring_draft(
+    local_data: State<'_, LocalDataStore>,
+    input: AuthoringDraftLocator,
+) -> CommandResult<Option<AuthoringDraft>> {
+    AuthoringDraftLibrary::new(local_data.inner())
+        .draft(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn upsert_authoring_draft(
+    local_data: State<'_, LocalDataStore>,
+    input: UpsertAuthoringDraftInput,
+) -> CommandResult<AuthoringDraft> {
+    AuthoringDraftLibrary::new(local_data.inner())
+        .upsert_draft(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn delete_authoring_draft(
+    local_data: State<'_, LocalDataStore>,
+    input: AuthoringDraftLocator,
+) -> CommandResult<()> {
+    AuthoringDraftLibrary::new(local_data.inner())
+        .delete_draft(input)
         .map_err(Into::into)
 }
 
