@@ -1,6 +1,18 @@
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch
+} from 'vue';
+import {
+  onBeforeRouteLeave,
+  onBeforeRouteUpdate,
+  useRoute,
+  useRouter
+} from 'vue-router';
 
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
@@ -8,9 +20,15 @@ import TemplateMarkupEditor from '../components/TemplateMarkupEditor.vue';
 import TemplatePreview from '../components/TemplatePreview.vue';
 import TemplateVisualSideEditor from '../components/TemplateVisualSideEditor.vue';
 import { COMMAND_IDS } from '../commands/registry';
+import { useAuthoringDraft } from '../composables/useAuthoringDraft';
 import { useCommandHandler } from '../composables/useCommands';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
+import {
+  cloneTemplateEditorState,
+  createTemplateEditorState,
+  templateEditorStateKey
+} from '../drafts/templateDraft';
 import {
   cloneTemplateContent,
   createDefaultTemplateContent,
@@ -27,21 +45,107 @@ const {
   isPending,
   updateTemplate
 } = useTemplateLibrary();
+const {
+  discard: discardDraft,
+  draft,
+  error: draftError,
+  flush: flushDraft,
+  hasPendingPersistence,
+  load: loadDraft,
+  refresh: refreshDraft,
+  retry: retryDraft,
+  scheduleDelete: scheduleDraftDelete,
+  scheduleSave: scheduleDraftSave,
+  start: startDraft,
+  status: draftStatus
+} = useAuthoringDraft( 'template' );
 
 const form = reactive({
   content: createDefaultTemplateContent(),
   name: ''
 });
+const conflictMessage = ref( '' );
+const draftCleanupError = ref( '' );
+const editorResolved = ref( false );
 const initialLoading = ref( true );
+const leaveDialogOpen = ref( false );
+const leaveError = ref( '' );
+const leaveLoading = ref( false );
 const loadError = ref( '' );
+const recoveryBusy = ref( false );
+const recoveryDraft = ref( null );
+const recoveryError = ref( '' );
+const recoveryOpen = ref( false );
+const saveAsCopy = ref( false );
 const saveAttempted = ref( false );
+const saveInProgress = ref( false );
+const savedTemplate = ref( null );
 const savedSnapshot = ref( '' );
+const targetUnavailable = ref( false );
+let allowNavigation = false;
+let canonicalBaseChangeId = null;
+let leaveResolution = null;
 let loadRequestSequence = 0;
-let saveRequestSequence = 0;
 
 const templateId = computed( () => route.params.templateId ?? '' );
 const isEditing = computed( () => Boolean( templateId.value ) );
-const pageTitle = computed( () => isEditing.value ? 'Edit template' : 'New template' );
+const savesExistingTemplate = computed( () => isEditing.value && !saveAsCopy.value );
+const pageTitle = computed( () => {
+  if ( saveAsCopy.value ) {
+    return 'Create template copy';
+  }
+
+  return isEditing.value ? 'Edit template' : 'New template';
+});
+const submitLabel = computed( () => (
+  savesExistingTemplate.value ? 'Save template' : 'Create template'
+) );
+const draftStatusMessage = computed( () => {
+  if ( draftStatus.value === 'dirty' ) {
+    return 'Waiting to save draft…';
+  }
+
+  if ( draftStatus.value === 'saving' ) {
+    return 'Saving draft…';
+  }
+
+  if ( draftStatus.value === 'saved' ) {
+    return 'Draft saved locally.';
+  }
+
+  return '';
+});
+const recoveryChanged = computed( () => (
+  recoveryDraft.value?.targetStatus === 'changed'
+) );
+const recoveryMissing = computed( () => (
+  recoveryDraft.value?.targetStatus === 'missing'
+) );
+const recoveryTitle = computed( () => {
+  if ( recoveryMissing.value ) {
+    return 'Template no longer exists';
+  }
+
+  if ( recoveryChanged.value ) {
+    return 'Saved template changed';
+  }
+
+  return 'Restore template draft?';
+});
+const recoveryDescription = computed( () => {
+  if ( recoveryMissing.value ) {
+    return 'Restore this draft as a new template, or discard it.';
+  }
+
+  if ( recoveryChanged.value ) {
+    return 'This draft began before the saved template changed. Restore it as a new template to preserve both versions, or discard it and edit the saved version.';
+  }
+
+  return 'Twill found unfinished work saved on this device.';
+});
+const restoreLabel = computed( () => (
+  recoveryChanged.value || recoveryMissing.value ? 'Restore as new' : 'Restore draft'
+) );
 
 const nameError = computed( () => {
   if ( !saveAttempted.value ) {
@@ -78,53 +182,99 @@ const formValid = computed( () => {
     && !customAnswerError.value;
 });
 const hasChanges = computed( () => {
-  return JSON.stringify({ name: form.name, content: form.content }) !== savedSnapshot.value;
+  return templateEditorStateKey( form ) !== savedSnapshot.value;
 });
 const saveCommand = useCommandHandler( COMMAND_IDS.templateSave, {
   enabled: computed( () => (
     !initialLoading.value
     && !loadError.value
     && !isPending.value
+    && !saveInProgress.value
+    && !recoveryOpen.value
+    && !savedTemplate.value
     && hasChanges.value
   ) ),
   execute: saveTemplate
 });
 
 watch( templateId, loadTemplate, { immediate: true });
+watch( form, templateStateChanged, { deep: true });
+onBeforeRouteLeave( protectNavigation );
+onBeforeRouteUpdate( protectNavigation );
+
+onMounted( () => {
+  window.addEventListener( 'beforeunload', warnBeforeWindowClose );
+  document.addEventListener( 'visibilitychange', flushHiddenDraft );
+});
 
 onBeforeUnmount( () => {
   loadRequestSequence += 1;
-  saveRequestSequence += 1;
+  window.removeEventListener( 'beforeunload', warnBeforeWindowClose );
+  document.removeEventListener( 'visibilitychange', flushHiddenDraft );
+
+  if ( leaveResolution ) {
+    leaveResolution( false );
+  }
 });
 
 async function loadTemplate() {
   const request = ++loadRequestSequence;
   const requestedTemplateId = templateId.value;
 
-  saveRequestSequence += 1;
+  allowNavigation = false;
   clearError();
+  conflictMessage.value = '';
+  draftCleanupError.value = '';
+  editorResolved.value = false;
   initialLoading.value = true;
   loadError.value = '';
+  recoveryDraft.value = null;
+  recoveryError.value = '';
+  recoveryOpen.value = false;
+  saveAsCopy.value = false;
   saveAttempted.value = false;
-
-  if ( !requestedTemplateId ) {
-    applyTemplate({
-      name: '',
-      content: createDefaultTemplateContent()
-    });
-    savedSnapshot.value = '';
-    initialLoading.value = false;
-    return;
-  }
+  savedTemplate.value = null;
+  targetUnavailable.value = false;
 
   try {
-    const template = await getTemplate( requestedTemplateId );
+    const templateRequest = requestedTemplateId
+      ? getTemplate( requestedTemplateId )
+        .then( ( value ) => ({ value }) )
+        .catch( ( cause ) => ({ cause }) )
+      : Promise.resolve({ value: null });
+    const [ templateResult, existingDraft ] = await Promise.all([
+      templateRequest,
+      loadDraft( requestedTemplateId || null )
+    ]);
 
     if ( request !== loadRequestSequence ) {
       return;
     }
 
-    applyTemplate( template );
+    if ( templateResult.cause && existingDraft?.targetStatus !== 'missing' ) {
+      throw templateResult.cause;
+    }
+
+    const template = templateResult.value ?? null;
+    const canonicalState = createTemplateEditorState( template );
+
+    canonicalBaseChangeId = template?.lastChangeId ?? null;
+    targetUnavailable.value = Boolean( templateResult.cause );
+    savedSnapshot.value = templateEditorStateKey( canonicalState );
+    applyEditorState( canonicalState );
+    startDraft({
+      targetId: requestedTemplateId || null,
+      baseChangeId: existingDraft?.baseChangeId
+        ?? template?.lastChangeId
+        ?? null
+    }, existingDraft );
+
+    if ( existingDraft ) {
+      recoveryDraft.value = existingDraft;
+      recoveryOpen.value = true;
+    } else {
+      editorResolved.value = true;
+    }
   } catch ( cause ) {
     if ( request === loadRequestSequence ) {
       loadError.value = conceptLibraryErrorMessage( cause );
@@ -136,20 +286,37 @@ async function loadTemplate() {
   }
 }
 
-function applyTemplate( template ) {
-  form.name = template.name;
-  form.content = cloneTemplateContent( template.content );
-  savedSnapshot.value = JSON.stringify({
-    name: form.name,
-    content: form.content
-  });
+function applyEditorState( state ) {
+  const normalizedState = cloneTemplateEditorState( state );
+
+  form.name = normalizedState.name;
+  form.content = normalizedState.content;
 }
 
 async function saveTemplate() {
+  if ( saveInProgress.value ) {
+    return;
+  }
+
+  if ( savedTemplate.value ) {
+    await finishSavedTemplate();
+    return;
+  }
+
   saveAttempted.value = true;
   clearError();
+  conflictMessage.value = '';
 
   if ( !formValid.value || isPending.value ) {
+    return;
+  }
+
+  saveInProgress.value = true;
+
+  try {
+    await flushDraft();
+  } catch {
+    saveInProgress.value = false;
     return;
   }
 
@@ -157,28 +324,199 @@ async function saveTemplate() {
     name: form.name,
     content: cloneTemplateContent( form.content )
   };
-  const request = ++saveRequestSequence;
 
   try {
-    const saved = isEditing.value
+    if ( savesExistingTemplate.value && hasChanges.value ) {
+      const currentDraft = await refreshDraft();
+
+      if ( currentDraft?.targetStatus !== 'current' ) {
+        saveAsCopy.value = true;
+        savedSnapshot.value = templateEditorStateKey( createTemplateEditorState() );
+        conflictMessage.value = currentDraft?.targetStatus === 'missing'
+          ? 'The saved template was removed while you were editing. Create this draft as a new template to preserve it.'
+          : 'The saved template changed while you were editing. Create this draft as a new template to preserve both versions.';
+
+        return;
+      }
+    }
+
+    const saved = savesExistingTemplate.value
       ? await updateTemplate({ id: templateId.value, ...input })
       : await createTemplate( input );
 
-    if ( request !== saveRequestSequence ) {
+    savedTemplate.value = saved;
+    await finishSavedTemplate();
+  } catch {
+    // Error state is handled by the composable.
+  } finally {
+    saveInProgress.value = false;
+  }
+}
+
+async function finishSavedTemplate() {
+  if ( !savedTemplate.value ) {
+    return;
+  }
+
+  draftCleanupError.value = '';
+
+  try {
+    await discardDraft();
+  } catch {
+    draftCleanupError.value = 'The template was saved, but its local draft could not be cleared.';
+    return;
+  }
+
+  const saved = savedTemplate.value;
+  const changedIdentity = saved.id !== templateId.value;
+
+  saveAttempted.value = false;
+  savedTemplate.value = null;
+
+  if ( changedIdentity ) {
+    allowNavigation = true;
+
+    await router.replace({
+      name: 'template-edit',
+      params: { templateId: saved.id }
+    });
+    return;
+  }
+
+  savedSnapshot.value = templateEditorStateKey( createTemplateEditorState( saved ) );
+  applyEditorState( saved );
+  canonicalBaseChangeId = saved.lastChangeId;
+  saveAsCopy.value = false;
+  conflictMessage.value = '';
+  startDraft({
+    targetId: saved.id,
+    baseChangeId: saved.lastChangeId
+  });
+}
+
+function templateStateChanged() {
+  if ( !editorResolved.value || savedTemplate.value ) {
+    return;
+  }
+
+  const state = cloneTemplateEditorState( form );
+
+  if ( templateEditorStateKey( state ) !== savedSnapshot.value ) {
+    scheduleDraftSave( state );
+  } else if ( draft.value || hasPendingPersistence.value ) {
+    scheduleDraftDelete();
+  }
+}
+
+function restoreRecoveryDraft() {
+  if ( !recoveryDraft.value ) {
+    return;
+  }
+
+  saveAsCopy.value = recoveryChanged.value || recoveryMissing.value;
+
+  if ( saveAsCopy.value ) {
+    savedSnapshot.value = templateEditorStateKey( createTemplateEditorState() );
+  }
+
+  applyEditorState( recoveryDraft.value.payload );
+  editorResolved.value = true;
+  recoveryOpen.value = false;
+}
+
+async function discardRecoveryDraft() {
+  recoveryBusy.value = true;
+  recoveryError.value = '';
+
+  try {
+    await discardDraft();
+
+    if ( targetUnavailable.value ) {
+      allowNavigation = true;
+      await router.replace({ name: 'templates' });
       return;
     }
 
-    applyTemplate( saved );
-    saveAttempted.value = false;
+    startDraft({
+      targetId: templateId.value || null,
+      baseChangeId: canonicalBaseChangeId
+    });
+    editorResolved.value = true;
+    recoveryOpen.value = false;
+  } catch ( cause ) {
+    recoveryError.value = cause.message || 'The draft could not be discarded.';
+  } finally {
+    recoveryBusy.value = false;
+  }
+}
 
-    if ( !isEditing.value ) {
-      await router.replace({
-        name: 'template-edit',
-        params: { templateId: saved.id }
-      });
-    }
+function protectNavigation() {
+  if ( allowNavigation || !editorResolved.value ) {
+    return recoveryOpen.value ? false : true;
+  }
+
+  if ( saveInProgress.value ) {
+    return false;
+  }
+
+  if ( !hasChanges.value && !hasPendingPersistence.value ) {
+    return true;
+  }
+
+  if ( leaveResolution ) {
+    leaveResolution( false );
+  }
+
+  leaveError.value = '';
+  leaveDialogOpen.value = true;
+
+  return new Promise( ( resolve ) => {
+    leaveResolution = resolve;
+  });
+}
+
+function stayInEditor() {
+  leaveDialogOpen.value = false;
+
+  if ( leaveResolution ) {
+    leaveResolution( false );
+    leaveResolution = null;
+  }
+}
+
+async function leaveEditor() {
+  leaveLoading.value = true;
+  leaveError.value = '';
+
+  try {
+    await flushDraft();
   } catch {
-    // Error state is handled by the composable.
+    leaveError.value = 'The latest changes could not be saved. Retry or stay in the editor.';
+    leaveLoading.value = false;
+    return;
+  }
+
+  leaveLoading.value = false;
+  leaveDialogOpen.value = false;
+
+  if ( leaveResolution ) {
+    leaveResolution( true );
+    leaveResolution = null;
+  }
+}
+
+function warnBeforeWindowClose( event ) {
+  if ( !hasChanges.value && !hasPendingPersistence.value ) {
+    return;
+  }
+
+  event.preventDefault();
+  event.returnValue = '';
+}
+
+function flushHiddenDraft() {
+  if ( document.visibilityState === 'hidden' && hasChanges.value ) {
+    void flushDraft().catch( () => undefined );
   }
 }
 
@@ -267,8 +605,54 @@ function cancel() {
       </template>
     </ContentState>
 
+    <div
+      v-if="!initialLoading && !loadError && ( draftStatusMessage || draftError || conflictMessage || draftCleanupError )"
+      class="draft-persistence"
+      aria-live="polite"
+    >
+      <UAlert
+        v-if="conflictMessage"
+        :description="conflictMessage"
+        title="Saved template changed"
+        icon="i-lucide-copy-plus"
+        color="warning"
+        variant="subtle"
+      />
+
+      <UAlert
+        v-if="draftError || draftCleanupError"
+        :description="draftCleanupError || draftError"
+        title="Draft needs attention"
+        icon="i-lucide-cloud-alert"
+        color="error"
+        variant="subtle"
+      >
+        <template #actions>
+          <UButton
+            size="sm"
+            color="error"
+            variant="subtle"
+            @click="savedTemplate ? finishSavedTemplate() : retryDraft()"
+          >
+            Retry
+          </UButton>
+        </template>
+      </UAlert>
+
+      <p
+        v-else-if="draftStatusMessage"
+        class="draft-persistence__status"
+      >
+        <UIcon
+          :name="draftStatus === 'saved' ? 'i-lucide-check' : 'i-lucide-loader-circle'"
+          aria-hidden="true"
+        />
+        {{ draftStatusMessage }}
+      </p>
+    </div>
+
     <form
-      v-else
+      v-if="!initialLoading && !loadError"
       class="template-editor"
       novalidate
       @submit.prevent="saveTemplate"
@@ -283,7 +667,7 @@ function cancel() {
 
       <fieldset
         class="template-editor__fields"
-        :disabled="isPending"
+        :disabled="isPending || saveInProgress"
       >
         <section
           class="editor-section template-editor__basics"
@@ -471,7 +855,7 @@ function cancel() {
           type="button"
           color="neutral"
           variant="link"
-          :disabled="isPending"
+          :disabled="isPending || saveInProgress"
           @click="cancel"
         >
           Cancel
@@ -480,15 +864,97 @@ function cancel() {
         <UButton
           type="submit"
           leading-icon="i-lucide-check"
-          :disabled="!hasChanges"
-          :loading="isPending"
+          :disabled="!hasChanges || Boolean( savedTemplate )"
+          :loading="isPending || saveInProgress"
           :aria-keyshortcuts="saveCommand.ariaKeyshortcuts"
           :title="saveCommand.tooltip"
           size="lg"
         >
-          {{ isEditing ? 'Save template' : 'Create template' }}
+          {{ submitLabel }}
         </UButton>
       </footer>
     </form>
+
+    <UModal
+      v-model:open="recoveryOpen"
+      :title="recoveryTitle"
+      :description="recoveryDescription"
+      :dismissible="false"
+      :close="false"
+    >
+      <template
+        v-if="recoveryError"
+        #body
+      >
+        <UAlert
+          :description="recoveryError"
+          icon="i-lucide-circle-alert"
+          color="error"
+          variant="subtle"
+        />
+      </template>
+
+      <template #footer>
+        <div class="dialog-actions dialog-actions--split">
+          <UButton
+            color="neutral"
+            variant="link"
+            :disabled="recoveryBusy"
+            @click="discardRecoveryDraft"
+          >
+            Discard draft
+          </UButton>
+
+          <UButton
+            leading-icon="i-lucide-rotate-ccw"
+            :disabled="recoveryBusy"
+            @click="restoreRecoveryDraft"
+          >
+            {{ restoreLabel }}
+          </UButton>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="leaveDialogOpen"
+      title="Leave template editor?"
+      description="Your unfinished changes will remain saved as a draft on this device."
+      :dismissible="!leaveLoading"
+      @update:open="( open ) => { if ( !open && !leaveLoading ) stayInEditor() }"
+    >
+      <template
+        v-if="leaveError"
+        #body
+      >
+        <UAlert
+          :description="leaveError"
+          icon="i-lucide-circle-alert"
+          color="error"
+          variant="subtle"
+        />
+      </template>
+
+      <template #footer>
+        <div class="dialog-actions">
+          <UButton
+            color="neutral"
+            variant="link"
+            :disabled="leaveLoading"
+            @click="stayInEditor"
+          >
+            Stay
+          </UButton>
+
+          <UButton
+            leading-icon="i-lucide-log-out"
+            :loading="leaveLoading"
+            @click="leaveEditor"
+          >
+            Leave and keep draft
+          </UButton>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>

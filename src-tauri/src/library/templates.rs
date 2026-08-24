@@ -443,6 +443,7 @@ fn query_template(connection: &Connection, id: &str) -> LibraryResult<TemplateDe
                 templates.name,
                 entities.created_at,
                 entities.updated_at,
+                entities.last_change_id,
                 templates.content_json
             FROM templates
             INNER JOIN entities ON entities.id = templates.entity_id
@@ -456,12 +457,13 @@ fn query_template(connection: &Connection, id: &str) -> LibraryResult<TemplateDe
                     row.get::<_, i64>(2)?,
                     row.get::<_, i64>(3)?,
                     row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
                 ))
             },
         )
         .optional()?;
 
-    let Some((id, name, created_at, updated_at, content)) = template else {
+    let Some((id, name, created_at, updated_at, last_change_id, content)) = template else {
         return Err(LibraryError::TemplateNotFound(id.to_owned()));
     };
 
@@ -470,6 +472,7 @@ fn query_template(connection: &Connection, id: &str) -> LibraryResult<TemplateDe
         name,
         created_at,
         updated_at,
+        last_change_id,
         content: serde_json::from_str(&content)?,
     })
 }

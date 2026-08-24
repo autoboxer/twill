@@ -51,6 +51,9 @@ pub enum LibraryError {
     #[error("CSS {message}")]
     InvalidCss { message: String },
 
+    #[error("authoring draft {message}")]
+    InvalidAuthoringDraft { message: String },
+
     #[error("the selected image cannot be larger than {maximum_megabytes} MB")]
     ImageTooLarge { maximum_megabytes: usize },
 

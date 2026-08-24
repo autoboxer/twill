@@ -1,6 +1,6 @@
 CREATE TABLE media (
     entity_id TEXT PRIMARY KEY NOT NULL,
-    digest TEXT NOT NULL UNIQUE CHECK (length(digest) = 64),
+    digest TEXT NOT NULL CHECK (length(digest) = 64),
     mime_type TEXT NOT NULL CHECK (
         mime_type IN ('image/gif', 'image/jpeg', 'image/png', 'image/webp')
     ),
@@ -14,6 +14,9 @@ CREATE TABLE media (
     FOREIGN KEY (entity_id) REFERENCES entities(id),
     FOREIGN KEY (last_change_id) REFERENCES change_log(id)
 ) STRICT;
+
+CREATE INDEX media_digest_idx
+    ON media(digest);
 
 CREATE TABLE concept_media (
     concept_id TEXT NOT NULL,
@@ -47,6 +50,21 @@ WHEN NOT EXISTS (
 )
 BEGIN
     SELECT RAISE(ABORT, 'media requires a matching active entity');
+END;
+
+CREATE TRIGGER enforce_active_media_digest_uniqueness
+BEFORE INSERT ON media
+FOR EACH ROW
+WHEN EXISTS (
+    SELECT 1
+    FROM media AS existing_media
+    INNER JOIN entities AS existing_entities
+        ON existing_entities.id = existing_media.entity_id
+    WHERE existing_media.digest = NEW.digest
+        AND existing_entities.deleted_at IS NULL
+)
+BEGIN
+    SELECT RAISE(ABORT, 'active media digest must be unique');
 END;
 
 CREATE TRIGGER prevent_media_update

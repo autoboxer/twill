@@ -6,6 +6,7 @@ use super::error::LibraryError;
 pub const RICH_CONTENT_SCHEMA_VERSION: u32 = 1;
 pub const TEMPLATE_SCHEMA_VERSION: u32 = 1;
 pub const CSS_SNIPPET_SCHEMA_VERSION: u32 = 1;
+pub const AUTHORING_DRAFT_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -275,6 +276,63 @@ pub struct SetCssSnippetEnabledInput {
     pub enabled: bool,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AuthoringDraftKind {
+    Concept,
+    Template,
+}
+
+impl AuthoringDraftKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Concept => "concept",
+            Self::Template => "template",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AuthoringDraftTargetStatus {
+    Current,
+    Changed,
+    Missing,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AuthoringDraftLocator {
+    pub kind: AuthoringDraftKind,
+    pub target_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpsertAuthoringDraftInput {
+    pub kind: AuthoringDraftKind,
+    pub target_id: Option<String>,
+    pub schema_version: u32,
+    pub base_change_id: Option<String>,
+    pub payload: Value,
+    #[serde(default)]
+    pub media_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthoringDraft {
+    pub kind: AuthoringDraftKind,
+    pub target_id: Option<String>,
+    pub schema_version: u32,
+    pub base_change_id: Option<String>,
+    pub payload: Value,
+    pub media_ids: Vec<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub target_status: AuthoringDraftTargetStatus,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SchedulingSettings {
@@ -428,6 +486,7 @@ pub struct TemplateDetail {
     pub name: String,
     pub created_at: i64,
     pub updated_at: i64,
+    pub last_change_id: String,
     pub content: TemplateContent,
 }
 
@@ -531,6 +590,7 @@ pub struct ConceptDetail {
     pub title: String,
     pub created_at: i64,
     pub updated_at: i64,
+    pub last_change_id: String,
     pub archived: bool,
     pub decks: Vec<NamedItem>,
     pub tags: Vec<NamedItem>,

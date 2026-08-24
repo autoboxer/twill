@@ -16,6 +16,11 @@ import {
   cloneConceptContent,
   createEmptyConceptContent
 } from '../rich-content/schema';
+import {
+  cloneConceptEditorState,
+  conceptRetrievalFormId,
+  createConceptEditorState
+} from '../drafts/conceptDraft';
 
 const CLOZE_ID = 'cloze';
 const IMAGE_OCCLUSION_ID = 'image-occlusion';
@@ -33,9 +38,17 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  disabled: {
+    type: Boolean,
+    default: false
+  },
   error: {
     type: String,
     default: ''
+  },
+  editorState: {
+    type: Object,
+    default: null
   },
   loading: {
     type: Boolean,
@@ -60,7 +73,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits([ 'cancel', 'manage', 'submit' ]);
+const emit = defineEmits([ 'cancel', 'change', 'manage', 'submit' ]);
 
 const form = reactive({
   content: createEmptyConceptContent(),
@@ -194,12 +207,12 @@ const imageOcclusionError = computed( () => {
 });
 
 const removedRetrievalForms = computed( () => {
-  if ( !props.concept ) {
+  if ( props.mode !== 'edit' || !props.concept ) {
     return [];
   }
 
   return props.concept.cards.filter( ( card ) => {
-    const id = retrievalFormId( card );
+    const id = conceptRetrievalFormId( card );
 
     return !form.retrievalFormIds.includes( id );
   });
@@ -207,37 +220,23 @@ const removedRetrievalForms = computed( () => {
 
 const submitLabel = computed( () => props.mode === 'edit' ? 'Save changes' : 'Create concept' );
 
-watch( () => props.concept, ( concept ) => {
-  const typeAnswer = concept?.cards.find( ( card ) => card.retrievalKind === 'typeAnswer' );
+watch([ () => props.concept, () => props.editorState ], ([ concept, editorState ]) => {
+  const state = editorState
+    ? cloneConceptEditorState( editorState )
+    : createConceptEditorState( concept );
 
-  form.content = cloneConceptContent( concept?.content );
-  form.title = concept?.title ?? '';
-  form.deckIds = concept?.decks.map( ( deck ) => deck.id ) ?? [];
-  form.retrievalFormIds = concept
-    ? [ ...new Set( concept.cards.map( retrievalFormId ) ) ]
-    : [ STANDARD_RECALL_ID ];
-  form.tagIds = concept?.tags.map( ( tag ) => tag.id ) ?? [];
-  form.typeAnswerAcceptedAnswers = typeAnswer?.typeAnswer?.acceptedAnswers.length
-    ? [ ...typeAnswer.typeAnswer.acceptedAnswers ]
-    : [ '' ];
+  form.content = state.content;
+  form.title = state.title;
+  form.deckIds = state.deckIds;
+  form.retrievalFormIds = state.retrievalFormIds;
+  form.tagIds = state.tagIds;
+  form.typeAnswerAcceptedAnswers = state.typeAnswerAcceptedAnswers;
   submitted.value = false;
 }, { immediate: true });
 
-function retrievalFormId( card ) {
-  if ( card.retrievalKind === 'cloze' ) {
-    return CLOZE_ID;
-  }
-
-  if ( card.retrievalKind === 'typeAnswer' ) {
-    return TYPE_ANSWER_ID;
-  }
-
-  if ( card.retrievalKind === 'imageOcclusion' ) {
-    return IMAGE_OCCLUSION_ID;
-  }
-
-  return card.template?.id ?? STANDARD_RECALL_ID;
-}
+watch( form, () => {
+  emit( 'change', cloneConceptEditorState( form ) );
+}, { deep: true });
 
 function updateRetrievalForms( retrievalFormIds ) {
   if (
@@ -282,6 +281,10 @@ function removeAcceptedAnswer( index ) {
 }
 
 function submit() {
+  if ( props.disabled ) {
+    return;
+  }
+
   submitted.value = true;
 
   if (
@@ -357,6 +360,7 @@ defineExpose({ submit });
           autofocus
           class="w-full"
           size="xl"
+          :disabled="disabled"
         />
       </UFormField>
     </section>
@@ -378,6 +382,7 @@ defineExpose({ submit });
           label="Prompt"
           placeholder="Write a prompt"
           :cloze-enabled="clozeSelected"
+          :disabled="disabled"
           :image-occlusion-enabled="imageOcclusionSelected"
         />
 
@@ -385,6 +390,7 @@ defineExpose({ submit });
           v-model="form.content.answer"
           label="Answer"
           placeholder="Write an answer"
+          :disabled="disabled"
         />
 
         <ClozePreview
@@ -418,6 +424,7 @@ defineExpose({ submit });
         variant="card"
         class="retrieval-form-options"
         :ui="{ legend: 'sr-only' }"
+        :disabled="disabled"
         required
         @update:model-value="updateRetrievalForms"
       />
@@ -474,6 +481,7 @@ defineExpose({ submit });
                 autocomplete="off"
                 class="accepted-answer-row__input"
                 size="lg"
+                :disabled="disabled"
               />
 
               <UButton
@@ -484,7 +492,7 @@ defineExpose({ submit });
                 variant="ghost"
                 size="lg"
                 square
-                :disabled="form.typeAnswerAcceptedAnswers.length === 1"
+                :disabled="disabled || form.typeAnswerAcceptedAnswers.length === 1"
                 @click="removeAcceptedAnswer( index )"
               />
             </div>
@@ -497,7 +505,7 @@ defineExpose({ submit });
           leading-icon="i-lucide-plus"
           color="neutral"
           variant="subtle"
-          :disabled="atAcceptedAnswerLimit"
+          :disabled="disabled || atAcceptedAnswerLimit"
           class="type-answer-settings__add"
           @click="addAcceptedAnswer"
         />
@@ -528,6 +536,7 @@ defineExpose({ submit });
           leading-icon="i-lucide-settings-2"
           color="neutral"
           variant="subtle"
+          :disabled="disabled"
           @click="emit( 'manage' )"
         >
           Manage
@@ -545,6 +554,7 @@ defineExpose({ submit });
             value-key="value"
             variant="card"
             class="editor-checkboxes"
+            :disabled="disabled"
           />
 
           <p
@@ -565,6 +575,7 @@ defineExpose({ submit });
             value-key="value"
             variant="card"
             class="editor-checkboxes"
+            :disabled="disabled"
           />
 
           <p
@@ -582,7 +593,7 @@ defineExpose({ submit });
         type="button"
         color="neutral"
         variant="link"
-        :disabled="loading"
+        :disabled="disabled"
         @click="emit( 'cancel' )"
       >
         Cancel
@@ -591,6 +602,7 @@ defineExpose({ submit });
       <UButton
         type="submit"
         leading-icon="i-lucide-check"
+        :disabled="disabled"
         :loading="loading"
         :aria-keyshortcuts="saveCommand.ariaKeyshortcuts"
         :title="saveCommand.tooltip"

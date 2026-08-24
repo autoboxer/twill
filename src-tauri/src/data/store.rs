@@ -148,6 +148,7 @@ impl LocalDataStore {
     ) -> DataResult<Self> {
         configure_connection(&connection)?;
         schema::ensure_current(&mut connection)?;
+        cleanup_pending_media_files(&connection, &data_directory)?;
 
         Ok(Self {
             connection: Mutex::new(connection),
@@ -165,6 +166,62 @@ impl LocalDataStore {
     fn open_in_memory() -> DataResult<Self> {
         Self::from_connection(Connection::open_in_memory()?, PathBuf::new())
     }
+}
+
+fn cleanup_pending_media_files(
+    connection: &Connection,
+    data_directory: &Path,
+) -> DataResult<()> {
+    let mut statement = connection.prepare(
+        "SELECT digest, file_extension
+        FROM device_media_cleanup
+        ORDER BY digest",
+    )?;
+    let pending = statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    for (digest, extension) in pending {
+        let active: bool = connection.query_row(
+            "SELECT EXISTS (
+                SELECT 1
+                FROM media
+                INNER JOIN entities ON entities.id = media.entity_id
+                WHERE media.digest = ?1
+                    AND entities.deleted_at IS NULL
+            )",
+            [&digest],
+            |row| row.get(0),
+        )?;
+
+        if active {
+            connection.execute(
+                "DELETE FROM device_media_cleanup WHERE digest = ?1",
+                [&digest],
+            )?;
+            continue;
+        }
+
+        let path = data_directory
+            .join(MEDIA_DIRECTORY_NAME)
+            .join(format!("{digest}.{extension}"));
+        let removed = match fs::remove_file(path) {
+            Ok(()) => true,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+            Err(_) => false,
+        };
+
+        if removed {
+            connection.execute(
+                "DELETE FROM device_media_cleanup WHERE digest = ?1",
+                [&digest],
+            )?;
+        }
+    }
+
+    Ok(())
 }
 
 impl WriteTransaction<'_> {
