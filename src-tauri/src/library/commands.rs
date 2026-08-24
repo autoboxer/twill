@@ -8,12 +8,13 @@ use crate::library::{
     ConceptLibrary, CreateConceptInput, CreateCssSnippetInput, CreateNamedItemInput,
     CreateTemplateInput, CssSnippet, CssSnippetCatalog, CssSnippetLibrary,
     DevicePreferences, EntityIdInput, LibraryError, LibrarySnapshot,
-    OrganizationSummary, RecordReviewInput, RenameNamedItemInput, ReviewOutcome,
-    SchedulingSettings, SetAppearancePreferencesInput, SetConceptArchivedInput,
-    SetCssSnippetEnabledInput, SetGradingModeInput, SetStartupDestinationInput,
-    StudyQueue, TemplateCatalog, TemplateContent, TemplateDetail, TemplateLibrary,
-    UpdateConceptInput, UpdateCssSnippetInput, UpdateSchedulingSettingsInput,
-    UpdateTemplateInput, UpsertAuthoringDraftInput,
+    OrganizationSummary, RecordReviewInput, RenameNamedItemInput, ReverseReviewInput,
+    ReviewOutcome, ReviewReversalOutcome, SchedulingSettings,
+    SetAppearancePreferencesInput, SetConceptArchivedInput, SetCssSnippetEnabledInput,
+    SetGradingModeInput, SetStartupDestinationInput, StudyQueue, TemplateCatalog,
+    TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
+    UpdateCssSnippetInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
+    UpsertAuthoringDraftInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -45,6 +46,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::DuplicateAcceptedAnswer => "validation",
             LibraryError::DuplicateName { .. }
             | LibraryError::CardNotDue { .. }
+            | LibraryError::ReviewNotReversible
             | LibraryError::TemplateInUse { .. } => "conflict",
             LibraryError::ConceptNotFound(_)
             | LibraryError::OrganizationNotFound { .. }
@@ -52,7 +54,8 @@ impl From<LibraryError> for CommandError {
             | LibraryError::CssSnippetNotFound(_)
             | LibraryError::InvalidSelection { .. }
             | LibraryError::MediaNotFound(_)
-            | LibraryError::CardNotFound(_) => "notFound",
+            | LibraryError::CardNotFound(_)
+            | LibraryError::ReviewNotFound(_) => "notFound",
             LibraryError::Data(_)
             | LibraryError::Database(_)
             | LibraryError::Json(_)
@@ -126,6 +129,16 @@ pub(crate) fn record_review(
 ) -> CommandResult<ReviewOutcome> {
     ConceptLibrary::new(local_data.inner())
         .record_review(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn reverse_review(
+    local_data: State<'_, LocalDataStore>,
+    input: ReverseReviewInput,
+) -> CommandResult<ReviewReversalOutcome> {
+    ConceptLibrary::new(local_data.inner())
+        .reverse_review(input)
         .map_err(Into::into)
 }
 

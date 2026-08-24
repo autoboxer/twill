@@ -29,6 +29,7 @@ pub fn run() {
             library::commands::get_concept,
             library::commands::get_study_queue,
             library::commands::record_review,
+            library::commands::reverse_review,
             library::commands::get_device_preferences,
             library::commands::set_grading_mode,
             library::commands::set_startup_destination,

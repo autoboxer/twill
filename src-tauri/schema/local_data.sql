@@ -18,6 +18,7 @@ CREATE TABLE entities (
             'tag',
             'template',
             'review',
+            'review_reversal',
             'media',
             'css_snippet'
         )

@@ -543,6 +543,12 @@ pub struct RecordReviewInput {
     pub rating: ReviewRating,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReverseReviewInput {
+    pub review_id: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewOutcome {
@@ -553,6 +559,15 @@ pub struct ReviewOutcome {
     pub reviewed_at: i64,
     pub due_at: i64,
     pub scheduled_interval_days: f64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewReversalOutcome {
+    pub reversal_id: String,
+    pub review_id: String,
+    pub card_id: String,
+    pub reversed_at: i64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
