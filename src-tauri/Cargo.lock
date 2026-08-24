@@ -4035,6 +4035,7 @@ name = "twill"
 version = "0.1.0"
 dependencies = [
  "ammonia",
+ "cssparser 0.37.0",
  "fsrs",
  "image",
  "rusqlite",

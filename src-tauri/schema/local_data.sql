@@ -11,7 +11,16 @@ CREATE TABLE change_log (
 CREATE TABLE entities (
     id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36),
     kind TEXT NOT NULL CHECK (
-        kind IN ('concept', 'card', 'deck', 'tag', 'template', 'review', 'media')
+        kind IN (
+            'concept',
+            'card',
+            'deck',
+            'tag',
+            'template',
+            'review',
+            'media',
+            'css_snippet'
+        )
     ),
     created_at INTEGER NOT NULL CHECK (created_at >= 0),
     updated_at INTEGER NOT NULL CHECK (updated_at >= created_at),

@@ -30,6 +30,9 @@ pub enum LibraryError {
     #[error("template {0} was not found")]
     TemplateNotFound(String),
 
+    #[error("CSS snippet {0} was not found")]
+    CssSnippetNotFound(String),
+
     #[error("selected {kind} {id} was not found")]
     InvalidSelection { kind: &'static str, id: String },
 
@@ -44,6 +47,9 @@ pub enum LibraryError {
         field: &'static str,
         message: String,
     },
+
+    #[error("CSS {message}")]
+    InvalidCss { message: String },
 
     #[error("the selected image cannot be larger than {maximum_megabytes} MB")]
     ImageTooLarge { maximum_megabytes: usize },

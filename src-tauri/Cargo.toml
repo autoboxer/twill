@@ -13,6 +13,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 ammonia = "4.1"
+cssparser = { version = "0.37", default-features = false }
 fsrs = "=6.6.1"
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
