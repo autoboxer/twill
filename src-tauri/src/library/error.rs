@@ -105,6 +105,15 @@ pub enum LibraryError {
     #[error("accepted answers must be unique")]
     DuplicateAcceptedAnswer,
 
+    #[error("explain cards require at least one key point")]
+    MissingExplainKeyPoint,
+
+    #[error("explain cards cannot have more than {maximum} key points")]
+    TooManyExplainKeyPoints { maximum: usize },
+
+    #[error("explain card key points must be unique")]
+    DuplicateExplainKeyPoint,
+
     #[error("this template is used by {retrieval_form_count} active retrieval forms")]
     TemplateInUse { retrieval_form_count: i64 },
 

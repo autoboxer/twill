@@ -39,6 +39,7 @@ let renderRequestSequence = 0;
 
 const side = computed( () => props.answerRevealed ? 'answer' : 'front' );
 const isCloze = computed( () => props.card.retrievalKind === 'cloze' );
+const isExplain = computed( () => props.card.retrievalKind === 'explain' );
 const isImageOcclusion = computed( () => (
   props.card.retrievalKind === 'imageOcclusion'
 ) );
@@ -61,12 +62,16 @@ const visualAppearance = computed( () => {
 });
 const visibleBlocks = computed( () => {
   if ( isStandard.value ) {
-    return props.answerRevealed
-      ? [
-        { type: 'field', field: 'prompt' },
-        { type: 'field', field: 'answer' }
-      ]
-      : [{ type: 'field', field: 'prompt' }];
+    const blocks = [{ type: 'field', field: 'prompt' }];
+
+    if (
+      props.answerRevealed
+      && ( !isExplain.value || richDocumentHasContent( props.card.content.answer ) )
+    ) {
+      blocks.push({ type: 'field', field: 'answer' });
+    }
+
+    return blocks;
   }
 
   return props.card.template.content.visual[ side.value ].blocks;
@@ -109,6 +114,12 @@ function fieldValue( field ) {
   }
 
   return props.card.content[ field ];
+}
+
+function richDocumentHasContent( document ) {
+  return document.content?.some( ( node ) => (
+    node.type !== 'paragraph' || Boolean( node.content?.length )
+  ) );
 }
 
 function focus() {

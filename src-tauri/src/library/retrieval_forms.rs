@@ -4,18 +4,68 @@ use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use crate::library::{
-    ClozeSettings, ImageOcclusionSettings, LibraryError, LibraryResult, RetrievalFormKind,
-    TypeAnswerSettings,
+    ClozeSettings, ExplainSettings, ImageOcclusionSettings, LibraryError,
+    LibraryResult, RetrievalFormKind, TypeAnswerSettings,
 };
 
 const MAXIMUM_ACCEPTED_ANSWERS: usize = 20;
 const MAXIMUM_ACCEPTED_ANSWER_LENGTH: usize = 500;
+const MAXIMUM_EXPLAIN_KEY_POINTS: usize = 12;
+const MAXIMUM_EXPLAIN_KEY_POINT_LENGTH: usize = 280;
 const EMPTY_CONFIGURATION: &str = "{}";
 
 pub(crate) struct ParsedRetrievalFormConfiguration {
     pub cloze: Option<ClozeSettings>,
+    pub explain: Option<ExplainSettings>,
     pub image_occlusion: Option<ImageOcclusionSettings>,
     pub type_answer: Option<TypeAnswerSettings>,
+}
+
+pub(crate) fn normalize_explain(
+    settings: Option<ExplainSettings>,
+) -> LibraryResult<Option<ExplainSettings>> {
+    let Some(settings) = settings else {
+        return Ok(None);
+    };
+
+    if settings.key_points.is_empty() {
+        return Err(LibraryError::MissingExplainKeyPoint);
+    }
+
+    if settings.key_points.len() > MAXIMUM_EXPLAIN_KEY_POINTS {
+        return Err(LibraryError::TooManyExplainKeyPoints {
+            maximum: MAXIMUM_EXPLAIN_KEY_POINTS,
+        });
+    }
+
+    let mut key_points = Vec::with_capacity(settings.key_points.len());
+    let mut normalized_points = HashSet::new();
+
+    for key_point in settings.key_points {
+        let key_point = key_point.split_whitespace().collect::<Vec<_>>().join(" ");
+
+        if key_point.is_empty() {
+            return Err(LibraryError::MissingExplainKeyPoint);
+        }
+
+        if key_point.chars().count() > MAXIMUM_EXPLAIN_KEY_POINT_LENGTH {
+            return Err(LibraryError::ValueTooLong {
+                field: "Explain key point",
+                maximum: MAXIMUM_EXPLAIN_KEY_POINT_LENGTH,
+            });
+        }
+
+        if !normalized_points.insert(key_point.to_lowercase()) {
+            return Err(LibraryError::DuplicateExplainKeyPoint);
+        }
+
+        key_points.push(key_point);
+    }
+
+    Ok(Some(ExplainSettings {
+        focus: settings.focus,
+        key_points,
+    }))
 }
 
 pub(crate) fn normalize_type_answer(
@@ -65,18 +115,24 @@ pub(crate) fn normalize_type_answer(
 pub(crate) fn retrieval_form_configuration(
     retrieval_kind: RetrievalFormKind,
     type_answer: Option<&TypeAnswerSettings>,
+    explain: Option<&ExplainSettings>,
     cloze: Option<&ClozeSettings>,
     image_occlusion: Option<&ImageOcclusionSettings>,
 ) -> LibraryResult<String> {
-    match (retrieval_kind, type_answer, cloze, image_occlusion) {
-        (RetrievalFormKind::Recall, None, None, None) => Ok(EMPTY_CONFIGURATION.to_owned()),
-        (RetrievalFormKind::TypeAnswer, Some(settings), None, None) => {
+    match (retrieval_kind, type_answer, explain, cloze, image_occlusion) {
+        (RetrievalFormKind::Recall, None, None, None, None) => {
+            Ok(EMPTY_CONFIGURATION.to_owned())
+        }
+        (RetrievalFormKind::TypeAnswer, Some(settings), None, None, None) => {
             serde_json::to_string(settings).map_err(Into::into)
         }
-        (RetrievalFormKind::Cloze, None, Some(settings), None) => {
+        (RetrievalFormKind::Explain, None, Some(settings), None, None) => {
             serde_json::to_string(settings).map_err(Into::into)
         }
-        (RetrievalFormKind::ImageOcclusion, None, None, Some(settings)) => {
+        (RetrievalFormKind::Cloze, None, None, Some(settings), None) => {
+            serde_json::to_string(settings).map_err(Into::into)
+        }
+        (RetrievalFormKind::ImageOcclusion, None, None, None, Some(settings)) => {
             serde_json::to_string(settings).map_err(Into::into)
         }
         _ => Err(LibraryError::InvalidRetrievalForm),
@@ -107,6 +163,16 @@ pub(crate) fn parse_retrieval_form_configuration(
                 ..empty_parsed_configuration()
             })
         }
+        RetrievalFormKind::Explain => {
+            let settings = serde_json::from_str(configuration)?;
+            let settings = normalize_explain(Some(settings))
+                .map_err(|_| LibraryError::InvalidRetrievalForm)?;
+
+            Ok(ParsedRetrievalFormConfiguration {
+                explain: settings,
+                ..empty_parsed_configuration()
+            })
+        }
         RetrievalFormKind::Cloze => {
             let settings: ClozeSettings = serde_json::from_str(configuration)?;
 
@@ -133,6 +199,7 @@ pub(crate) fn parse_retrieval_form_configuration(
 fn empty_parsed_configuration() -> ParsedRetrievalFormConfiguration {
     ParsedRetrievalFormConfiguration {
         cloze: None,
+        explain: None,
         image_occlusion: None,
         type_answer: None,
     }

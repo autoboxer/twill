@@ -23,11 +23,33 @@ import {
 } from '../drafts/conceptDraft';
 
 const CLOZE_ID = 'cloze';
+const EXPLAIN_ID = 'explain';
 const IMAGE_OCCLUSION_ID = 'image-occlusion';
 const STANDARD_RECALL_ID = 'standard-recall';
 const TYPE_ANSWER_ID = 'type-answer';
 const MAXIMUM_ACCEPTED_ANSWERS = 20;
 const MAXIMUM_ACCEPTED_ANSWER_LENGTH = 500;
+const MAXIMUM_EXPLAIN_KEY_POINTS = 12;
+const MAXIMUM_EXPLAIN_KEY_POINT_LENGTH = 280;
+
+const explainFocusItems = [
+  {
+    label: 'Why',
+    value: 'why'
+  },
+  {
+    label: 'How',
+    value: 'how'
+  },
+  {
+    label: 'Cause and effect',
+    value: 'causeAndEffect'
+  },
+  {
+    label: 'Compare and contrast',
+    value: 'compareAndContrast'
+  }
+];
 
 const props = defineProps({
   concept: {
@@ -78,6 +100,8 @@ const emit = defineEmits([ 'cancel', 'change', 'manage', 'submit' ]);
 const form = reactive({
   content: createEmptyConceptContent(),
   deckIds: [],
+  explainFocus: 'why',
+  explainKeyPoints: [ '' ],
   retrievalFormIds: [ STANDARD_RECALL_ID ],
   tagIds: [],
   typeAnswerAcceptedAnswers: [ '' ],
@@ -108,6 +132,11 @@ const retrievalFormItems = computed( () => [
     value: TYPE_ANSWER_ID
   },
   {
+    description: 'Builds an explanation and compares it with key points.',
+    label: 'Explain',
+    value: EXPLAIN_ID
+  },
+  {
     description: 'Hides marked Prompt passages and reveals them in context.',
     label: 'Cloze',
     value: CLOZE_ID
@@ -136,6 +165,7 @@ const titleError = computed( () => {
 const titleLength = computed( () => Array.from( form.title ).length );
 const clozeGroups = computed( () => collectClozeGroups( form.content.prompt ) );
 const clozeSelected = computed( () => form.retrievalFormIds.includes( CLOZE_ID ) );
+const explainSelected = computed( () => form.retrievalFormIds.includes( EXPLAIN_ID ) );
 const imageOcclusionGroups = computed( () => (
   collectImageOcclusionGroups( form.content.prompt )
 ) );
@@ -145,6 +175,9 @@ const imageOcclusionSelected = computed( () => (
 const typeAnswerSelected = computed( () => form.retrievalFormIds.includes( TYPE_ANSWER_ID ) );
 const atAcceptedAnswerLimit = computed( () => (
   form.typeAnswerAcceptedAnswers.length >= MAXIMUM_ACCEPTED_ANSWERS
+) );
+const atExplainKeyPointLimit = computed( () => (
+  form.explainKeyPoints.length >= MAXIMUM_EXPLAIN_KEY_POINTS
 ) );
 const acceptedAnswerErrors = computed( () => {
   if ( !submitted.value || !typeAnswerSelected.value ) {
@@ -176,6 +209,37 @@ const acceptedAnswerErrors = computed( () => {
 });
 const acceptedAnswersValid = computed( () => (
   acceptedAnswerErrors.value.every( ( error ) => !error )
+) );
+const explainKeyPointErrors = computed( () => {
+  if ( !submitted.value || !explainSelected.value ) {
+    return form.explainKeyPoints.map( () => '' );
+  }
+
+  const normalizedPoints = form.explainKeyPoints.map( normalizeExplainKeyPoint );
+
+  return normalizedPoints.map( ( keyPoint, index ) => {
+    if ( !keyPoint ) {
+      return 'Enter a key point.';
+    }
+
+    if ( Array.from( keyPoint ).length > MAXIMUM_EXPLAIN_KEY_POINT_LENGTH ) {
+      return `Key points cannot exceed ${ MAXIMUM_EXPLAIN_KEY_POINT_LENGTH } characters.`;
+    }
+
+    const comparisonPoint = keyPoint.toLowerCase();
+    const duplicateIndex = normalizedPoints.findIndex( ( candidate ) => (
+      candidate.toLowerCase() === comparisonPoint
+    ) );
+
+    if ( duplicateIndex !== index ) {
+      return 'Key points must be unique.';
+    }
+
+    return '';
+  });
+});
+const explainKeyPointsValid = computed( () => (
+  explainKeyPointErrors.value.every( ( error ) => !error )
 ) );
 
 const retrievalFormsError = computed( () => {
@@ -228,6 +292,8 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
   form.content = state.content;
   form.title = state.title;
   form.deckIds = state.deckIds;
+  form.explainFocus = state.explainFocus;
+  form.explainKeyPoints = state.explainKeyPoints;
   form.retrievalFormIds = state.retrievalFormIds;
   form.tagIds = state.tagIds;
   form.typeAnswerAcceptedAnswers = state.typeAnswerAcceptedAnswers;
@@ -264,6 +330,14 @@ function acceptedAnswerLength( answer ) {
   return Array.from( normalizeAcceptedAnswer( answer ) ).length;
 }
 
+function normalizeExplainKeyPoint( keyPoint ) {
+  return keyPoint.trim().replace( /\s+/gu, ' ' );
+}
+
+function explainKeyPointLength( keyPoint ) {
+  return Array.from( normalizeExplainKeyPoint( keyPoint ) ).length;
+}
+
 function addAcceptedAnswer() {
   if ( atAcceptedAnswerLimit.value ) {
     return;
@@ -280,6 +354,22 @@ function removeAcceptedAnswer( index ) {
   form.typeAnswerAcceptedAnswers.splice( index, 1 );
 }
 
+function addExplainKeyPoint() {
+  if ( atExplainKeyPointLimit.value ) {
+    return;
+  }
+
+  form.explainKeyPoints.push( '' );
+}
+
+function removeExplainKeyPoint( index ) {
+  if ( form.explainKeyPoints.length === 1 ) {
+    return;
+  }
+
+  form.explainKeyPoints.splice( index, 1 );
+}
+
 function submit() {
   if ( props.disabled ) {
     return;
@@ -292,6 +382,7 @@ function submit() {
     || !form.retrievalFormIds.length
     || Boolean( clozeError.value )
     || Boolean( imageOcclusionError.value )
+    || !explainKeyPointsValid.value
     || !acceptedAnswersValid.value
   ) {
     return;
@@ -302,14 +393,22 @@ function submit() {
       acceptedAnswers: form.typeAnswerAcceptedAnswers.map( normalizeAcceptedAnswer )
     }
     : null;
+  const explain = explainSelected.value
+    ? {
+      focus: form.explainFocus,
+      keyPoints: form.explainKeyPoints.map( normalizeExplainKeyPoint )
+    }
+    : null;
 
   emit( 'submit', {
     content: cloneConceptContent( form.content ),
     deckIds: [ ...form.deckIds ],
+    explain,
     includeStandardRecall: form.retrievalFormIds.includes( STANDARD_RECALL_ID ),
     tagIds: [ ...form.tagIds ],
     templateIds: form.retrievalFormIds.filter( ( id ) => (
       id !== CLOZE_ID
+      && id !== EXPLAIN_ID
       && id !== IMAGE_OCCLUSION_ID
       && id !== STANDARD_RECALL_ID
       && id !== TYPE_ANSWER_ID
@@ -508,6 +607,83 @@ defineExpose({ submit });
           :disabled="disabled || atAcceptedAnswerLimit"
           class="type-answer-settings__add"
           @click="addAcceptedAnswer"
+        />
+      </div>
+
+      <div
+        v-if="explainSelected"
+        class="explain-settings"
+      >
+        <div class="explain-settings__heading">
+          <div>
+            <h3>Explanation guide</h3>
+            <p>The Prompt sets the topic. Key points provide the comparison after reveal.</p>
+          </div>
+
+          <span>
+            {{ form.explainKeyPoints.length }} / {{ MAXIMUM_EXPLAIN_KEY_POINTS }}
+          </span>
+        </div>
+
+        <UFormField
+          label="Prompt focus"
+          description="Choose the kind of explanation to build."
+          required
+        >
+          <USelect
+            v-model="form.explainFocus"
+            :items="explainFocusItems"
+            value-key="value"
+            class="explain-settings__focus"
+            size="lg"
+            :disabled="disabled"
+          />
+        </UFormField>
+
+        <div class="explain-key-point-list">
+          <UFormField
+            v-for="( keyPoint, index ) in form.explainKeyPoints"
+            :key="index"
+            :label="`Key point ${ index + 1 }`"
+            :error="explainKeyPointErrors[ index ] || false"
+            :hint="`${ explainKeyPointLength( keyPoint ) } / ${ MAXIMUM_EXPLAIN_KEY_POINT_LENGTH }`"
+            required
+          >
+            <div class="explain-key-point-row">
+              <UTextarea
+                v-model="form.explainKeyPoints[ index ]"
+                placeholder="Expected idea"
+                :rows="2"
+                autoresize
+                :maxrows="5"
+                class="explain-key-point-row__input"
+                :disabled="disabled"
+              />
+
+              <UButton
+                type="button"
+                icon="i-lucide-x"
+                :aria-label="`Remove key point ${ index + 1 }`"
+                color="neutral"
+                variant="ghost"
+                size="lg"
+                square
+                :disabled="disabled || form.explainKeyPoints.length === 1"
+                @click="removeExplainKeyPoint( index )"
+              />
+            </div>
+          </UFormField>
+        </div>
+
+        <UButton
+          type="button"
+          label="Add key point"
+          leading-icon="i-lucide-plus"
+          color="neutral"
+          variant="subtle"
+          :disabled="disabled || atExplainKeyPointLimit"
+          class="explain-settings__add"
+          @click="addExplainKeyPoint"
         />
       </div>
 

@@ -201,6 +201,7 @@ mod tests {
                 content: ConceptContent::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap()
@@ -269,6 +270,7 @@ mod tests {
                 content: changed.content.clone(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();

@@ -976,7 +976,8 @@ button {
   gap: 0.65rem;
 }
 
-.type-answer-settings {
+.type-answer-settings,
+.explain-settings {
   display: grid;
   padding: 1.25rem;
   gap: 1rem;
@@ -985,28 +986,32 @@ button {
   border-radius: calc(var(--ui-radius) + 0.25rem);
 }
 
-.type-answer-settings__heading {
+.type-answer-settings__heading,
+.explain-settings__heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.type-answer-settings__heading h3 {
+.type-answer-settings__heading h3,
+.explain-settings__heading h3 {
   margin: 0;
   color: var(--ui-text-highlighted);
   font-size: 0.95rem;
   font-weight: 650;
 }
 
-.type-answer-settings__heading p {
+.type-answer-settings__heading p,
+.explain-settings__heading p {
   margin: 0.3rem 0 0;
   color: var(--ui-text-muted);
   font-size: 0.84rem;
   line-height: 1.5;
 }
 
-.type-answer-settings__heading > span {
+.type-answer-settings__heading > span,
+.explain-settings__heading > span {
   flex: 0 0 auto;
   color: var(--ui-text-dimmed);
   font-size: 0.78rem;
@@ -1018,7 +1023,18 @@ button {
   gap: 0.85rem;
 }
 
+.explain-key-point-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
 .accepted-answer-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.explain-key-point-row {
   display: flex;
   align-items: flex-start;
   gap: 0.4rem;
@@ -1029,7 +1045,17 @@ button {
   flex: 1;
 }
 
-.type-answer-settings__add {
+.explain-key-point-row__input {
+  min-width: 0;
+  flex: 1;
+}
+
+.explain-settings__focus {
+  width: min(100%, 20rem);
+}
+
+.type-answer-settings__add,
+.explain-settings__add {
   justify-self: start;
 }
 
@@ -2080,6 +2106,133 @@ button {
 
 .type-answer-response__input {
   width: 100%;
+}
+
+.explain-response {
+  display: grid;
+  padding: 1.25rem;
+  gap: 1.25rem;
+  background: var(--ui-bg-muted);
+  border: 1px solid var(--ui-border);
+  border-radius: 0.6rem;
+}
+
+.explain-response__heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.explain-response__heading > span {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  color: var(--ui-primary);
+  background: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-bg));
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 28%, var(--ui-border));
+  border-radius: 0.45rem;
+  place-items: center;
+}
+
+.explain-response__heading svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.explain-response__heading strong,
+.explain-comparison__heading strong {
+  color: var(--ui-text-highlighted);
+  font-size: 0.95rem;
+  font-weight: 670;
+}
+
+.explain-response__heading p,
+.explain-comparison__heading p {
+  margin: 0.2rem 0 0;
+  color: var(--ui-text-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.explain-response__input {
+  width: 100%;
+}
+
+.explain-comparison {
+  display: grid;
+  gap: 1rem;
+  outline: none;
+}
+
+.explain-comparison:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 0.5rem;
+  border-radius: 0.35rem;
+}
+
+.explain-comparison__content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.explain-comparison__content > div {
+  min-width: 0;
+  padding: 0.9rem;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 0.5rem;
+}
+
+.explain-comparison__content > div > span {
+  display: block;
+  margin-bottom: 0.65rem;
+  color: var(--ui-text-dimmed);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.explain-comparison__attempt,
+.explain-comparison__empty {
+  margin: 0;
+  color: var(--ui-text-highlighted);
+  font-size: 0.95rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.explain-comparison__empty {
+  color: var(--ui-text-muted);
+}
+
+.explain-comparison ul {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  gap: 0.65rem;
+  list-style: none;
+}
+
+.explain-comparison li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.5rem;
+  color: var(--ui-text-highlighted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.explain-comparison li > svg {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.2rem;
+  color: var(--ui-primary);
 }
 
 .type-answer-comparison {
@@ -4230,7 +4383,12 @@ button {
     padding: 1rem;
   }
 
-  .type-answer-comparison__rows {
+  .explain-response {
+    padding: 1rem;
+  }
+
+  .type-answer-comparison__rows,
+  .explain-comparison__content {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -4303,7 +4461,8 @@ button {
     flex-direction: column;
   }
 
-  .type-answer-settings {
+  .type-answer-settings,
+  .explain-settings {
     padding: 1rem;
   }
 

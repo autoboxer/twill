@@ -45,7 +45,10 @@ impl From<LibraryError> for CommandError {
             | LibraryError::MissingRetrievalForm
             | LibraryError::MissingAcceptedAnswer
             | LibraryError::TooManyAcceptedAnswers { .. }
-            | LibraryError::DuplicateAcceptedAnswer => "validation",
+            | LibraryError::DuplicateAcceptedAnswer
+            | LibraryError::MissingExplainKeyPoint
+            | LibraryError::TooManyExplainKeyPoints { .. }
+            | LibraryError::DuplicateExplainKeyPoint => "validation",
             LibraryError::DuplicateName { .. }
             | LibraryError::CardNotDue { .. }
             | LibraryError::ReviewNotReversible

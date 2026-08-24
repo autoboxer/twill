@@ -56,6 +56,7 @@ CREATE TABLE cards (
         retrieval_kind IN (
             'recall',
             'type_answer',
+            'explain',
             'cloze',
             'image_occlusion'
         )
