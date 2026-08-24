@@ -1,8 +1,10 @@
 <script setup>
 import { AnimatePresence, m } from 'motion-v';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import ContentState from '../components/ContentState.vue';
+import DeferredEditQueue from '../components/DeferredEditQueue.vue';
 import PageHeader from '../components/PageHeader.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
@@ -16,7 +18,12 @@ import {
   useCommands
 } from '../composables/useCommands';
 import { useDevicePreferences } from '../composables/useDevicePreferences';
+import { useDeferredEdits } from '../composables/useDeferredEdits';
 import { useRecallSession } from '../composables/useRecallSession';
+import {
+  preserveStudySession,
+  takeStudySession
+} from '../study/resume';
 import { normalizeTypeAnswer } from '../type-answer/comparison';
 
 const {
@@ -30,11 +37,17 @@ const {
   setGradingMode
 } = useDevicePreferences();
 const {
+  getDeferredEdits,
+  queueDeferredEdit,
+  removeDeferredEdit
+} = useDeferredEdits();
+const {
   answerRevealed,
   assess,
   begin,
   completedCount,
   correctionPending,
+  createSnapshot,
   currentCard,
   hasCards,
   isComplete,
@@ -44,13 +57,20 @@ const {
   ratingCounts,
   revealAnswer,
   restoreLastAssessment,
+  restoreSnapshot,
   totalCards
 } = useRecallSession();
 const commands = useCommands();
+const router = useRouter();
 
 const assessmentError = ref( '' );
 const assessmentPending = ref( false );
 const completionHeading = ref( null );
+const deferredEdits = ref([]);
+const deferredError = ref( '' );
+const deferredLoading = ref( true );
+const deferredPendingConceptId = ref( '' );
+const deferredStartPending = ref( false );
 const gradingMode = ref( 'simple' );
 const gradingModeError = ref( '' );
 const gradingModePending = ref( false );
@@ -61,6 +81,8 @@ const pendingAssessment = ref( '' );
 const recoveryError = ref( '' );
 const revealButton = ref( null );
 const sessionGradingMode = ref( 'simple' );
+const sessionChangedConceptIds = ref( new Set() );
+const sessionResumeNotice = ref( '' );
 const studyContent = ref( null );
 const studyMedia = ref([]);
 const totalAvailableCards = ref( 0 );
@@ -68,6 +90,7 @@ const typeAnswerResponse = ref( null );
 const typedResponse = ref( '' );
 const undoPending = ref( false );
 let loadRequestSequence = 0;
+let deferredRequestSequence = 0;
 let viewActive = true;
 const pausedResponses = new Map();
 
@@ -143,10 +166,27 @@ const gradingModeLocked = computed( () => {
 
 const canUndoLastGrade = computed( () => (
   Boolean( lastAssessment.value )
+  && !sessionChangedConceptIds.value.has( lastAssessment.value?.conceptId )
   && !correctionPending.value
   && !assessmentPending.value
   && !gradingModePending.value
   && !undoPending.value
+) );
+
+const queuedConceptIds = computed( () => new Set(
+  deferredEdits.value.map( ( item ) => item.conceptId )
+) );
+
+const currentConceptQueued = computed( () => (
+  queuedConceptIds.value.has( currentCard.value?.conceptId )
+) );
+
+const canQueueCurrentConcept = computed( () => (
+  Boolean( currentCard.value )
+  && !currentConceptQueued.value
+  && !deferredLoading.value
+  && !deferredPendingConceptId.value
+  && !deferredStartPending.value
 ) );
 
 const gradingOptions = computed( () => {
@@ -213,8 +253,22 @@ const nextReviewDescription = computed( () => {
   return `Next review: ${ formattedTime }`;
 });
 
-onMounted( () => {
-  loadStudyQueue();
+onMounted( async () => {
+  const resumableSession = takeStudySession();
+
+  if ( resumableSession ) {
+    restoreStudySession( resumableSession );
+    initialLoading.value = false;
+    sessionResumeNotice.value = resumableSession.changedConceptIds?.length
+      ? 'Your completed session was restored. Edited concepts will use their new content next time; their earlier grades cannot be undone here.'
+      : 'Your study session was restored.';
+    await nextTick();
+    focusCurrentState();
+  } else {
+    void loadStudyQueue();
+  }
+
+  void loadDeferredEditQueue();
 });
 
 onBeforeUnmount( () => {
@@ -238,6 +292,11 @@ const revealCommand = useCommandHandler( COMMAND_IDS.studyReveal, {
 const undoCommand = useCommandHandler( COMMAND_IDS.studyUndoLastGrade, {
   enabled: canUndoLastGrade,
   execute: undoLastGrade
+});
+
+const queueEditCommand = useCommandHandler( COMMAND_IDS.studyQueueEdit, {
+  enabled: canQueueCurrentConcept,
+  execute: queueCurrentConcept
 });
 
 registerGradingCommand(
@@ -281,6 +340,7 @@ async function loadStudyQueue() {
   clearError();
   gradingModeError.value = '';
   loadError.value = '';
+  sessionResumeNotice.value = '';
   initialLoading.value = true;
 
   try {
@@ -296,6 +356,7 @@ async function loadStudyQueue() {
     studyMedia.value = queue.media;
     begin( queue.cards );
     pausedResponses.clear();
+    sessionChangedConceptIds.value = new Set();
     typedResponse.value = '';
     gradingMode.value = preferences.gradingMode;
     nextDueAt.value = queue.nextDueAt;
@@ -308,6 +369,110 @@ async function loadStudyQueue() {
   } finally {
     if ( request === loadRequestSequence ) {
       initialLoading.value = false;
+    }
+  }
+}
+
+async function loadDeferredEditQueue() {
+  const request = ++deferredRequestSequence;
+
+  deferredError.value = '';
+  deferredLoading.value = true;
+
+  try {
+    const queue = await getDeferredEdits();
+
+    if ( request === deferredRequestSequence && viewActive ) {
+      deferredEdits.value = queue.items;
+    }
+  } catch ( cause ) {
+    if ( request === deferredRequestSequence && viewActive ) {
+      deferredError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( request === deferredRequestSequence && viewActive ) {
+      deferredLoading.value = false;
+    }
+  }
+}
+
+async function queueCurrentConcept() {
+  const card = currentCard.value;
+
+  if ( !card || !canQueueCurrentConcept.value ) {
+    return;
+  }
+
+  deferredError.value = '';
+  deferredPendingConceptId.value = card.conceptId;
+
+  try {
+    await queueDeferredEdit( card.conceptId, card.conceptLastChangeId );
+    await loadDeferredEditQueue();
+  } catch ( cause ) {
+    if ( viewActive ) {
+      deferredError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      deferredPendingConceptId.value = '';
+    }
+  }
+}
+
+async function removeQueuedConcept( conceptId ) {
+  if ( deferredPendingConceptId.value || deferredStartPending.value ) {
+    return;
+  }
+
+  deferredError.value = '';
+  deferredPendingConceptId.value = conceptId;
+
+  try {
+    await removeDeferredEdit( conceptId );
+    await loadDeferredEditQueue();
+  } catch ( cause ) {
+    if ( viewActive ) {
+      deferredError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      deferredPendingConceptId.value = '';
+    }
+  }
+}
+
+async function startDeferredEditing() {
+  const firstItem = deferredEdits.value[ 0 ];
+
+  if (
+    deferredStartPending.value
+    || deferredPendingConceptId.value
+    || firstItem?.targetStatus !== 'current'
+  ) {
+    return;
+  }
+
+  deferredStartPending.value = true;
+  deferredError.value = '';
+
+  if ( hasCards.value ) {
+    preserveStudySession( createStudySessionSnapshot() );
+  }
+
+  try {
+    await router.push({
+      name: 'concept-edit',
+      params: { conceptId: firstItem.conceptId },
+      query: { deferred: '1' }
+    });
+  } catch ( cause ) {
+    if ( viewActive ) {
+      deferredError.value = cause.message || 'Queued editing could not be started.';
+    }
+  } finally {
+    if ( viewActive ) {
+      deferredStartPending.value = false;
     }
   }
 }
@@ -542,6 +707,36 @@ function takePausedResponse( cardId ) {
   return response;
 }
 
+function createStudySessionSnapshot() {
+  return {
+    changedConceptIds: [ ...sessionChangedConceptIds.value ],
+    gradingMode: gradingMode.value,
+    nextDueAt: nextDueAt.value,
+    pausedResponses: [ ...pausedResponses.entries() ],
+    recall: createSnapshot(),
+    sessionGradingMode: sessionGradingMode.value,
+    studyMedia: [ ...studyMedia.value ],
+    totalAvailableCards: totalAvailableCards.value,
+    typedResponse: typedResponse.value
+  };
+}
+
+function restoreStudySession( session ) {
+  restoreSnapshot( session.recall );
+  gradingMode.value = session.gradingMode;
+  nextDueAt.value = session.nextDueAt;
+  sessionGradingMode.value = session.sessionGradingMode;
+  sessionChangedConceptIds.value = new Set( session.changedConceptIds ?? []);
+  studyMedia.value = [ ...session.studyMedia ];
+  totalAvailableCards.value = session.totalAvailableCards;
+  typedResponse.value = session.typedResponse;
+  pausedResponses.clear();
+
+  for ( const [ cardId, response ] of session.pausedResponses ) {
+    pausedResponses.set( cardId, response );
+  }
+}
+
 function studyCardName( card ) {
   if ( card.retrievalKind === 'cloze' ) {
     return 'Cloze';
@@ -615,6 +810,26 @@ function focusButton( button ) {
       icon="i-lucide-circle-alert"
       color="error"
       variant="soft"
+    />
+
+    <UAlert
+      v-if="sessionResumeNotice"
+      class="study-mode-error"
+      title="Study session restored"
+      :description="sessionResumeNotice"
+      icon="i-lucide-history"
+      color="primary"
+      variant="subtle"
+    />
+
+    <UAlert
+      v-if="deferredError"
+      class="study-mode-error"
+      title="Queued edits need attention"
+      :description="deferredError"
+      icon="i-lucide-circle-alert"
+      color="error"
+      variant="subtle"
     />
 
     <ContentState
@@ -755,6 +970,18 @@ function focusButton( button ) {
         variant="subtle"
       />
 
+      <UAlert
+        v-if="deferredEdits.length && !isComplete"
+        class="study-deferred-notice"
+        :title="`${ deferredEdits.length } ${ deferredEdits.length === 1
+          ? 'concept'
+          : 'concepts' } queued for editing`"
+        description="Queued edits will be ready when this study session ends."
+        icon="i-lucide-list-checks"
+        color="neutral"
+        variant="subtle"
+      />
+
       <AnimatePresence
         mode="wait"
         :initial="false"
@@ -780,16 +1007,22 @@ function focusButton( button ) {
             </div>
 
             <UButton
-              :to="{
-                name: 'concept-edit',
-                params: { conceptId: currentCard.conceptId }
-              }"
-              leading-icon="i-lucide-pencil"
+              :leading-icon="currentConceptQueued
+                ? 'i-lucide-check'
+                : 'i-lucide-list-plus'"
               color="neutral"
-              variant="link"
+              :variant="currentConceptQueued ? 'subtle' : 'link'"
               size="sm"
+              class="study-edit-later"
+              :disabled="currentConceptQueued
+                || deferredLoading
+                || Boolean( deferredPendingConceptId )"
+              :loading="deferredPendingConceptId === currentCard.conceptId"
+              :aria-keyshortcuts="queueEditCommand.ariaKeyshortcuts"
+              :title="queueEditCommand.tooltip"
+              @click="queueCurrentConcept"
             >
-              Edit concept
+              {{ currentConceptQueued ? 'Queued' : 'Edit later' }}
             </UButton>
           </header>
 
@@ -937,6 +1170,15 @@ function focusButton( button ) {
             </div>
           </dl>
 
+          <DeferredEditQueue
+            v-if="deferredEdits.length"
+            :items="deferredEdits"
+            :pending-concept-id="deferredPendingConceptId"
+            :starting="deferredStartPending"
+            @remove="removeQueuedConcept"
+            @start="startDeferredEditing"
+          />
+
           <div class="study-complete__actions">
             <UButton
               :to="{ name: 'library' }"
@@ -951,5 +1193,14 @@ function focusButton( button ) {
         </m.section>
       </AnimatePresence>
     </div>
+
+    <DeferredEditQueue
+      v-if="!initialLoading && !loadError && !hasCards && deferredEdits.length"
+      :items="deferredEdits"
+      :pending-concept-id="deferredPendingConceptId"
+      :starting="deferredStartPending"
+      @remove="removeQueuedConcept"
+      @start="startDeferredEditing"
+    />
   </div>
 </template>

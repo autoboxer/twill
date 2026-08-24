@@ -20,6 +20,7 @@ import PageHeader from '../components/PageHeader.vue';
 import { COMMAND_IDS } from '../commands/registry';
 import { useAuthoringDraft } from '../composables/useAuthoringDraft';
 import { useCommandHandler } from '../composables/useCommands';
+import { useDeferredEdits } from '../composables/useDeferredEdits';
 import {
   conceptLibraryErrorMessage,
   useConceptLibrary
@@ -31,6 +32,7 @@ import {
   conceptEditorStateKey,
   createConceptEditorState
 } from '../drafts/conceptDraft';
+import { markStudyConceptChanged } from '../study/resume';
 
 const route = useRoute();
 const router = useRouter();
@@ -65,11 +67,19 @@ const {
   start: startDraft,
   status: draftStatus
 } = useAuthoringDraft( 'concept' );
+const {
+  getDeferredEdits,
+  removeDeferredEdit
+} = useDeferredEdits();
 
 const concept = ref( null );
 const conceptForm = ref( null );
 const conflictMessage = ref( '' );
 const draftCleanupError = ref( '' );
+const deferredEditItem = ref( null );
+const deferredEditQueue = ref([]);
+const deferredWorkflowError = ref( '' );
+const deferredWorkflowPending = ref( false );
 const editorResolved = ref( false );
 const editorState = ref( null );
 const initialLoading = ref( true );
@@ -102,17 +112,48 @@ let loadRequestSequence = 0;
 
 const conceptId = computed( () => route.params.conceptId ?? '' );
 const isEditing = computed( () => Boolean( conceptId.value ) );
+const isDeferredEdit = computed( () => (
+  isEditing.value && route.query.deferred === '1'
+) );
+const deferredTargetUnavailable = computed( () => (
+  isDeferredEdit.value
+  && deferredEditItem.value
+  && deferredEditItem.value.targetStatus !== 'current'
+) );
 const savesExistingConcept = computed( () => isEditing.value && !saveAsCopy.value );
 const editorDisabled = computed( () => (
-  isPending.value || saveInProgress.value || Boolean( savedConcept.value )
+  isPending.value
+  || saveInProgress.value
+  || deferredWorkflowPending.value
+  || Boolean( savedConcept.value )
 ) );
 const pageTitle = computed( () => {
   if ( saveAsCopy.value ) {
     return 'Create concept copy';
   }
 
+  if ( isDeferredEdit.value ) {
+    return 'Edit queued concept';
+  }
+
   return isEditing.value ? 'Edit concept' : 'Create concept';
 });
+const deferredProgressLabel = computed( () => {
+  const position = deferredEditQueue.value.findIndex( ( item ) => (
+    item.conceptId === conceptId.value
+  ) );
+
+  if ( position < 0 ) {
+    return 'Queued edit';
+  }
+
+  return `Queued edit ${ position + 1 } of ${ deferredEditQueue.value.length }`;
+});
+const deferredUnavailableDescription = computed( () => ({
+  changed: 'This concept changed after it was queued, so Twill did not open it for editing.',
+  archived: 'This concept was archived after it was queued, so Twill did not open it for editing.',
+  missing: 'This concept was removed after it was queued, so Twill did not open it for editing.'
+})[ deferredEditItem.value?.targetStatus ] ?? 'This queued concept is no longer available for editing.' );
 const draftStatusMessage = computed( () => {
   if ( draftStatus.value === 'dirty' ) {
     return 'Waiting to save draft…';
@@ -163,8 +204,10 @@ const saveCommand = useCommandHandler( COMMAND_IDS.conceptSave, {
   enabled: computed( () => (
     !initialLoading.value
     && !loadError.value
+    && !deferredTargetUnavailable.value
     && !isPending.value
     && !saveInProgress.value
+    && !deferredWorkflowPending.value
     && !recoveryOpen.value
     && !savedConcept.value
   ) ),
@@ -192,12 +235,20 @@ onBeforeUnmount( () => {
 async function loadData() {
   const request = ++loadRequestSequence;
   const requestedConceptId = conceptId.value;
+  const requestedDeferredEdit = Boolean(
+    requestedConceptId && route.query.deferred === '1'
+  );
 
+  allowNavigation = false;
   clearError();
   clearLoadError();
   clearTemplateLoadError();
   conflictMessage.value = '';
   draftCleanupError.value = '';
+  deferredEditItem.value = null;
+  deferredEditQueue.value = [];
+  deferredWorkflowError.value = '';
+  deferredWorkflowPending.value = false;
   editorResolved.value = false;
   isModified.value = false;
   initialLoading.value = true;
@@ -215,15 +266,42 @@ async function loadData() {
         .then( ( value ) => ({ value }) )
         .catch( ( cause ) => ({ cause }) )
       : Promise.resolve({ value: null });
-    const [ snapshot, conceptResult, templateCatalog, existingDraft ] = await Promise.all([
+    const deferredQueueRequest = requestedDeferredEdit
+      ? getDeferredEdits()
+      : Promise.resolve({ items: [] });
+    const [
+      snapshot,
+      conceptResult,
+      templateCatalog,
+      existingDraft,
+      queuedEdits
+    ] = await Promise.all([
       loadLibrary( false ),
       conceptRequest,
       getTemplates(),
-      loadDraft( requestedConceptId || null )
+      loadDraft( requestedConceptId || null ),
+      deferredQueueRequest
     ]);
 
     if ( request !== loadRequestSequence ) {
       return;
+    }
+
+    if ( requestedDeferredEdit ) {
+      deferredEditQueue.value = queuedEdits.items;
+      deferredEditItem.value = queuedEdits.items.find( ( item ) => (
+        item.conceptId === requestedConceptId
+      ) ) ?? null;
+
+      if ( !deferredEditItem.value ) {
+        allowNavigation = true;
+        await router.replace({ name: 'study' });
+        return;
+      }
+
+      if ( deferredEditItem.value.targetStatus !== 'current' ) {
+        return;
+      }
     }
 
     if ( conceptResult.cause && existingDraft?.targetStatus !== 'missing' ) {
@@ -311,6 +389,10 @@ async function saveConcept( input ) {
       ? await updateConcept({ id: conceptId.value, ...input })
       : await createConcept( input );
 
+    if ( isDeferredEdit.value && savesExistingConcept.value ) {
+      markStudyConceptChanged( conceptId.value );
+    }
+
     savedConcept.value = saved;
     await finishSavedConcept();
   } catch {
@@ -335,12 +417,69 @@ async function finishSavedConcept() {
   }
 
   isModified.value = false;
+
+  if ( isDeferredEdit.value ) {
+    await continueDeferredEditing();
+    return;
+  }
+
   allowNavigation = true;
 
   await router.replace({
     name: 'concept-detail',
     params: { conceptId: savedConcept.value.id }
   });
+}
+
+async function continueDeferredEditing() {
+  deferredWorkflowError.value = '';
+  deferredWorkflowPending.value = true;
+
+  try {
+    await removeDeferredEdit( conceptId.value );
+
+    const queue = await getDeferredEdits();
+    const nextItem = queue.items[ 0 ];
+
+    allowNavigation = true;
+
+    if ( nextItem?.targetStatus === 'current' ) {
+      await router.replace({
+        name: 'concept-edit',
+        params: { conceptId: nextItem.conceptId },
+        query: { deferred: '1' }
+      });
+    } else {
+      await router.replace({ name: 'study' });
+    }
+  } catch ( cause ) {
+    allowNavigation = false;
+    deferredWorkflowError.value = conceptLibraryErrorMessage( cause );
+  } finally {
+    deferredWorkflowPending.value = false;
+  }
+}
+
+async function skipDeferredEdit() {
+  if ( deferredWorkflowPending.value ) {
+    return;
+  }
+
+  deferredWorkflowError.value = '';
+  deferredWorkflowPending.value = true;
+
+  try {
+    if ( isModified.value || hasPendingPersistence.value ) {
+      await flushDraft();
+    }
+
+    deferredWorkflowPending.value = false;
+    await continueDeferredEditing();
+  } catch ( cause ) {
+    deferredWorkflowError.value = cause.message
+      || 'The queued edit could not be skipped safely.';
+    deferredWorkflowPending.value = false;
+  }
 }
 
 function conceptStateChanged( state ) {
@@ -474,6 +613,11 @@ function flushHiddenDraft() {
 }
 
 function cancel() {
+  if ( isDeferredEdit.value ) {
+    void skipDeferredEdit();
+    return;
+  }
+
   if ( isEditing.value ) {
     router.push({
       name: 'concept-detail',
@@ -497,9 +641,11 @@ function cancel() {
           leading-icon="i-lucide-arrow-left"
           color="neutral"
           variant="link"
+          :loading="deferredWorkflowPending"
+          :disabled="deferredWorkflowPending"
           @click="cancel"
         >
-          Back
+          {{ isDeferredEdit ? 'Skip' : 'Back' }}
         </UButton>
       </template>
     </PageHeader>
@@ -509,6 +655,22 @@ function cancel() {
       kind="loading"
       title="Loading concept editor"
     />
+
+    <ContentState
+      v-else-if="deferredTargetUnavailable"
+      :title="`${ deferredEditItem.conceptTitle } was skipped`"
+      :description="deferredUnavailableDescription"
+    >
+      <template #actions>
+        <UButton
+          leading-icon="i-lucide-list-restart"
+          :loading="deferredWorkflowPending"
+          @click="skipDeferredEdit"
+        >
+          Remove and continue
+        </UButton>
+      </template>
+    </ContentState>
 
     <ContentState
       v-else-if="loadError"
@@ -526,8 +688,46 @@ function cancel() {
       </template>
     </ContentState>
 
+    <UAlert
+      v-if="!initialLoading && !loadError && isDeferredEdit && !deferredTargetUnavailable"
+      class="deferred-edit-context"
+      :title="deferredProgressLabel"
+      description="Saving or skipping continues to the next queued concept."
+      icon="i-lucide-list-ordered"
+      color="primary"
+      variant="subtle"
+    />
+
+    <UAlert
+      v-if="deferredWorkflowError"
+      class="deferred-edit-context"
+      title="Queued editing needs attention"
+      :description="deferredWorkflowError"
+      icon="i-lucide-circle-alert"
+      color="error"
+      variant="subtle"
+    >
+      <template
+        v-if="savedConcept"
+        #actions
+      >
+        <UButton
+          color="error"
+          variant="subtle"
+          size="sm"
+          :loading="deferredWorkflowPending"
+          @click="finishSavedConcept"
+        >
+          Retry
+        </UButton>
+      </template>
+    </UAlert>
+
     <div
-      v-if="!initialLoading && !loadError && ( draftStatusMessage || draftError || conflictMessage || draftCleanupError )"
+      v-if="!initialLoading
+        && !loadError
+        && !deferredTargetUnavailable
+        && ( draftStatusMessage || draftError || conflictMessage || draftCleanupError )"
       class="draft-persistence"
       aria-live="polite"
     >
@@ -573,7 +773,7 @@ function cancel() {
     </div>
 
     <ConceptForm
-      v-if="!initialLoading && !loadError"
+      v-if="!initialLoading && !loadError && !deferredTargetUnavailable"
       ref="conceptForm"
       :mode="savesExistingConcept ? 'edit' : 'create'"
       :concept="concept"

@@ -221,6 +221,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
         "SELECT
             cards.entity_id,
             concepts.entity_id,
+            concepts.last_change_id,
             concepts.title,
             concepts.content_json,
             cards.retrieval_kind,
@@ -261,11 +262,12 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             row.get::<_, String>(3)?,
             row.get::<_, String>(4)?,
             row.get::<_, String>(5)?,
-            row.get::<_, Option<String>>(6)?,
+            row.get::<_, String>(6)?,
             row.get::<_, Option<String>>(7)?,
             row.get::<_, Option<String>>(8)?,
-            row.get::<_, String>(9)?,
-            row.get::<_, i64>(10)?,
+            row.get::<_, Option<String>>(9)?,
+            row.get::<_, String>(10)?,
+            row.get::<_, i64>(11)?,
         ))
     })?;
     let card_rows = rows.collect::<Result<Vec<_>, _>>()?;
@@ -279,6 +281,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             let (
                 id,
                 concept_id,
+                concept_last_change_id,
                 concept_title,
                 content,
                 retrieval_kind,
@@ -312,6 +315,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             Ok(StudyCard {
                 id,
                 concept_id,
+                concept_last_change_id,
                 concept_title,
                 content: serde_json::from_str(&content)?,
                 retrieval_kind,

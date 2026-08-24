@@ -2,6 +2,7 @@ pub(crate) mod commands;
 mod authoring_drafts;
 mod content;
 mod css_snippets;
+mod deferred_edits;
 mod error;
 mod media;
 mod models;
@@ -13,6 +14,7 @@ mod templates;
 
 pub use authoring_drafts::AuthoringDraftLibrary;
 pub use css_snippets::CssSnippetLibrary;
+pub use deferred_edits::DeferredEditLibrary;
 pub use error::{LibraryError, LibraryResult};
 pub use models::{
     AppearancePreferences, AppearanceTheme, AuthoringDraft, AuthoringDraftKind,
@@ -20,15 +22,16 @@ pub use models::{
     ConceptContent, ConceptDetail, ConceptSummary, CreateConceptInput,
     CreateCssSnippetInput, CreateNamedItemInput, CreateTemplateInput, CssSnippet,
     CssSnippetCatalog, CssSnippetContent, DevicePreferences, EntityIdInput,
-    GradingMode, ImageOcclusionSettings, LibrarySnapshot, MediaSummary,
-    MotionPreference, NamedItem, OrganizationSummary, ReadingFont, ReadingTextSize,
-    RecordReviewInput, RenameNamedItemInput, RetrievalFormKind, ReverseReviewInput,
-    ReviewOutcome, ReviewRating, ReviewReversalOutcome, SchedulingSettings,
-    SchedulingState, SetAppearancePreferencesInput, SetConceptArchivedInput,
-    SetCssSnippetEnabledInput, SetGradingModeInput, SetStartupDestinationInput,
-    StartupDestination, StudyCard, StudyQueue, StudyTemplate, TemplateBlock,
-    TemplateCatalog, TemplateContent, TemplateDetail, TemplateSummary,
-    TypeAnswerSettings, UpdateConceptInput, UpdateCssSnippetInput,
+    DeferredConceptEdit, DeferredEditQueue, DeferredEditTargetStatus, GradingMode,
+    ImageOcclusionSettings, LibrarySnapshot, MediaSummary, MotionPreference,
+    NamedItem, OrganizationSummary, QueueDeferredEditInput, ReadingFont,
+    ReadingTextSize, RecordReviewInput, RenameNamedItemInput, RetrievalFormKind,
+    ReverseReviewInput, ReviewOutcome, ReviewRating, ReviewReversalOutcome,
+    SchedulingSettings, SchedulingState, SetAppearancePreferencesInput,
+    SetConceptArchivedInput, SetCssSnippetEnabledInput, SetGradingModeInput,
+    SetStartupDestinationInput, StartupDestination, StudyCard, StudyQueue,
+    StudyTemplate, TemplateBlock, TemplateCatalog, TemplateContent, TemplateDetail,
+    TemplateSummary, TypeAnswerSettings, UpdateConceptInput, UpdateCssSnippetInput,
     UpdateSchedulingSettingsInput, UpdateTemplateInput, UpsertAuthoringDraftInput,
     AUTHORING_DRAFT_SCHEMA_VERSION, CSS_SNIPPET_SCHEMA_VERSION,
     RICH_CONTENT_SCHEMA_VERSION, TEMPLATE_SCHEMA_VERSION,

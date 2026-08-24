@@ -7,9 +7,10 @@ use crate::library::{
     AuthoringDraft, AuthoringDraftLibrary, AuthoringDraftLocator, ConceptDetail,
     ConceptLibrary, CreateConceptInput, CreateCssSnippetInput, CreateNamedItemInput,
     CreateTemplateInput, CssSnippet, CssSnippetCatalog, CssSnippetLibrary,
-    DevicePreferences, EntityIdInput, LibraryError, LibrarySnapshot,
-    OrganizationSummary, RecordReviewInput, RenameNamedItemInput, ReverseReviewInput,
-    ReviewOutcome, ReviewReversalOutcome, SchedulingSettings,
+    DeferredConceptEdit, DeferredEditLibrary, DeferredEditQueue, DevicePreferences,
+    EntityIdInput, LibraryError, LibrarySnapshot, OrganizationSummary,
+    QueueDeferredEditInput, RecordReviewInput, RenameNamedItemInput,
+    ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome, SchedulingSettings,
     SetAppearancePreferencesInput, SetConceptArchivedInput, SetCssSnippetEnabledInput,
     SetGradingModeInput, SetStartupDestinationInput, StudyQueue, TemplateCatalog,
     TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
@@ -35,6 +36,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidTemplate { .. }
             | LibraryError::InvalidCss { .. }
             | LibraryError::InvalidAuthoringDraft { .. }
+            | LibraryError::InvalidDeferredEdit { .. }
             | LibraryError::ImageTooLarge { .. }
             | LibraryError::UnsupportedImage
             | LibraryError::ImageDimensionsTooLarge
@@ -139,6 +141,35 @@ pub(crate) fn reverse_review(
 ) -> CommandResult<ReviewReversalOutcome> {
     ConceptLibrary::new(local_data.inner())
         .reverse_review(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_deferred_edits(
+    local_data: State<'_, LocalDataStore>,
+) -> CommandResult<DeferredEditQueue> {
+    DeferredEditLibrary::new(local_data.inner())
+        .queue()
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn queue_deferred_edit(
+    local_data: State<'_, LocalDataStore>,
+    input: QueueDeferredEditInput,
+) -> CommandResult<DeferredConceptEdit> {
+    DeferredEditLibrary::new(local_data.inner())
+        .queue_concept(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn remove_deferred_edit(
+    local_data: State<'_, LocalDataStore>,
+    input: EntityIdInput,
+) -> CommandResult<()> {
+    DeferredEditLibrary::new(local_data.inner())
+        .remove_concept(&input.id)
         .map_err(Into::into)
 }
 

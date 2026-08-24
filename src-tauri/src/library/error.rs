@@ -54,6 +54,9 @@ pub enum LibraryError {
     #[error("authoring draft {message}")]
     InvalidAuthoringDraft { message: String },
 
+    #[error("deferred edit {message}")]
+    InvalidDeferredEdit { message: String },
+
     #[error("the selected image cannot be larger than {maximum_megabytes} MB")]
     ImageTooLarge { maximum_megabytes: usize },
 

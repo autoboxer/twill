@@ -69,6 +69,7 @@ export function useRecallSession() {
 
     assessments.value.push({
       cardId: currentCard.value.id,
+      conceptId: currentCard.value.conceptId,
       rating,
       response,
       reviewId
@@ -112,12 +113,35 @@ export function useRecallSession() {
     ratingCounts.value = emptyRatingCounts();
   }
 
+  function createSnapshot() {
+    return {
+      answerRevealed: answerRevealed.value,
+      assessments: assessments.value.map( ( assessment ) => ({ ...assessment }) ),
+      cards: [ ...cards.value ],
+      correctionPending: correctionPending.value,
+      currentIndex: currentIndex.value,
+      ratingCounts: { ...ratingCounts.value }
+    };
+  }
+
+  function restoreSnapshot( snapshot ) {
+    answerRevealed.value = snapshot.answerRevealed;
+    assessments.value = snapshot.assessments.map( ( assessment ) => ({
+      ...assessment
+    }) );
+    cards.value = [ ...snapshot.cards ];
+    correctionPending.value = snapshot.correctionPending;
+    currentIndex.value = snapshot.currentIndex;
+    ratingCounts.value = { ...snapshot.ratingCounts };
+  }
+
   return {
     answerRevealed,
     assess,
     begin,
     completedCount,
     correctionPending,
+    createSnapshot,
     currentCard,
     hasCards,
     isComplete,
@@ -126,6 +150,7 @@ export function useRecallSession() {
     progress,
     ratingCounts,
     revealAnswer,
+    restoreSnapshot,
     restoreLastAssessment,
     totalCards
   };
