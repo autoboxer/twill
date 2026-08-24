@@ -24,6 +24,23 @@ valid rule from hiding, moving, or resizing important controls. Keep a snippet
 disabled while editing if the current source makes the interface difficult to
 use.
 
+## Recover from a broken layout
+
+On desktop, choose **Twill → Disable CSS Snippets and Reload**. This native menu
+action disables every snippet on the current device and reloads Twill without
+depending on visible or clickable application content.
+
+To inspect the app without changing saved enablement, launch Twill with
+`--safe-mode`. When running from the repository, pass the option through the
+Tauri CLI:
+
+```sh
+npm run tauri -- dev -- -- --safe-mode
+```
+
+Safe mode applies only to that process. The next normal launch applies snippets
+that remain enabled.
+
 ## Stable variables
 
 The following custom properties are Twill's supported theme contract:

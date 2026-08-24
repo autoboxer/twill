@@ -18,6 +18,7 @@ const {
   loadError,
   loading,
   ready,
+  safeMode,
   setSnippetEnabled,
   snippets,
   updateSnippet
@@ -247,6 +248,16 @@ function formatSourceSize( source ) {
       icon="i-lucide-shield-check"
       color="neutral"
       variant="subtle"
+    />
+
+    <UAlert
+      v-if="safeMode"
+      description="Enabled snippets are not being applied for this launch. Saved enablement has not changed."
+      title="Safe mode is active"
+      icon="i-lucide-shield-alert"
+      color="warning"
+      variant="subtle"
+      class="css-snippet-manager__safe-mode"
     />
 
     <div

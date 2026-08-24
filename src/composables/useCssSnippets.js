@@ -11,6 +11,7 @@ const loadError = ref( '' );
 const loading = ref( false );
 const pendingOperations = ref( 0 );
 const ready = ref( false );
+const safeMode = ref( false );
 
 let initializationPromise = null;
 let loadRequestSequence = 0;
@@ -33,13 +34,17 @@ export function initializeCssSnippets({ force = false } = {}) {
   loading.value = true;
   loadError.value = '';
 
-  initializationPromise = invoke( 'get_css_snippets' )
-    .then( ( catalog ) => {
+  initializationPromise = Promise.all([
+    invoke( 'get_css_snippets' ),
+    invoke( 'get_css_snippet_runtime_state' )
+  ])
+    .then( ([ catalog, runtime ]) => {
       if ( request !== loadRequestSequence ) {
         return false;
       }
 
       snippets.value = sortSnippets( catalog.snippets );
+      safeMode.value = runtime.safeMode;
       applyEnabledSnippets();
 
       return true;
@@ -72,6 +77,7 @@ export function useCssSnippets() {
     loadError: readonly( loadError ),
     loading: readonly( loading ),
     ready: readonly( ready ),
+    safeMode: readonly( safeMode ),
     setSnippetEnabled,
     snippets: readonly( snippets ),
     updateSnippet
@@ -199,10 +205,12 @@ function ensureStyleElement() {
 }
 
 function applyEnabledSnippets() {
-  const source = snippets.value
-    .filter( ( snippet ) => snippet.enabled )
-    .map( ( snippet ) => snippet.content.source )
-    .join( '\n\n' );
+  const source = safeMode.value
+    ? ''
+    : snippets.value
+      .filter( ( snippet ) => snippet.enabled )
+      .map( ( snippet ) => snippet.content.source )
+      .join( '\n\n' );
 
   ensureStyleElement().textContent = source;
   window.dispatchEvent( new CustomEvent( 'twill-css-snippets-changed' ) );
