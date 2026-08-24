@@ -1,11 +1,21 @@
 pub mod data;
 mod library;
+mod runtime;
 
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default().manage(
+        runtime::RuntimeRecoveryState::from_args(std::env::args_os()),
+    );
+
+    #[cfg(desktop)]
+    let builder = builder
+        .menu(runtime::build_menu)
+        .on_menu_event(runtime::handle_menu_event);
+
+    builder
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;
             let local_data = data::LocalDataStore::open(data_directory)?;
@@ -35,6 +45,13 @@ pub fn run() {
             library::commands::create_tag,
             library::commands::rename_tag,
             library::commands::delete_tag,
+            library::commands::get_css_snippets,
+            library::commands::create_css_snippet,
+            library::commands::update_css_snippet,
+            library::commands::set_css_snippet_enabled,
+            library::commands::disable_all_css_snippets,
+            library::commands::delete_css_snippet,
+            runtime::get_css_snippet_runtime_state,
             library::commands::get_templates,
             library::commands::get_template,
             library::commands::create_template,

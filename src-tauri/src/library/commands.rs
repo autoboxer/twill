@@ -4,12 +4,14 @@ use tauri::State;
 
 use crate::data::LocalDataStore;
 use crate::library::{
-    ConceptDetail, ConceptLibrary, CreateConceptInput, CreateNamedItemInput, CreateTemplateInput,
-    DevicePreferences, EntityIdInput, LibraryError, LibrarySnapshot, OrganizationSummary,
-    RecordReviewInput, RenameNamedItemInput, ReviewOutcome, SchedulingSettings,
-    SetAppearancePreferencesInput, SetConceptArchivedInput, SetGradingModeInput,
-    SetStartupDestinationInput, StudyQueue, TemplateCatalog, TemplateContent, TemplateDetail,
-    TemplateLibrary, UpdateConceptInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
+    ConceptDetail, ConceptLibrary, CreateConceptInput, CreateCssSnippetInput,
+    CreateNamedItemInput, CreateTemplateInput, CssSnippet, CssSnippetCatalog,
+    CssSnippetLibrary, DevicePreferences, EntityIdInput, LibraryError, LibrarySnapshot,
+    OrganizationSummary, RecordReviewInput, RenameNamedItemInput, ReviewOutcome,
+    SchedulingSettings, SetAppearancePreferencesInput, SetConceptArchivedInput,
+    SetCssSnippetEnabledInput, SetGradingModeInput, SetStartupDestinationInput, StudyQueue,
+    TemplateCatalog, TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
+    UpdateCssSnippetInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -28,6 +30,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::ValueTooLong { .. }
             | LibraryError::InvalidContent { .. }
             | LibraryError::InvalidTemplate { .. }
+            | LibraryError::InvalidCss { .. }
             | LibraryError::ImageTooLarge { .. }
             | LibraryError::UnsupportedImage
             | LibraryError::ImageDimensionsTooLarge
@@ -43,6 +46,7 @@ impl From<LibraryError> for CommandError {
             LibraryError::ConceptNotFound(_)
             | LibraryError::OrganizationNotFound { .. }
             | LibraryError::TemplateNotFound(_)
+            | LibraryError::CssSnippetNotFound(_)
             | LibraryError::InvalidSelection { .. }
             | LibraryError::MediaNotFound(_)
             | LibraryError::CardNotFound(_) => "notFound",
@@ -277,6 +281,64 @@ pub(crate) fn delete_tag(
 ) -> CommandResult<()> {
     ConceptLibrary::new(local_data.inner())
         .delete_tag(&input.id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_css_snippets(
+    local_data: State<'_, LocalDataStore>,
+) -> CommandResult<CssSnippetCatalog> {
+    CssSnippetLibrary::new(local_data.inner())
+        .catalog()
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn create_css_snippet(
+    local_data: State<'_, LocalDataStore>,
+    input: CreateCssSnippetInput,
+) -> CommandResult<CssSnippet> {
+    CssSnippetLibrary::new(local_data.inner())
+        .create_snippet(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn update_css_snippet(
+    local_data: State<'_, LocalDataStore>,
+    input: UpdateCssSnippetInput,
+) -> CommandResult<CssSnippet> {
+    CssSnippetLibrary::new(local_data.inner())
+        .update_snippet(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn set_css_snippet_enabled(
+    local_data: State<'_, LocalDataStore>,
+    input: SetCssSnippetEnabledInput,
+) -> CommandResult<CssSnippet> {
+    CssSnippetLibrary::new(local_data.inner())
+        .set_enabled(&input.id, input.enabled)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn disable_all_css_snippets(
+    local_data: State<'_, LocalDataStore>,
+) -> CommandResult<()> {
+    CssSnippetLibrary::new(local_data.inner())
+        .disable_all()
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn delete_css_snippet(
+    local_data: State<'_, LocalDataStore>,
+    input: EntityIdInput,
+) -> CommandResult<()> {
+    CssSnippetLibrary::new(local_data.inner())
+        .delete_snippet(&input.id)
         .map_err(Into::into)
 }
 

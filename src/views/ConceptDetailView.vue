@@ -248,7 +248,10 @@ function schedulingStateDetails( state ) {
 </script>
 
 <template>
-  <div class="page concept-detail-page">
+  <div
+    class="page concept-detail-page"
+    data-twill-page="concept-detail"
+  >
     <PageHeader :title="concept?.title ?? 'Concept'">
       <template #actions>
         <UButton

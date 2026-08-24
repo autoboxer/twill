@@ -132,7 +132,10 @@ function cancel() {
 </script>
 
 <template>
-  <div class="page editor-page">
+  <div
+    class="page editor-page"
+    data-twill-page="concept-editor"
+  >
     <PageHeader :title="pageTitle">
       <template #actions>
         <UButton

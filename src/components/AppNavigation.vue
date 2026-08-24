@@ -9,7 +9,10 @@ const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
 </script>
 
 <template>
-  <aside class="app-navigation">
+  <aside
+    class="app-navigation"
+    data-twill-navigation
+  >
     <RouterLink
       class="app-wordmark"
       to="/study"
@@ -36,6 +39,8 @@ const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
         variant="ghost"
         active-variant="soft"
         class="navigation-link"
+        data-twill-navigation-item
+        :data-twill-destination="item.to.slice( 1 )"
         exact
         block
       />

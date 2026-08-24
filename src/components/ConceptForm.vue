@@ -332,7 +332,10 @@ defineExpose({ submit });
       variant="soft"
     />
 
-    <section class="editor-section">
+    <section
+      class="editor-section"
+      data-twill-editor-section="concept-basics"
+    >
       <div class="editor-section__heading">
         <div>
           <h2>Concept</h2>
@@ -358,7 +361,10 @@ defineExpose({ submit });
       </UFormField>
     </section>
 
-    <section class="editor-section">
+    <section
+      class="editor-section"
+      data-twill-editor-section="concept-content"
+    >
       <div class="editor-section__heading">
         <div>
           <h2>Content</h2>
@@ -393,7 +399,10 @@ defineExpose({ submit });
       </div>
     </section>
 
-    <section class="editor-section">
+    <section
+      class="editor-section"
+      data-twill-editor-section="concept-retrieval-forms"
+    >
       <div class="editor-section__heading">
         <div>
           <h2>Retrieval forms</h2>
@@ -504,7 +513,10 @@ defineExpose({ submit });
       />
     </section>
 
-    <section class="editor-section">
+    <section
+      class="editor-section"
+      data-twill-editor-section="concept-organization"
+    >
       <div class="editor-section__heading">
         <div>
           <h2>Organization</h2>

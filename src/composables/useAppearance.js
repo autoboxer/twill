@@ -46,6 +46,7 @@ export function initializeAppearance() {
   initialized = true;
   applyAppearance( preferences.value );
   reducedMotionQuery.addEventListener( 'change', handleSystemAppearanceChange );
+  window.addEventListener( 'twill-css-snippets-changed', updateThemeColor );
 
   const startingRevision = preferenceRevision;
 

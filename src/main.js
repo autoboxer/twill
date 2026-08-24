@@ -12,6 +12,7 @@ import '@fontsource-variable/source-serif-4/wght-italic.css';
 
 import App from './App.vue';
 import { initializeAppearance } from './composables/useAppearance';
+import { initializeCssSnippets } from './composables/useCssSnippets';
 import router from './router';
 import './styles/main.css';
 
@@ -24,4 +25,5 @@ app.use( ui );
 
 router.isReady().then( () => {
   app.mount( '#app' );
+  void initializeCssSnippets();
 });

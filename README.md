@@ -38,6 +38,11 @@ npm run dev
 
 Browser mode is useful for frontend work, but native persistence and other Tauri commands are unavailable outside the desktop application.
 
+## Customize appearance
+
+Themes, fonts, and motion preferences are available in Settings. For
+validated local CSS overrides, see the [CSS snippet guide](docs/css-snippets.md).
+
 ## Test and check
 
 Run the Rust test suite:
