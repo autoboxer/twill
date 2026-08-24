@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
+import { useAppearance } from '../composables/useAppearance';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
 import { createCustomTemplateDocument } from '../templates/customFrame';
@@ -15,6 +16,7 @@ const props = defineProps({
 });
 
 const { preparePreview } = useTemplateLibrary();
+const { frameAppearance } = useAppearance();
 
 const preparedCustom = ref( cloneTemplateContent().custom );
 const previewError = ref( '' );
@@ -54,12 +56,14 @@ const representativeFields = {
 const frontDocument = computed( () => createCustomTemplateDocument(
   preparedCustom.value.frontHtml,
   preparedCustom.value.css,
-  representativeFields
+  representativeFields,
+  frameAppearance.value
 ) );
 const answerDocument = computed( () => createCustomTemplateDocument(
   preparedCustom.value.answerHtml,
   preparedCustom.value.css,
-  representativeFields
+  representativeFields,
+  frameAppearance.value
 ) );
 
 watch( () => props.content, scheduleCustomPreview, {

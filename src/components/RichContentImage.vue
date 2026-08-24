@@ -451,7 +451,7 @@ function regionCardLabel( region ) {
           <UButton
             type="button"
             color="neutral"
-            variant="ghost"
+            variant="link"
             @click="occlusionDialogOpen = false"
           >
             Cancel

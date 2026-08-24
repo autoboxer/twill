@@ -255,7 +255,7 @@ function schedulingStateDetails( state ) {
           :to="{ name: 'library' }"
           leading-icon="i-lucide-arrow-left"
           color="neutral"
-          variant="ghost"
+          variant="link"
         >
           Library
         </UButton>
@@ -268,7 +268,7 @@ function schedulingStateDetails( state ) {
           }"
           leading-icon="i-lucide-pencil"
           color="neutral"
-          variant="soft"
+          variant="subtle"
         >
           Edit
         </UButton>
@@ -298,7 +298,7 @@ function schedulingStateDetails( state ) {
         <UButton
           :to="{ name: 'library' }"
           color="neutral"
-          variant="soft"
+          variant="link"
         >
           Back to library
         </UButton>
@@ -492,7 +492,7 @@ function schedulingStateDetails( state ) {
         <UButton
           :leading-icon="archiveIcon"
           color="neutral"
-          variant="soft"
+          variant="subtle"
           :loading="isPending"
           @click="toggleArchived"
         >

@@ -481,7 +481,7 @@ function focusButton( button ) {
           :to="{ name: 'library' }"
           leading-icon="i-lucide-library"
           color="neutral"
-          variant="ghost"
+          variant="link"
         >
           Library
         </UButton>
@@ -521,7 +521,7 @@ function focusButton( button ) {
         <UButton
           :to="{ name: 'library' }"
           color="neutral"
-          variant="soft"
+          variant="link"
         >
           Open library
         </UButton>
@@ -546,7 +546,7 @@ function focusButton( button ) {
           :to="{ name: 'library' }"
           leading-icon="i-lucide-library"
           color="neutral"
-          variant="subtle"
+          variant="link"
           size="lg"
         >
           Open library
@@ -573,7 +573,7 @@ function focusButton( button ) {
           :to="{ name: 'library' }"
           leading-icon="i-lucide-library"
           color="neutral"
-          variant="subtle"
+          variant="link"
           size="lg"
         >
           Open library
@@ -636,7 +636,7 @@ function focusButton( button ) {
               }"
               leading-icon="i-lucide-pencil"
               color="neutral"
-              variant="ghost"
+              variant="link"
               size="sm"
             >
               Edit concept
@@ -782,7 +782,7 @@ function focusButton( button ) {
               :to="{ name: 'library' }"
               leading-icon="i-lucide-library"
               color="neutral"
-              variant="soft"
+              variant="link"
               size="lg"
             >
               Open library

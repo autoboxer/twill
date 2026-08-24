@@ -136,7 +136,7 @@ function formattedDate( timestamp ) {
           :to="{ name: 'templates' }"
           leading-icon="i-lucide-layout-template"
           color="neutral"
-          variant="soft"
+          variant="link"
         >
           Templates
         </UButton>
@@ -144,7 +144,7 @@ function formattedDate( timestamp ) {
         <UButton
           leading-icon="i-lucide-settings-2"
           color="neutral"
-          variant="soft"
+          variant="subtle"
           @click="organizationManagerOpen = true"
         >
           Organize
@@ -195,7 +195,7 @@ function formattedDate( timestamp ) {
           v-if="library.archivedCount && !includeArchived"
           leading-icon="i-lucide-archive"
           color="neutral"
-          variant="soft"
+          variant="subtle"
           @click="includeArchived = true"
         >
           Show archived
@@ -299,7 +299,7 @@ function formattedDate( timestamp ) {
           <template #actions>
             <UButton
               color="neutral"
-              variant="soft"
+              variant="subtle"
               @click="selectFilter( 'all' )"
             >
               Clear filter

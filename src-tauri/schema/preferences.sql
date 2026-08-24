@@ -5,6 +5,39 @@ CREATE TABLE device_preferences (
     ),
     startup_destination TEXT NOT NULL CHECK (
         startup_destination IN ('study', 'library')
+    ),
+    theme TEXT NOT NULL CHECK (
+        theme IN (
+            'aubergine',
+            'dracula',
+            'one-dark',
+            'tokyo-night',
+            'catppuccin-mocha',
+            'nord',
+            'gruvbox-dark',
+            'solarized-dark',
+            'github-light',
+            'one-light',
+            'catppuccin-latte',
+            'gruvbox-light',
+            'solarized-light',
+            'rose-pine-dawn'
+        )
+    ),
+    reading_font TEXT NOT NULL CHECK (
+        reading_font IN (
+            'inter',
+            'system_ui',
+            'ibm_plex_sans',
+            'source_serif_4',
+            'jetbrains_mono'
+        )
+    ),
+    reading_text_size TEXT NOT NULL CHECK (
+        reading_text_size IN ('small', 'medium', 'large')
+    ),
+    motion_preference TEXT NOT NULL CHECK (
+        motion_preference IN ('system', 'full', 'reduced')
     )
 ) STRICT;
 
@@ -26,6 +59,18 @@ END;
 INSERT INTO device_preferences (
     singleton,
     grading_mode,
-    startup_destination
+    startup_destination,
+    theme,
+    reading_font,
+    reading_text_size,
+    motion_preference
 )
-VALUES (1, 'simple', 'study');
+VALUES (
+    1,
+    'simple',
+    'study',
+    'aubergine',
+    'inter',
+    'medium',
+    'system'
+);

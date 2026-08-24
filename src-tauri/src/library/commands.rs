@@ -7,10 +7,9 @@ use crate::library::{
     ConceptDetail, ConceptLibrary, CreateConceptInput, CreateNamedItemInput, CreateTemplateInput,
     DevicePreferences, EntityIdInput, LibraryError, LibrarySnapshot, OrganizationSummary,
     RecordReviewInput, RenameNamedItemInput, ReviewOutcome, SchedulingSettings,
-    SetConceptArchivedInput,
-    SetGradingModeInput, SetStartupDestinationInput, StudyQueue, TemplateCatalog,
-    TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
-    UpdateSchedulingSettingsInput, UpdateTemplateInput,
+    SetAppearancePreferencesInput, SetConceptArchivedInput, SetGradingModeInput,
+    SetStartupDestinationInput, StudyQueue, TemplateCatalog, TemplateContent, TemplateDetail,
+    TemplateLibrary, UpdateConceptInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
 };
 
 type CommandResult<T> = Result<T, CommandError>;
@@ -57,6 +56,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidRetrievalForm
             | LibraryError::InvalidGradingMode(_)
             | LibraryError::InvalidStartupDestination(_)
+            | LibraryError::InvalidDevicePreference { .. }
             | LibraryError::InvalidSchedule
             | LibraryError::Scheduler(_) => "storage",
         };
@@ -71,6 +71,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidRetrievalForm
             | LibraryError::InvalidGradingMode(_)
             | LibraryError::InvalidStartupDestination(_)
+            | LibraryError::InvalidDevicePreference { .. }
             | LibraryError::InvalidSchedule
             | LibraryError::Scheduler(_) => {
                 "Local data could not be accessed.".to_owned()
@@ -147,6 +148,16 @@ pub(crate) fn set_startup_destination(
 ) -> CommandResult<DevicePreferences> {
     ConceptLibrary::new(local_data.inner())
         .set_startup_destination(input.startup_destination)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn set_appearance_preferences(
+    local_data: State<'_, LocalDataStore>,
+    input: SetAppearancePreferencesInput,
+) -> CommandResult<DevicePreferences> {
+    ConceptLibrary::new(local_data.inner())
+        .set_appearance_preferences(input.appearance)
         .map_err(Into::into)
 }
 

@@ -227,7 +227,7 @@ function cancel() {
           :to="{ name: 'templates' }"
           leading-icon="i-lucide-arrow-left"
           color="neutral"
-          variant="ghost"
+          variant="link"
         >
           Templates
         </UButton>
@@ -257,7 +257,7 @@ function cancel() {
         <UButton
           :to="{ name: 'templates' }"
           color="neutral"
-          variant="soft"
+          variant="link"
         >
           Back to templates
         </UButton>
@@ -461,7 +461,7 @@ function cancel() {
         <UButton
           type="button"
           color="neutral"
-          variant="ghost"
+          variant="link"
           :disabled="isPending"
           @click="cancel"
         >

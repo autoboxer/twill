@@ -3,6 +3,7 @@ import { AnimatePresence, m } from 'motion-v';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import { createClozePrompt } from '../cloze/documents';
+import { useAppearance } from '../composables/useAppearance';
 import { useConceptLibrary } from '../composables/useConceptLibrary';
 import { createCustomTemplateDocument } from '../templates/customFrame';
 import { templateFields } from '../templates/defaults';
@@ -27,6 +28,7 @@ const props = defineProps({
 });
 
 const { readMedia } = useConceptLibrary();
+const { frameAppearance } = useAppearance();
 
 const customDocuments = ref({ answer: '', front: '' });
 const customPending = ref( false );
@@ -81,7 +83,11 @@ const clozePrompt = computed( () => {
   );
 });
 
-watch( () => props.card, prepareCustomDocuments, { immediate: true });
+watch(
+  [ () => props.card, frameAppearance ],
+  prepareCustomDocuments,
+  { immediate: true }
+);
 
 onBeforeUnmount( () => {
   renderRequestSequence += 1;
@@ -158,8 +164,18 @@ async function prepareCustomDocuments() {
 
     mediaWarning.value = mediaResults.some( ( media ) => !media.url );
     customDocuments.value = {
-      front: createCustomTemplateDocument( custom.frontHtml, custom.css, fields ),
-      answer: createCustomTemplateDocument( custom.answerHtml, custom.css, fields )
+      front: createCustomTemplateDocument(
+        custom.frontHtml,
+        custom.css,
+        fields,
+        frameAppearance.value
+      ),
+      answer: createCustomTemplateDocument(
+        custom.answerHtml,
+        custom.css,
+        fields,
+        frameAppearance.value
+      )
     };
   } catch {
     if ( request === renderRequestSequence ) {

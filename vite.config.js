@@ -10,7 +10,7 @@ export default defineConfig({
   plugins: [
     vue(),
     ui({
-      colorMode: true,
+      colorMode: false,
       dts: false,
       icon: {
         clientBundle: {
@@ -23,6 +23,7 @@ export default defineConfig({
             'lucide:braces',
             'lucide:calendar-sync',
             'lucide:calendar-x-2',
+            'lucide:case-sensitive',
             'lucide:check',
             'lucide:chevron-down',
             'lucide:chevron-right',
@@ -55,6 +56,7 @@ export default defineConfig({
             'lucide:message-circle-question',
             'lucide:minus',
             'lucide:panels-top-left',
+            'lucide:palette',
             'lucide:pencil',
             'lucide:pilcrow',
             'lucide:plus',

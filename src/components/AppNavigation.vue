@@ -48,7 +48,7 @@ const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
         :title="paletteCommand.tooltip"
         leading-icon="i-lucide-search"
         color="neutral"
-        variant="subtle"
+        variant="ghost"
         class="command-entry"
         block
         @click="commands.execute( COMMAND_IDS.commandPaletteOpen )"
@@ -67,7 +67,7 @@ const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
         :title="referenceCommand.tooltip"
         leading-icon="i-lucide-keyboard"
         color="neutral"
-        variant="subtle"
+        variant="ghost"
         class="command-entry"
         block
         @click="commands.execute( COMMAND_IDS.commandReferenceOpen )"
