@@ -39,6 +39,7 @@ async function openStartupDestination() {
 <template>
   <ContentState
     class="startup-state"
+    data-twill-page="startup"
     kind="loading"
     title="Opening Twill"
   />

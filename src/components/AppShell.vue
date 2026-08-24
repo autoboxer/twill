@@ -45,7 +45,10 @@ onMounted( () => {
     </a>
 
     <LazyMotion :features="domAnimation">
-      <div class="twill-shell">
+      <div
+        class="twill-shell"
+        data-twill-app
+      >
         <header class="mobile-header">
           <RouterLink
             class="mobile-wordmark"

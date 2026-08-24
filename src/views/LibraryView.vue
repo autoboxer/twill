@@ -129,7 +129,10 @@ function formattedDate( timestamp ) {
 </script>
 
 <template>
-  <div class="page library-page">
+  <div
+    class="page library-page"
+    data-twill-page="library"
+  >
     <PageHeader title="Library">
       <template #actions>
         <UButton
@@ -316,6 +319,7 @@ function formattedDate( timestamp ) {
               v-for="( concept, index ) in filteredConcepts"
               :key="concept.id"
               class="concept-card"
+              data-twill-concept-card
               layout
               :initial="{ opacity: 0, y: 8 }"
               :animate="{ opacity: 1, y: 0 }"

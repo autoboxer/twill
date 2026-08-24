@@ -220,7 +220,10 @@ function cancel() {
 </script>
 
 <template>
-  <div class="page template-editor-page">
+  <div
+    class="page template-editor-page"
+    data-twill-page="template-editor"
+  >
     <PageHeader :title="pageTitle">
       <template #actions>
         <UButton
@@ -282,7 +285,10 @@ function cancel() {
         class="template-editor__fields"
         :disabled="isPending"
       >
-        <section class="editor-section template-editor__basics">
+        <section
+          class="editor-section template-editor__basics"
+          data-twill-editor-section="template-basics"
+        >
           <div class="editor-section__heading">
             <div>
               <h2>Template</h2>
@@ -348,7 +354,10 @@ function cancel() {
         </section>
 
         <div class="template-workspace">
-          <section class="editor-section template-design">
+          <section
+            class="editor-section template-design"
+            data-twill-editor-section="template-design"
+          >
             <div class="editor-section__heading">
               <div>
                 <h2>{{ form.content.mode === 'visual' ? 'Layout' : 'Markup' }}</h2>

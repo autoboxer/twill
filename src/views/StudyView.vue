@@ -452,7 +452,10 @@ function focusButton( button ) {
 </script>
 
 <template>
-  <div class="page study-page">
+  <div
+    class="page study-page"
+    data-twill-page="study"
+  >
     <PageHeader title="Study">
       <template #actions>
         <div
@@ -615,6 +618,7 @@ function focusButton( button ) {
           v-if="currentCard"
           :key="currentCard.id"
           class="study-card"
+          data-twill-study-card
           :initial="{ opacity: 0, x: 18 }"
           :animate="{ opacity: 1, x: 0 }"
           :exit="{ opacity: 0, x: -14 }"

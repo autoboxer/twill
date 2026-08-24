@@ -3,6 +3,7 @@ import { m } from 'motion-v';
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 
 import ContentState from '../components/ContentState.vue';
+import CssSnippetManager from '../components/CssSnippetManager.vue';
 import PageHeader from '../components/PageHeader.vue';
 import {
   DEFAULT_APPEARANCE,
@@ -35,6 +36,7 @@ const gradingModeItems = [
 const settingsSections = [
   { id: 'general', icon: 'i-lucide-settings-2', label: 'General' },
   { id: 'appearance', icon: 'i-lucide-palette', label: 'Appearance' },
+  { id: 'snippets', icon: 'i-lucide-braces', label: 'Snippets' },
   { id: 'study', icon: 'i-lucide-graduation-cap', label: 'Study' },
   { id: 'scheduling', icon: 'i-lucide-calendar-sync', label: 'Scheduling' }
 ];
@@ -518,7 +520,10 @@ async function persistSchedulingSettings(
 </script>
 
 <template>
-  <div class="page settings-page">
+  <div
+    class="page settings-page"
+    data-twill-page="settings"
+  >
     <PageHeader title="Settings" />
 
     <ContentState
@@ -569,6 +574,7 @@ async function persistSchedulingSettings(
         <m.section
           id="settings-general"
           class="settings-panel"
+          data-twill-settings-section="general"
           :initial="{ opacity: 0, y: 10 }"
           :animate="{ opacity: 1, y: 0 }"
           :transition="panelTransition"
@@ -641,6 +647,7 @@ async function persistSchedulingSettings(
         <m.section
           id="settings-appearance"
           class="settings-panel"
+          data-twill-settings-section="appearance"
           :initial="{ opacity: 0, y: 10 }"
           :animate="{ opacity: 1, y: 0 }"
           :transition="{ ...panelTransition, delay: 0.04 }"
@@ -834,11 +841,37 @@ async function persistSchedulingSettings(
         </m.section>
 
         <m.section
-          id="settings-study"
+          id="settings-snippets"
           class="settings-panel"
+          data-twill-settings-section="snippets"
           :initial="{ opacity: 0, y: 10 }"
           :animate="{ opacity: 1, y: 0 }"
           :transition="{ ...panelTransition, delay: 0.08 }"
+        >
+          <header class="settings-panel__header">
+            <span
+              class="settings-panel__icon"
+              aria-hidden="true"
+            >
+              <UIcon name="i-lucide-braces" />
+            </span>
+
+            <div>
+              <h2>CSS snippets</h2>
+              <p>Apply validated CSS after Twill's built-in styles.</p>
+            </div>
+          </header>
+
+          <CssSnippetManager />
+        </m.section>
+
+        <m.section
+          id="settings-study"
+          class="settings-panel"
+          data-twill-settings-section="study"
+          :initial="{ opacity: 0, y: 10 }"
+          :animate="{ opacity: 1, y: 0 }"
+          :transition="{ ...panelTransition, delay: 0.12 }"
         >
           <header class="settings-panel__header">
             <span
@@ -908,10 +941,11 @@ async function persistSchedulingSettings(
         <m.form
           id="settings-scheduling"
           class="settings-panel"
+          data-twill-settings-section="scheduling"
           novalidate
           :initial="{ opacity: 0, y: 10 }"
           :animate="{ opacity: 1, y: 0 }"
-          :transition="{ ...panelTransition, delay: 0.12 }"
+          :transition="{ ...panelTransition, delay: 0.16 }"
           @submit.prevent="saveSchedulingSettings"
         >
           <header class="settings-panel__header">

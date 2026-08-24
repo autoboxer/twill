@@ -565,7 +565,7 @@ fn css_parse_error(error: ParseError<'_, CssParseIssue>) -> LibraryError {
 
     invalid_css(format!(
         "{message} near line {}, column {}",
-        error.location.line,
+        error.location.line + 1,
         error.location.column
     ))
 }
@@ -853,6 +853,15 @@ mod tests {
             }),
             Err(LibraryError::InvalidCss { .. })
         ));
+
+        let location_error = library
+            .create_snippet(CreateCssSnippetInput {
+                name: "Location".to_owned(),
+                content: content(".card { background: url(image.png); }"),
+            })
+            .unwrap_err();
+
+        assert!(location_error.to_string().contains("near line 1, column"));
     }
 
     #[test]
