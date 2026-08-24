@@ -41,6 +41,7 @@ pub struct ConceptSummary {
 pub struct CardSummary {
     pub id: String,
     pub retrieval_kind: RetrievalFormKind,
+    pub explain: Option<ExplainSettings>,
     pub cloze: Option<ClozeSettings>,
     pub image_occlusion: Option<ImageOcclusionSettings>,
     pub type_answer: Option<TypeAnswerSettings>,
@@ -56,6 +57,7 @@ pub struct CardSummary {
 pub enum RetrievalFormKind {
     Recall,
     TypeAnswer,
+    Explain,
     Cloze,
     ImageOcclusion,
 }
@@ -65,6 +67,7 @@ impl RetrievalFormKind {
         match self {
             Self::Recall => "recall",
             Self::TypeAnswer => "type_answer",
+            Self::Explain => "explain",
             Self::Cloze => "cloze",
             Self::ImageOcclusion => "image_occlusion",
         }
@@ -78,6 +81,7 @@ impl TryFrom<&str> for RetrievalFormKind {
         match value {
             "recall" => Ok(Self::Recall),
             "type_answer" => Ok(Self::TypeAnswer),
+            "explain" => Ok(Self::Explain),
             "cloze" => Ok(Self::Cloze),
             "image_occlusion" => Ok(Self::ImageOcclusion),
             _ => Err(LibraryError::InvalidRetrievalFormKind(value.to_owned())),
@@ -103,6 +107,22 @@ pub struct TypeAnswerSettings {
     pub accepted_answers: Vec<String>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ExplainFocus {
+    Why,
+    How,
+    CauseAndEffect,
+    CompareAndContrast,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ExplainSettings {
+    pub focus: ExplainFocus,
+    pub key_points: Vec<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StudyTemplate {
@@ -120,6 +140,7 @@ pub struct StudyCard {
     pub concept_title: String,
     pub content: ConceptContent,
     pub retrieval_kind: RetrievalFormKind,
+    pub explain: Option<ExplainSettings>,
     pub cloze: Option<ClozeSettings>,
     pub image_occlusion: Option<ImageOcclusionSettings>,
     pub type_answer: Option<TypeAnswerSettings>,
@@ -671,6 +692,8 @@ pub struct CreateConceptInput {
     #[serde(default)]
     pub template_ids: Vec<String>,
     #[serde(default)]
+    pub explain: Option<ExplainSettings>,
+    #[serde(default)]
     pub type_answer: Option<TypeAnswerSettings>,
 }
 
@@ -689,6 +712,8 @@ pub struct UpdateConceptInput {
     pub include_standard_recall: bool,
     #[serde(default)]
     pub template_ids: Vec<String>,
+    #[serde(default)]
+    pub explain: Option<ExplainSettings>,
     #[serde(default)]
     pub type_answer: Option<TypeAnswerSettings>,
 }

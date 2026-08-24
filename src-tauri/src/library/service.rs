@@ -14,21 +14,21 @@ use crate::library::preferences::{
     update_startup_destination,
 };
 use crate::library::retrieval_forms::{
-    normalize_type_answer, parse_retrieval_form_configuration,
+    normalize_explain, normalize_type_answer, parse_retrieval_form_configuration,
     retrieval_form_configuration,
 };
 use crate::library::study::{
-    create_cloze_card, create_image_occlusion_card, create_recall_card,
-    create_type_answer_card, query_scheduling_settings, query_study_queue, record_review,
-    reverse_review, update_scheduling_settings,
+    create_cloze_card, create_explain_card, create_image_occlusion_card,
+    create_recall_card, create_type_answer_card, query_scheduling_settings,
+    query_study_queue, record_review, reverse_review, update_scheduling_settings,
 };
 use crate::library::{
     AppearancePreferences, CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput,
-    DevicePreferences, GradingMode, LibraryError, LibraryResult, LibrarySnapshot, MediaSummary,
-    NamedItem, OrganizationSummary, RecordReviewInput, RetrievalFormKind,
-    ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome, SchedulingSettings,
-    SchedulingState, StartupDestination, StudyQueue, TypeAnswerSettings,
-    UpdateConceptInput, UpdateSchedulingSettingsInput,
+    DevicePreferences, ExplainSettings, GradingMode, LibraryError, LibraryResult,
+    LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary, RecordReviewInput,
+    RetrievalFormKind, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
+    SchedulingSettings, SchedulingState, StartupDestination, StudyQueue,
+    TypeAnswerSettings, UpdateConceptInput, UpdateSchedulingSettingsInput,
 };
 
 const MAXIMUM_CONCEPT_TITLE_LENGTH: usize = 200;
@@ -165,11 +165,13 @@ impl<'store> ConceptLibrary<'store> {
         let tag_ids = normalize_ids(input.tag_ids, "tag")?;
         let content = validate_content(input.content)?;
         let template_ids = normalize_template_ids(input.template_ids)?;
+        let explain = normalize_explain(input.explain)?;
         let type_answer = normalize_type_answer(input.type_answer)?;
 
         validate_retrieval_form_selection(
             input.include_standard_recall,
             &template_ids,
+            explain.is_some(),
             type_answer.is_some(),
             !content.cloze_group_ids.is_empty(),
             !content.image_occlusion_group_ids.is_empty(),
@@ -205,6 +207,10 @@ impl<'store> ConceptLibrary<'store> {
 
             if let Some(settings) = &type_answer {
                 create_type_answer_card(transaction, &entity.id, settings)?;
+            }
+
+            if let Some(settings) = &explain {
+                create_explain_card(transaction, &entity.id, settings)?;
             }
 
             for group_id in &content.cloze_group_ids {
@@ -255,11 +261,13 @@ impl<'store> ConceptLibrary<'store> {
         let tag_ids = normalize_ids(input.tag_ids, "tag")?;
         let content = validate_content(input.content)?;
         let template_ids = normalize_template_ids(input.template_ids)?;
+        let explain = normalize_explain(input.explain)?;
         let type_answer = normalize_type_answer(input.type_answer)?;
 
         validate_retrieval_form_selection(
             input.include_standard_recall,
             &template_ids,
+            explain.is_some(),
             type_answer.is_some(),
             !content.cloze_group_ids.is_empty(),
             !content.image_occlusion_group_ids.is_empty(),
@@ -287,6 +295,10 @@ impl<'store> ConceptLibrary<'store> {
                 .cards
                 .iter()
                 .find_map(|card| card.type_answer.clone());
+            let current_explain = current
+                .cards
+                .iter()
+                .find_map(|card| card.explain.clone());
             let current_cloze_group_ids = current
                 .cards
                 .iter()
@@ -323,6 +335,7 @@ impl<'store> ConceptLibrary<'store> {
                 && current.content == content.content
                 && current_media == content.media_ids
                 && current_include_standard_recall == input.include_standard_recall
+                && current_explain == explain
                 && current_type_answer == type_answer
                 && current_cloze_group_ids == cloze_group_ids
                 && current_image_occlusion_group_ids == image_occlusion_group_ids
@@ -368,6 +381,7 @@ impl<'store> ConceptLibrary<'store> {
                 &current.cards,
                 input.include_standard_recall,
                 &template_ids,
+                explain.as_ref(),
                 type_answer.as_ref(),
                 &cloze_group_ids,
                 &image_occlusion_group_ids,
@@ -626,11 +640,13 @@ fn normalize_template_ids(ids: Vec<String>) -> LibraryResult<BTreeSet<String>> {
 fn validate_retrieval_form_selection(
     include_standard_recall: bool,
     template_ids: &BTreeSet<String>,
+    include_explain: bool,
     include_type_answer: bool,
     include_cloze: bool,
     include_image_occlusion: bool,
 ) -> LibraryResult<()> {
     if !include_standard_recall
+        && !include_explain
         && !include_type_answer
         && !include_cloze
         && !include_image_occlusion
@@ -915,6 +931,7 @@ fn query_cards(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<C
             Ok(CardSummary {
                 id,
                 retrieval_kind,
+                explain: parsed.explain,
                 cloze: parsed.cloze,
                 image_occlusion: parsed.image_occlusion,
                 type_answer: parsed.type_answer,
@@ -1211,6 +1228,7 @@ fn apply_retrieval_forms(
     current_cards: &[CardSummary],
     include_standard_recall: bool,
     template_ids: &BTreeSet<String>,
+    explain: Option<&ExplainSettings>,
     type_answer: Option<&TypeAnswerSettings>,
     cloze_group_ids: &BTreeSet<String>,
     image_occlusion_group_ids: &BTreeSet<String>,
@@ -1222,6 +1240,7 @@ fn apply_retrieval_forms(
                 None => include_standard_recall,
             },
             RetrievalFormKind::TypeAnswer => type_answer.is_some(),
+            RetrievalFormKind::Explain => explain.is_some(),
             RetrievalFormKind::Cloze => card
                 .cloze
                 .as_ref()
@@ -1247,6 +1266,35 @@ fn apply_retrieval_forms(
         create_recall_card(transaction, concept_id, None)?;
     }
 
+    let current_explain = current_cards
+        .iter()
+        .find(|card| card.retrieval_kind == RetrievalFormKind::Explain);
+
+    match (current_explain, explain) {
+        (None, Some(settings)) => {
+            create_explain_card(transaction, concept_id, settings)?;
+        }
+        (Some(card), Some(settings)) if card.explain.as_ref() != Some(settings) => {
+            let configuration = retrieval_form_configuration(
+                RetrievalFormKind::Explain,
+                None,
+                Some(settings),
+                None,
+                None,
+            )?;
+            let entity = transaction.touch_entity(&card.id)?;
+
+            transaction.execute(
+                "UPDATE cards
+                SET configuration_json = ?1,
+                    last_change_id = ?2
+                WHERE entity_id = ?3",
+                params![configuration, entity.last_change_id, card.id],
+            )?;
+        }
+        _ => {}
+    }
+
     let current_type_answer = current_cards
         .iter()
         .find(|card| card.retrieval_kind == RetrievalFormKind::TypeAnswer);
@@ -1259,6 +1307,7 @@ fn apply_retrieval_forms(
             let configuration = retrieval_form_configuration(
                 RetrievalFormKind::TypeAnswer,
                 Some(settings),
+                None,
                 None,
                 None,
             )?;
@@ -1347,13 +1396,14 @@ mod tests {
 
     use super::ConceptLibrary;
     use crate::data::{DataResult, EntityKind, LocalDataStore};
-    use crate::library::models::TemplateMode;
+    use crate::library::models::{ExplainFocus, TemplateMode};
     use crate::library::{
         AppearancePreferences, AppearanceTheme, ConceptContent, CreateConceptInput,
-        CreateTemplateInput, GradingMode, LibraryError, MotionPreference, ReadingFont,
-        ReadingTextSize, RecordReviewInput, RetrievalFormKind, ReverseReviewInput,
-        ReviewRating, SchedulingState, StartupDestination, TemplateContent,
-        TemplateLibrary, TypeAnswerSettings, UpdateConceptInput,
+        CreateTemplateInput, ExplainSettings, GradingMode, LibraryError,
+        MotionPreference, ReadingFont, ReadingTextSize, RecordReviewInput,
+        RetrievalFormKind, ReverseReviewInput, ReviewRating, SchedulingState,
+        StartupDestination, TemplateContent, TemplateLibrary, TypeAnswerSettings,
+        UpdateConceptInput,
         UpdateSchedulingSettingsInput, UpdateTemplateInput,
     };
 
@@ -1392,6 +1442,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -1414,6 +1465,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -1510,6 +1562,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -1569,6 +1622,7 @@ mod tests {
             content: Default::default(),
             include_standard_recall: true,
             template_ids: Vec::new(),
+            explain: None,
             type_answer: None,
         });
 
@@ -1586,6 +1640,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -1600,6 +1655,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -1658,6 +1714,7 @@ mod tests {
                 content: content.clone(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -1691,6 +1748,7 @@ mod tests {
             content: invalid_content,
             include_standard_recall: true,
             template_ids: Vec::new(),
+            explain: None,
             type_answer: None,
         });
 
@@ -1709,6 +1767,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -1742,6 +1801,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -1818,6 +1878,7 @@ mod tests {
             content: Default::default(),
             include_standard_recall: false,
             template_ids: Vec::new(),
+            explain: None,
             type_answer: None,
         });
 
@@ -1870,6 +1931,7 @@ mod tests {
                     first_template.id.clone(),
                     first_template.id.clone(),
                 ],
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -1937,6 +1999,7 @@ mod tests {
             content: Default::default(),
             include_standard_recall: false,
             template_ids: Vec::new(),
+            explain: None,
             type_answer: Some(TypeAnswerSettings {
                 accepted_answers: answers,
             }),
@@ -2000,6 +2063,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: false,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: Some(TypeAnswerSettings {
                     accepted_answers: vec!["Paris".to_owned()],
                 }),
@@ -2024,6 +2088,7 @@ mod tests {
                 content: concept.content.clone(),
                 include_standard_recall: false,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: Some(TypeAnswerSettings {
                     accepted_answers: vec![
                         "Paris".to_owned(),
@@ -2051,6 +2116,7 @@ mod tests {
                 content: concept.content.clone(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2076,6 +2142,7 @@ mod tests {
                 content: concept.content,
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: Some(TypeAnswerSettings {
                     accepted_answers: vec!["Paris".to_owned()],
                 }),
@@ -2085,6 +2152,184 @@ mod tests {
             .cards
             .iter()
             .find(|card| card.retrieval_kind == RetrievalFormKind::TypeAnswer)
+            .unwrap();
+
+        assert_ne!(readded_card.id, original_card.id);
+        assert_eq!(readded_card.scheduling_state, SchedulingState::New);
+        assert_eq!(readded_card.review_count, 0);
+    }
+
+    #[test]
+    fn explain_settings_are_validated_normalized_and_queued() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let create_explain = |key_points| CreateConceptInput {
+            title: "Photosynthesis".to_owned(),
+            deck_ids: Vec::new(),
+            tag_ids: Vec::new(),
+            content: Default::default(),
+            include_standard_recall: false,
+            template_ids: Vec::new(),
+            explain: Some(ExplainSettings {
+                focus: ExplainFocus::Why,
+                key_points,
+            }),
+            type_answer: None,
+        };
+
+        assert!(matches!(
+            library.create_concept(create_explain(Vec::new())),
+            Err(LibraryError::MissingExplainKeyPoint)
+        ));
+        assert!(matches!(
+            library.create_concept(create_explain(vec!["point".to_owned(); 13])),
+            Err(LibraryError::TooManyExplainKeyPoints { maximum: 12 })
+        ));
+        assert!(matches!(
+            library.create_concept(create_explain(vec![
+                "Stored energy".to_owned(),
+                " stored   ENERGY ".to_owned(),
+            ])),
+            Err(LibraryError::DuplicateExplainKeyPoint)
+        ));
+        assert!(matches!(
+            library.create_concept(create_explain(vec!["x".repeat(281)])),
+            Err(LibraryError::ValueTooLong {
+                field: "Explain key point",
+                maximum: 280,
+            })
+        ));
+        assert!(library.snapshot(false).unwrap().concepts.is_empty());
+
+        let concept = library
+            .create_concept(create_explain(vec![
+                "  Light   energy becomes chemical energy.  ".to_owned(),
+                "Carbon dioxide supplies carbon.".to_owned(),
+            ]))
+            .unwrap();
+        let card = &concept.cards[0];
+
+        assert_eq!(concept.cards.len(), 1);
+        assert_eq!(card.retrieval_kind, RetrievalFormKind::Explain);
+        assert_eq!(card.template, None);
+        assert_eq!(
+            card.explain.as_ref().unwrap().key_points,
+            vec![
+                "Light energy becomes chemical energy.",
+                "Carbon dioxide supplies carbon.",
+            ]
+        );
+        let study_card = library.study_queue().unwrap().cards[0].clone();
+
+        assert_eq!(study_card.id, card.id);
+        assert_eq!(study_card.retrieval_kind, RetrievalFormKind::Explain);
+        assert_eq!(study_card.explain, card.explain);
+    }
+
+    #[test]
+    fn explain_edits_keep_schedules_and_readded_forms_start_fresh() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let concept = library
+            .create_concept(CreateConceptInput {
+                title: "Seasons".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                explain: Some(ExplainSettings {
+                    focus: ExplainFocus::Why,
+                    key_points: vec!["Earth's axis is tilted.".to_owned()],
+                }),
+                type_answer: None,
+            })
+            .unwrap();
+        let original_card = concept.cards[0].clone();
+        let review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: original_card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                original_card.due_at,
+            )
+            .unwrap();
+        let updated = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id.clone(),
+                title: concept.title.clone(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: concept.content.clone(),
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                explain: Some(ExplainSettings {
+                    focus: ExplainFocus::CauseAndEffect,
+                    key_points: vec![
+                        "Earth's axis is tilted.".to_owned(),
+                        "The hemispheres receive different sunlight.".to_owned(),
+                    ],
+                }),
+                type_answer: None,
+            })
+            .unwrap();
+        let retained_card = updated.cards[0].clone();
+
+        assert_eq!(retained_card.id, original_card.id);
+        assert_eq!(retained_card.review_count, 1);
+        assert_eq!(retained_card.due_at, review.due_at);
+        assert_eq!(
+            retained_card.explain.as_ref().unwrap().focus,
+            ExplainFocus::CauseAndEffect
+        );
+
+        let without_explain = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id.clone(),
+                title: concept.title.clone(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: concept.content.clone(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                explain: None,
+                type_answer: None,
+            })
+            .unwrap();
+
+        assert_eq!(without_explain.cards.len(), 1);
+        assert_eq!(
+            without_explain.cards[0].retrieval_kind,
+            RetrievalFormKind::Recall
+        );
+        assert!(store
+            .entity(&original_card.id)
+            .unwrap()
+            .unwrap()
+            .deleted_at
+            .is_some());
+
+        let readded = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id,
+                title: concept.title,
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: concept.content,
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                explain: Some(ExplainSettings {
+                    focus: ExplainFocus::CompareAndContrast,
+                    key_points: vec!["Summer and winter receive different light.".to_owned()],
+                }),
+                type_answer: None,
+            })
+            .unwrap();
+        let readded_card = readded
+            .cards
+            .iter()
+            .find(|card| card.retrieval_kind == RetrievalFormKind::Explain)
             .unwrap();
 
         assert_ne!(readded_card.id, original_card.id);
@@ -2138,6 +2383,7 @@ mod tests {
                 content: initial_content,
                 include_standard_recall: false,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2189,6 +2435,7 @@ mod tests {
                 content: updated_content,
                 include_standard_recall: false,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2233,6 +2480,7 @@ mod tests {
                 content: readded_content,
                 include_standard_recall: false,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2301,6 +2549,7 @@ mod tests {
                 content: initial_content,
                 include_standard_recall: false,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2368,6 +2617,7 @@ mod tests {
                 content: updated_content,
                 include_standard_recall: false,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2415,6 +2665,7 @@ mod tests {
                 content: readded_content,
                 include_standard_recall: false,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2459,6 +2710,7 @@ mod tests {
                     removed_template.id.clone(),
                     retained_template.id.clone(),
                 ],
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2486,6 +2738,7 @@ mod tests {
                 content: concept.content,
                 include_standard_recall: true,
                 template_ids: vec![retained_template.id.clone()],
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2530,6 +2783,7 @@ mod tests {
                 content: updated.content,
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2567,6 +2821,7 @@ mod tests {
                 content: content.clone(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2578,6 +2833,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2822,6 +3078,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -2939,6 +3196,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -3077,6 +3335,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -3214,6 +3473,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -3315,6 +3575,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -3401,6 +3662,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -3446,6 +3708,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();
@@ -3517,6 +3780,7 @@ mod tests {
                 content: Default::default(),
                 include_standard_recall: true,
                 template_ids: Vec::new(),
+                explain: None,
                 type_answer: None,
             })
             .unwrap();

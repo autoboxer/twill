@@ -11,10 +11,10 @@ use crate::library::retrieval_forms::{
     parse_retrieval_form_configuration, retrieval_form_configuration,
 };
 use crate::library::{
-    ClozeSettings, ImageOcclusionSettings, LibraryError, LibraryResult,
-    RetrievalFormKind, ReviewOutcome, ReviewRating, ReviewReversalOutcome,
-    SchedulingSettings, SchedulingState, StudyCard, StudyQueue, StudyTemplate,
-    TypeAnswerSettings,
+    ClozeSettings, ExplainSettings, ImageOcclusionSettings, LibraryError,
+    LibraryResult, RetrievalFormKind, ReviewOutcome, ReviewRating,
+    ReviewReversalOutcome, SchedulingSettings, SchedulingState, StudyCard,
+    StudyQueue, StudyTemplate, TypeAnswerSettings,
     UpdateSchedulingSettingsInput,
 };
 
@@ -59,6 +59,7 @@ pub fn create_recall_card(
         None,
         None,
         None,
+        None,
     )
 }
 
@@ -71,6 +72,24 @@ pub fn create_type_answer_card(
         transaction,
         concept_id,
         RetrievalFormKind::TypeAnswer,
+        None,
+        Some(settings),
+        None,
+        None,
+        None,
+    )
+}
+
+pub fn create_explain_card(
+    transaction: &WriteTransaction<'_>,
+    concept_id: &str,
+    settings: &ExplainSettings,
+) -> LibraryResult<()> {
+    create_card(
+        transaction,
+        concept_id,
+        RetrievalFormKind::Explain,
+        None,
         None,
         Some(settings),
         None,
@@ -91,6 +110,7 @@ pub fn create_cloze_card(
         transaction,
         concept_id,
         RetrievalFormKind::Cloze,
+        None,
         None,
         None,
         Some(&settings),
@@ -114,6 +134,7 @@ pub fn create_image_occlusion_card(
         None,
         None,
         None,
+        None,
         Some(&settings),
     )
 }
@@ -124,12 +145,14 @@ fn create_card(
     retrieval_kind: RetrievalFormKind,
     template_id: Option<&str>,
     type_answer: Option<&TypeAnswerSettings>,
+    explain: Option<&ExplainSettings>,
     cloze: Option<&ClozeSettings>,
     image_occlusion: Option<&ImageOcclusionSettings>,
 ) -> LibraryResult<()> {
     let configuration = retrieval_form_configuration(
         retrieval_kind,
         type_answer,
+        explain,
         cloze,
         image_occlusion,
     )?;
@@ -319,6 +342,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 concept_title,
                 content: serde_json::from_str(&content)?,
                 retrieval_kind,
+                explain: parsed.explain,
                 cloze: parsed.cloze,
                 image_occlusion: parsed.image_occlusion,
                 type_answer: parsed.type_answer,
