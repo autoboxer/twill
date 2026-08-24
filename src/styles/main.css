@@ -976,7 +976,8 @@ button {
   gap: 0.65rem;
 }
 
-.type-answer-settings {
+.type-answer-settings,
+.explain-settings {
   display: grid;
   padding: 1.25rem;
   gap: 1rem;
@@ -985,28 +986,32 @@ button {
   border-radius: calc(var(--ui-radius) + 0.25rem);
 }
 
-.type-answer-settings__heading {
+.type-answer-settings__heading,
+.explain-settings__heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.type-answer-settings__heading h3 {
+.type-answer-settings__heading h3,
+.explain-settings__heading h3 {
   margin: 0;
   color: var(--ui-text-highlighted);
   font-size: 0.95rem;
   font-weight: 650;
 }
 
-.type-answer-settings__heading p {
+.type-answer-settings__heading p,
+.explain-settings__heading p {
   margin: 0.3rem 0 0;
   color: var(--ui-text-muted);
   font-size: 0.84rem;
   line-height: 1.5;
 }
 
-.type-answer-settings__heading > span {
+.type-answer-settings__heading > span,
+.explain-settings__heading > span {
   flex: 0 0 auto;
   color: var(--ui-text-dimmed);
   font-size: 0.78rem;
@@ -1018,7 +1023,18 @@ button {
   gap: 0.85rem;
 }
 
+.explain-key-point-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
 .accepted-answer-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.explain-key-point-row {
   display: flex;
   align-items: flex-start;
   gap: 0.4rem;
@@ -1029,7 +1045,17 @@ button {
   flex: 1;
 }
 
-.type-answer-settings__add {
+.explain-key-point-row__input {
+  min-width: 0;
+  flex: 1;
+}
+
+.explain-settings__focus {
+  width: min(100%, 20rem);
+}
+
+.type-answer-settings__add,
+.explain-settings__add {
   justify-self: start;
 }
 
@@ -4303,7 +4329,8 @@ button {
     flex-direction: column;
   }
 
-  .type-answer-settings {
+  .type-answer-settings,
+  .explain-settings {
     padding: 1rem;
   }
 

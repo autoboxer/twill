@@ -165,6 +165,10 @@ function retrievalFormName( card ) {
     return 'Type answer';
   }
 
+  if ( card.retrievalKind === 'explain' ) {
+    return 'Explain';
+  }
+
   if ( card.retrievalKind === 'imageOcclusion' ) {
     const group = imageOcclusionGroupDetails( card );
 
@@ -181,6 +185,10 @@ function retrievalFormIcon( card ) {
 
   if ( card.retrievalKind === 'typeAnswer' ) {
     return 'i-lucide-keyboard';
+  }
+
+  if ( card.retrievalKind === 'explain' ) {
+    return 'i-lucide-message-square-text';
   }
 
   if ( card.retrievalKind === 'imageOcclusion' ) {
@@ -203,6 +211,14 @@ function retrievalFormDescription( card ) {
     return `${ count } accepted ${ count === 1 ? 'answer' : 'answers' }`;
   }
 
+  if ( card.retrievalKind === 'explain' ) {
+    const count = card.explain.keyPoints.length;
+
+    return `${ explainFocusLabel( card.explain.focus ) } · ${ count } key ${ count === 1
+      ? 'point'
+      : 'points' }`;
+  }
+
   if ( card.retrievalKind === 'imageOcclusion' ) {
     const count = imageOcclusionGroupDetails( card )?.group.regions.length ?? 0;
 
@@ -218,6 +234,15 @@ function clozeGroupDetails( card ) {
 
 function imageOcclusionGroupDetails( card ) {
   return imageOcclusionGroupsById.value.get( card.imageOcclusion?.groupId );
+}
+
+function explainFocusLabel( focus ) {
+  return {
+    causeAndEffect: 'Cause and effect',
+    compareAndContrast: 'Compare and contrast',
+    how: 'How',
+    why: 'Why'
+  }[ focus ] ?? 'Explain';
 }
 
 function clozePassageLabel( passage ) {
@@ -434,6 +459,22 @@ function schedulingStateDetails( state ) {
                     :key="answer"
                   >
                     {{ answer }}
+                  </li>
+                </ul>
+              </div>
+
+              <div
+                v-if="card.explain"
+                class="retrieval-form-list__answers"
+              >
+                <span>Key points</span>
+
+                <ul>
+                  <li
+                    v-for="keyPoint in card.explain.keyPoints"
+                    :key="keyPoint"
+                  >
+                    {{ keyPoint }}
                   </li>
                 </ul>
               </div>

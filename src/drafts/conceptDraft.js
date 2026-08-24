@@ -4,8 +4,12 @@ import {
 } from '../rich-content/schema';
 
 const STANDARD_RECALL_ID = 'standard-recall';
+const DEFAULT_EXPLAIN_FOCUS = 'why';
 
 export function createConceptEditorState( concept = null ) {
+  const explain = concept?.cards.find( ( card ) => (
+    card.retrievalKind === 'explain'
+  ) );
   const typeAnswer = concept?.cards.find( ( card ) => (
     card.retrievalKind === 'typeAnswer'
   ) );
@@ -13,6 +17,10 @@ export function createConceptEditorState( concept = null ) {
   return {
     content: cloneConceptContent( concept?.content ),
     deckIds: concept?.decks.map( ( deck ) => deck.id ) ?? [],
+    explainFocus: explain?.explain?.focus ?? DEFAULT_EXPLAIN_FOCUS,
+    explainKeyPoints: explain?.explain?.keyPoints?.length
+      ? [ ...explain.explain.keyPoints ]
+      : [ '' ],
     retrievalFormIds: concept
       ? [ ...new Set( concept.cards.map( conceptRetrievalFormId ) ) ]
       : [ STANDARD_RECALL_ID ],
@@ -36,6 +44,10 @@ export function cloneConceptEditorState( state ) {
       ? cloneConceptContent( state.content )
       : fallback.content,
     deckIds: stringArray( state.deckIds ),
+    explainFocus: typeof state.explainFocus === 'string'
+      ? state.explainFocus
+      : fallback.explainFocus,
+    explainKeyPoints: stringArray( state.explainKeyPoints, [ '' ]),
     retrievalFormIds: stringArray( state.retrievalFormIds ),
     tagIds: stringArray( state.tagIds ),
     typeAnswerAcceptedAnswers: stringArray( state.typeAnswerAcceptedAnswers, [ '' ]),
@@ -81,6 +93,10 @@ function collectMediaIds( node, mediaIds ) {
 }
 
 export function conceptRetrievalFormId( card ) {
+  if ( card.retrievalKind === 'explain' ) {
+    return 'explain';
+  }
+
   if ( card.retrievalKind === 'cloze' ) {
     return 'cloze';
   }
