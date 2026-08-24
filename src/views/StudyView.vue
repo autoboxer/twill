@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router';
 
 import ContentState from '../components/ContentState.vue';
 import DeferredEditQueue from '../components/DeferredEditQueue.vue';
+import ExplainResponse from '../components/ExplainResponse.vue';
 import PageHeader from '../components/PageHeader.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
@@ -79,15 +80,16 @@ const loadError = ref( '' );
 const nextDueAt = ref( null );
 const pendingAssessment = ref( '' );
 const recoveryError = ref( '' );
+const explainResponse = ref( null );
 const revealButton = ref( null );
 const sessionGradingMode = ref( 'simple' );
 const sessionChangedConceptIds = ref( new Set() );
 const sessionResumeNotice = ref( '' );
 const studyContent = ref( null );
 const studyMedia = ref([]);
+const studyResponse = ref( '' );
 const totalAvailableCards = ref( 0 );
 const typeAnswerResponse = ref( null );
-const typedResponse = ref( '' );
 const undoPending = ref( false );
 let loadRequestSequence = 0;
 let deferredRequestSequence = 0;
@@ -201,13 +203,25 @@ const typeAnswerSettings = computed( () => {
   return currentCard.value.typeAnswer;
 });
 
+const explainSettings = computed( () => {
+  if ( currentCard.value?.retrievalKind !== 'explain' ) {
+    return null;
+  }
+
+  return currentCard.value.explain;
+});
+
 const canRevealAnswer = computed( () => (
-  !typeAnswerSettings.value || Boolean( normalizeTypeAnswer( typedResponse.value ) )
+  !typeAnswerSettings.value || Boolean( normalizeTypeAnswer( studyResponse.value ) )
 ) );
 
 const revealActionCopy = computed( () => {
   if ( typeAnswerSettings.value ) {
     return 'Enter an answer before checking it.';
+  }
+
+  if ( explainSettings.value ) {
+    return 'Use the scratchpad if useful, then compare your explanation.';
   }
 
   if ( currentCard.value?.retrievalKind === 'cloze' ) {
@@ -221,10 +235,17 @@ const revealActionCopy = computed( () => {
   return 'Attempt the prompt before revealing the answer.';
 });
 
-const revealActionLabel = computed( () => typeAnswerSettings.value
-  ? 'Check answer'
-  : 'Reveal answer'
-);
+const revealActionLabel = computed( () => {
+  if ( typeAnswerSettings.value ) {
+    return 'Check answer';
+  }
+
+  if ( explainSettings.value ) {
+    return 'Compare explanation';
+  }
+
+  return 'Reveal answer';
+});
 
 const sessionResultItems = computed( () => {
   if ( sessionGradingMode.value === 'simple' ) {
@@ -357,7 +378,7 @@ async function loadStudyQueue() {
     begin( queue.cards );
     pausedResponses.clear();
     sessionChangedConceptIds.value = new Set();
-    typedResponse.value = '';
+    studyResponse.value = '';
     gradingMode.value = preferences.gradingMode;
     nextDueAt.value = queue.nextDueAt;
     sessionGradingMode.value = preferences.gradingMode;
@@ -492,6 +513,8 @@ async function showAnswer() {
 
   if ( typeAnswerSettings.value ) {
     typeAnswerResponse.value?.focus();
+  } else if ( explainSettings.value ) {
+    explainResponse.value?.focus();
   } else {
     studyContent.value?.focus();
   }
@@ -514,7 +537,7 @@ async function recordAssessment( rating ) {
   }
 
   const cardId = currentCard.value.id;
-  const response = typedResponse.value;
+  const response = studyResponse.value;
 
   assessmentError.value = '';
   recoveryError.value = '';
@@ -537,7 +560,7 @@ async function recordAssessment( rating ) {
       response,
       reviewId: review.reviewId
     });
-    typedResponse.value = takePausedResponse( currentCard.value?.id );
+    studyResponse.value = takePausedResponse( currentCard.value?.id );
     await nextTick();
 
     focusCurrentState();
@@ -563,7 +586,7 @@ async function undoLastGrade() {
   const visibleCard = currentCard.value;
 
   if ( visibleCard ) {
-    pausedResponses.set( visibleCard.id, typedResponse.value );
+    pausedResponses.set( visibleCard.id, studyResponse.value );
   }
 
   assessmentError.value = '';
@@ -586,7 +609,7 @@ async function undoLastGrade() {
       return;
     }
 
-    typedResponse.value = restored.response ?? '';
+    studyResponse.value = restored.response ?? '';
   } catch ( cause ) {
     if ( viewActive ) {
       recoveryError.value = conceptLibraryErrorMessage( cause );
@@ -682,6 +705,8 @@ function focusCurrentState() {
 
   if ( typeAnswerSettings.value ) {
     typeAnswerResponse.value?.focus();
+  } else if ( explainSettings.value ) {
+    explainResponse.value?.focus();
   } else {
     focusButton( revealButton.value );
   }
@@ -690,6 +715,8 @@ function focusCurrentState() {
 function focusRevealedAnswer() {
   if ( typeAnswerSettings.value ) {
     typeAnswerResponse.value?.focus();
+  } else if ( explainSettings.value ) {
+    explainResponse.value?.focus();
   } else {
     studyContent.value?.focus();
   }
@@ -717,7 +744,7 @@ function createStudySessionSnapshot() {
     sessionGradingMode: sessionGradingMode.value,
     studyMedia: [ ...studyMedia.value ],
     totalAvailableCards: totalAvailableCards.value,
-    typedResponse: typedResponse.value
+    response: studyResponse.value
   };
 }
 
@@ -729,7 +756,7 @@ function restoreStudySession( session ) {
   sessionChangedConceptIds.value = new Set( session.changedConceptIds ?? []);
   studyMedia.value = [ ...session.studyMedia ];
   totalAvailableCards.value = session.totalAvailableCards;
-  typedResponse.value = session.typedResponse;
+  studyResponse.value = session.response ?? '';
   pausedResponses.clear();
 
   for ( const [ cardId, response ] of session.pausedResponses ) {
@@ -744,6 +771,10 @@ function studyCardName( card ) {
 
   if ( card.retrievalKind === 'typeAnswer' ) {
     return 'Type answer';
+  }
+
+  if ( card.retrievalKind === 'explain' ) {
+    return 'Explain';
   }
 
   if ( card.retrievalKind === 'imageOcclusion' ) {
@@ -1037,10 +1068,18 @@ function focusButton( button ) {
             <TypeAnswerResponse
               v-if="typeAnswerSettings"
               ref="typeAnswerResponse"
-              v-model="typedResponse"
+              v-model="studyResponse"
               :accepted-answers="typeAnswerSettings.acceptedAnswers"
               :revealed="answerRevealed"
               @submit="showAnswer"
+            />
+
+            <ExplainResponse
+              v-if="explainSettings"
+              ref="explainResponse"
+              v-model="studyResponse"
+              :settings="explainSettings"
+              :revealed="answerRevealed"
             />
           </div>
 
