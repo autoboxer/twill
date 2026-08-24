@@ -1,8 +1,10 @@
 <script setup>
 import { AnimatePresence, m } from 'motion-v';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
 import ContentState from '../components/ContentState.vue';
+import DeferredEditQueue from '../components/DeferredEditQueue.vue';
 import PageHeader from '../components/PageHeader.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
@@ -16,37 +18,59 @@ import {
   useCommands
 } from '../composables/useCommands';
 import { useDevicePreferences } from '../composables/useDevicePreferences';
+import { useDeferredEdits } from '../composables/useDeferredEdits';
 import { useRecallSession } from '../composables/useRecallSession';
+import {
+  preserveStudySession,
+  takeStudySession
+} from '../study/resume';
 import { normalizeTypeAnswer } from '../type-answer/comparison';
 
 const {
   clearError,
   getStudyQueue,
-  recordReview
+  recordReview,
+  reverseReview
 } = useConceptLibrary();
 const {
   getDevicePreferences,
   setGradingMode
 } = useDevicePreferences();
 const {
+  getDeferredEdits,
+  queueDeferredEdit,
+  removeDeferredEdit
+} = useDeferredEdits();
+const {
   answerRevealed,
   assess,
   begin,
   completedCount,
+  correctionPending,
+  createSnapshot,
   currentCard,
   hasCards,
   isComplete,
+  lastAssessment,
   position,
   progress,
   ratingCounts,
   revealAnswer,
+  restoreLastAssessment,
+  restoreSnapshot,
   totalCards
 } = useRecallSession();
 const commands = useCommands();
+const router = useRouter();
 
 const assessmentError = ref( '' );
 const assessmentPending = ref( false );
 const completionHeading = ref( null );
+const deferredEdits = ref([]);
+const deferredError = ref( '' );
+const deferredLoading = ref( true );
+const deferredPendingConceptId = ref( '' );
+const deferredStartPending = ref( false );
 const gradingMode = ref( 'simple' );
 const gradingModeError = ref( '' );
 const gradingModePending = ref( false );
@@ -54,15 +78,21 @@ const initialLoading = ref( true );
 const loadError = ref( '' );
 const nextDueAt = ref( null );
 const pendingAssessment = ref( '' );
+const recoveryError = ref( '' );
 const revealButton = ref( null );
 const sessionGradingMode = ref( 'simple' );
+const sessionChangedConceptIds = ref( new Set() );
+const sessionResumeNotice = ref( '' );
 const studyContent = ref( null );
 const studyMedia = ref([]);
 const totalAvailableCards = ref( 0 );
 const typeAnswerResponse = ref( null );
 const typedResponse = ref( '' );
+const undoPending = ref( false );
 let loadRequestSequence = 0;
+let deferredRequestSequence = 0;
 let viewActive = true;
+const pausedResponses = new Map();
 
 const cardTransition = {
   duration: 0.22,
@@ -128,8 +158,36 @@ const gradingOptionsByMode = {
 };
 
 const gradingModeLocked = computed( () => {
-  return completedCount.value > 0 && !isComplete.value;
+  return (
+    completedCount.value > 0
+    || correctionPending.value
+  ) && !isComplete.value;
 });
+
+const canUndoLastGrade = computed( () => (
+  Boolean( lastAssessment.value )
+  && !sessionChangedConceptIds.value.has( lastAssessment.value?.conceptId )
+  && !correctionPending.value
+  && !assessmentPending.value
+  && !gradingModePending.value
+  && !undoPending.value
+) );
+
+const queuedConceptIds = computed( () => new Set(
+  deferredEdits.value.map( ( item ) => item.conceptId )
+) );
+
+const currentConceptQueued = computed( () => (
+  queuedConceptIds.value.has( currentCard.value?.conceptId )
+) );
+
+const canQueueCurrentConcept = computed( () => (
+  Boolean( currentCard.value )
+  && !currentConceptQueued.value
+  && !deferredLoading.value
+  && !deferredPendingConceptId.value
+  && !deferredStartPending.value
+) );
 
 const gradingOptions = computed( () => {
   return gradingOptionsForMode( gradingMode.value );
@@ -195,8 +253,22 @@ const nextReviewDescription = computed( () => {
   return `Next review: ${ formattedTime }`;
 });
 
-onMounted( () => {
-  loadStudyQueue();
+onMounted( async () => {
+  const resumableSession = takeStudySession();
+
+  if ( resumableSession ) {
+    restoreStudySession( resumableSession );
+    initialLoading.value = false;
+    sessionResumeNotice.value = resumableSession.changedConceptIds?.length
+      ? 'Your completed session was restored. Edited concepts will use their new content next time; their earlier grades cannot be undone here.'
+      : 'Your study session was restored.';
+    await nextTick();
+    focusCurrentState();
+  } else {
+    void loadStudyQueue();
+  }
+
+  void loadDeferredEditQueue();
 });
 
 onBeforeUnmount( () => {
@@ -211,9 +283,20 @@ const revealCommand = useCommandHandler( COMMAND_IDS.studyReveal, {
     && !answerRevealed.value
     && !assessmentPending.value
     && !gradingModePending.value
+    && !undoPending.value
     && canRevealAnswer.value
   ) ),
   execute: showAnswer
+});
+
+const undoCommand = useCommandHandler( COMMAND_IDS.studyUndoLastGrade, {
+  enabled: canUndoLastGrade,
+  execute: undoLastGrade
+});
+
+const queueEditCommand = useCommandHandler( COMMAND_IDS.studyQueueEdit, {
+  enabled: canQueueCurrentConcept,
+  execute: queueCurrentConcept
 });
 
 registerGradingCommand(
@@ -257,6 +340,7 @@ async function loadStudyQueue() {
   clearError();
   gradingModeError.value = '';
   loadError.value = '';
+  sessionResumeNotice.value = '';
   initialLoading.value = true;
 
   try {
@@ -271,6 +355,8 @@ async function loadStudyQueue() {
 
     studyMedia.value = queue.media;
     begin( queue.cards );
+    pausedResponses.clear();
+    sessionChangedConceptIds.value = new Set();
     typedResponse.value = '';
     gradingMode.value = preferences.gradingMode;
     nextDueAt.value = queue.nextDueAt;
@@ -287,8 +373,117 @@ async function loadStudyQueue() {
   }
 }
 
+async function loadDeferredEditQueue() {
+  const request = ++deferredRequestSequence;
+
+  deferredError.value = '';
+  deferredLoading.value = true;
+
+  try {
+    const queue = await getDeferredEdits();
+
+    if ( request === deferredRequestSequence && viewActive ) {
+      deferredEdits.value = queue.items;
+    }
+  } catch ( cause ) {
+    if ( request === deferredRequestSequence && viewActive ) {
+      deferredError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( request === deferredRequestSequence && viewActive ) {
+      deferredLoading.value = false;
+    }
+  }
+}
+
+async function queueCurrentConcept() {
+  const card = currentCard.value;
+
+  if ( !card || !canQueueCurrentConcept.value ) {
+    return;
+  }
+
+  deferredError.value = '';
+  deferredPendingConceptId.value = card.conceptId;
+
+  try {
+    await queueDeferredEdit( card.conceptId, card.conceptLastChangeId );
+    await loadDeferredEditQueue();
+  } catch ( cause ) {
+    if ( viewActive ) {
+      deferredError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      deferredPendingConceptId.value = '';
+    }
+  }
+}
+
+async function removeQueuedConcept( conceptId ) {
+  if ( deferredPendingConceptId.value || deferredStartPending.value ) {
+    return;
+  }
+
+  deferredError.value = '';
+  deferredPendingConceptId.value = conceptId;
+
+  try {
+    await removeDeferredEdit( conceptId );
+    await loadDeferredEditQueue();
+  } catch ( cause ) {
+    if ( viewActive ) {
+      deferredError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      deferredPendingConceptId.value = '';
+    }
+  }
+}
+
+async function startDeferredEditing() {
+  const firstItem = deferredEdits.value[ 0 ];
+
+  if (
+    deferredStartPending.value
+    || deferredPendingConceptId.value
+    || firstItem?.targetStatus !== 'current'
+  ) {
+    return;
+  }
+
+  deferredStartPending.value = true;
+  deferredError.value = '';
+
+  if ( hasCards.value ) {
+    preserveStudySession( createStudySessionSnapshot() );
+  }
+
+  try {
+    await router.push({
+      name: 'concept-edit',
+      params: { conceptId: firstItem.conceptId },
+      query: { deferred: '1' }
+    });
+  } catch ( cause ) {
+    if ( viewActive ) {
+      deferredError.value = cause.message || 'Queued editing could not be started.';
+    }
+  } finally {
+    if ( viewActive ) {
+      deferredStartPending.value = false;
+    }
+  }
+}
+
 async function showAnswer() {
-  if ( !canRevealAnswer.value ) {
+  if (
+    !canRevealAnswer.value
+    || assessmentPending.value
+    || gradingModePending.value
+    || undoPending.value
+  ) {
     return;
   }
 
@@ -311,6 +506,7 @@ async function recordAssessment( rating ) {
     !visibleRating
     || assessmentPending.value
     || gradingModePending.value
+    || undoPending.value
     || !answerRevealed.value
     || !currentCard.value
   ) {
@@ -318,8 +514,10 @@ async function recordAssessment( rating ) {
   }
 
   const cardId = currentCard.value.id;
+  const response = typedResponse.value;
 
   assessmentError.value = '';
+  recoveryError.value = '';
   assessmentPending.value = true;
   pendingAssessment.value = rating;
 
@@ -328,14 +526,18 @@ async function recordAssessment( rating ) {
   }
 
   try {
-    await recordReview( cardId, rating );
+    const review = await recordReview( cardId, rating );
 
     if ( !viewActive || currentCard.value?.id !== cardId ) {
       return;
     }
 
-    assess( rating );
-    typedResponse.value = '';
+    assess({
+      rating,
+      response,
+      reviewId: review.reviewId
+    });
+    typedResponse.value = takePausedResponse( currentCard.value?.id );
     await nextTick();
 
     focusCurrentState();
@@ -351,10 +553,56 @@ async function recordAssessment( rating ) {
   }
 }
 
+async function undoLastGrade() {
+  const assessment = lastAssessment.value;
+
+  if ( !assessment || !canUndoLastGrade.value ) {
+    return;
+  }
+
+  const visibleCard = currentCard.value;
+
+  if ( visibleCard ) {
+    pausedResponses.set( visibleCard.id, typedResponse.value );
+  }
+
+  assessmentError.value = '';
+  recoveryError.value = '';
+  undoPending.value = true;
+
+  try {
+    await reverseReview( assessment.reviewId );
+
+    if (
+      !viewActive
+      || lastAssessment.value?.reviewId !== assessment.reviewId
+    ) {
+      return;
+    }
+
+    const restored = restoreLastAssessment( assessment.reviewId );
+
+    if ( !restored ) {
+      return;
+    }
+
+    typedResponse.value = restored.response ?? '';
+  } catch ( cause ) {
+    if ( viewActive ) {
+      recoveryError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      undoPending.value = false;
+    }
+  }
+}
+
 async function updateGradingMode( nextMode ) {
   if (
     gradingModePending.value
     || assessmentPending.value
+    || undoPending.value
     || gradingModeLocked.value
     || !gradingOptionsByMode[ nextMode ]
     || nextMode === gradingMode.value
@@ -408,6 +656,7 @@ function registerGradingCommand( commandId, mode, rating ) {
       && answerRevealed.value
       && !assessmentPending.value
       && !gradingModePending.value
+      && !undoPending.value
     ) ),
     execute: () => recordAssessment( rating )
   });
@@ -419,12 +668,72 @@ function focusCurrentState() {
     return;
   }
 
-  if ( currentCard.value && !answerRevealed.value ) {
-    if ( typeAnswerSettings.value ) {
-      typeAnswerResponse.value?.focus();
-    } else {
-      focusButton( revealButton.value );
+  if ( !currentCard.value ) {
+    return;
+  }
+
+  if ( answerRevealed.value ) {
+    if ( correctionPending.value ) {
+      focusRevealedAnswer();
     }
+
+    return;
+  }
+
+  if ( typeAnswerSettings.value ) {
+    typeAnswerResponse.value?.focus();
+  } else {
+    focusButton( revealButton.value );
+  }
+}
+
+function focusRevealedAnswer() {
+  if ( typeAnswerSettings.value ) {
+    typeAnswerResponse.value?.focus();
+  } else {
+    studyContent.value?.focus();
+  }
+}
+
+function takePausedResponse( cardId ) {
+  if ( !cardId ) {
+    return '';
+  }
+
+  const response = pausedResponses.get( cardId ) ?? '';
+
+  pausedResponses.delete( cardId );
+
+  return response;
+}
+
+function createStudySessionSnapshot() {
+  return {
+    changedConceptIds: [ ...sessionChangedConceptIds.value ],
+    gradingMode: gradingMode.value,
+    nextDueAt: nextDueAt.value,
+    pausedResponses: [ ...pausedResponses.entries() ],
+    recall: createSnapshot(),
+    sessionGradingMode: sessionGradingMode.value,
+    studyMedia: [ ...studyMedia.value ],
+    totalAvailableCards: totalAvailableCards.value,
+    typedResponse: typedResponse.value
+  };
+}
+
+function restoreStudySession( session ) {
+  restoreSnapshot( session.recall );
+  gradingMode.value = session.gradingMode;
+  nextDueAt.value = session.nextDueAt;
+  sessionGradingMode.value = session.sessionGradingMode;
+  sessionChangedConceptIds.value = new Set( session.changedConceptIds ?? []);
+  studyMedia.value = [ ...session.studyMedia ];
+  totalAvailableCards.value = session.totalAvailableCards;
+  typedResponse.value = session.typedResponse;
+  pausedResponses.clear();
+
+  for ( const [ cardId, response ] of session.pausedResponses ) {
+    pausedResponses.set( cardId, response );
   }
 }
 
@@ -470,7 +779,10 @@ function focusButton( button ) {
             id="grading-mode"
             :model-value="gradingMode"
             :items="gradingModeItems"
-            :disabled="gradingModeLocked || assessmentPending || initialLoading"
+            :disabled="gradingModeLocked
+              || assessmentPending
+              || initialLoading
+              || undoPending"
             :loading="gradingModePending"
             value-key="value"
             leading-icon="i-lucide-list-checks"
@@ -498,6 +810,26 @@ function focusButton( button ) {
       icon="i-lucide-circle-alert"
       color="error"
       variant="soft"
+    />
+
+    <UAlert
+      v-if="sessionResumeNotice"
+      class="study-mode-error"
+      title="Study session restored"
+      :description="sessionResumeNotice"
+      icon="i-lucide-history"
+      color="primary"
+      variant="subtle"
+    />
+
+    <UAlert
+      v-if="deferredError"
+      class="study-mode-error"
+      title="Queued edits need attention"
+      :description="deferredError"
+      icon="i-lucide-circle-alert"
+      color="error"
+      variant="subtle"
     />
 
     <ContentState
@@ -589,10 +921,28 @@ function focusButton( button ) {
       class="study-session"
     >
       <div class="study-progress">
-        <div class="study-progress__copy">
-          <span v-if="isComplete">Session complete</span>
-          <span v-else>Card {{ position }} of {{ totalCards }}</span>
-          <span>{{ completedCount }} completed</span>
+        <div class="study-progress__row">
+          <div class="study-progress__copy">
+            <span v-if="isComplete">Session complete</span>
+            <span v-else>Card {{ position }} of {{ totalCards }}</span>
+            <span>{{ completedCount }} completed</span>
+          </div>
+
+          <UButton
+            v-if="canUndoLastGrade || undoPending"
+            leading-icon="i-lucide-undo-2"
+            color="neutral"
+            variant="subtle"
+            size="md"
+            class="study-progress__undo"
+            :disabled="!canUndoLastGrade"
+            :loading="undoPending"
+            :aria-keyshortcuts="undoCommand.ariaKeyshortcuts"
+            :title="undoCommand.tooltip"
+            @click="undoLastGrade"
+          >
+            Undo last grade
+          </UButton>
         </div>
 
         <div
@@ -610,6 +960,28 @@ function focusButton( button ) {
         </div>
       </div>
 
+      <UAlert
+        v-if="recoveryError"
+        class="study-recovery-error"
+        title="Grade could not be undone"
+        :description="recoveryError"
+        icon="i-lucide-circle-alert"
+        color="error"
+        variant="subtle"
+      />
+
+      <UAlert
+        v-if="deferredEdits.length && !isComplete"
+        class="study-deferred-notice"
+        :title="`${ deferredEdits.length } ${ deferredEdits.length === 1
+          ? 'concept'
+          : 'concepts' } queued for editing`"
+        description="Queued edits will be ready when this study session ends."
+        icon="i-lucide-list-checks"
+        color="neutral"
+        variant="subtle"
+      />
+
       <AnimatePresence
         mode="wait"
         :initial="false"
@@ -619,6 +991,7 @@ function focusButton( button ) {
           :key="currentCard.id"
           class="study-card"
           data-twill-study-card
+          :data-twill-card-id="currentCard.id"
           :initial="{ opacity: 0, x: 18 }"
           :animate="{ opacity: 1, x: 0 }"
           :exit="{ opacity: 0, x: -14 }"
@@ -634,16 +1007,22 @@ function focusButton( button ) {
             </div>
 
             <UButton
-              :to="{
-                name: 'concept-edit',
-                params: { conceptId: currentCard.conceptId }
-              }"
-              leading-icon="i-lucide-pencil"
+              :leading-icon="currentConceptQueued
+                ? 'i-lucide-check'
+                : 'i-lucide-list-plus'"
               color="neutral"
-              variant="link"
+              :variant="currentConceptQueued ? 'subtle' : 'link'"
               size="sm"
+              class="study-edit-later"
+              :disabled="currentConceptQueued
+                || deferredLoading
+                || Boolean( deferredPendingConceptId )"
+              :loading="deferredPendingConceptId === currentCard.conceptId"
+              :aria-keyshortcuts="queueEditCommand.ariaKeyshortcuts"
+              :title="queueEditCommand.tooltip"
+              @click="queueCurrentConcept"
             >
-              Edit concept
+              {{ currentConceptQueued ? 'Queued' : 'Edit later' }}
             </UButton>
           </header>
 
@@ -666,6 +1045,16 @@ function focusButton( button ) {
           </div>
 
           <footer class="study-card__footer">
+            <UAlert
+              v-if="correctionPending"
+              class="study-correction-notice"
+              title="Grade undone"
+              description="Choose the intended grade to continue."
+              icon="i-lucide-undo-2"
+              color="primary"
+              variant="subtle"
+            />
+
             <UAlert
               v-if="assessmentError"
               class="study-assessment-error"
@@ -781,6 +1170,15 @@ function focusButton( button ) {
             </div>
           </dl>
 
+          <DeferredEditQueue
+            v-if="deferredEdits.length"
+            :items="deferredEdits"
+            :pending-concept-id="deferredPendingConceptId"
+            :starting="deferredStartPending"
+            @remove="removeQueuedConcept"
+            @start="startDeferredEditing"
+          />
+
           <div class="study-complete__actions">
             <UButton
               :to="{ name: 'library' }"
@@ -795,5 +1193,14 @@ function focusButton( button ) {
         </m.section>
       </AnimatePresence>
     </div>
+
+    <DeferredEditQueue
+      v-if="!initialLoading && !loadError && !hasCards && deferredEdits.length"
+      :items="deferredEdits"
+      :pending-concept-id="deferredPendingConceptId"
+      :starting="deferredStartPending"
+      @remove="removeQueuedConcept"
+      @start="startDeferredEditing"
+    />
   </div>
 </template>

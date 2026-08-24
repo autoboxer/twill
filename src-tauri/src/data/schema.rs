@@ -27,6 +27,7 @@ fn initial_schema() -> &'static str {
             include_str!("../../schema/preferences.sql"),
             include_str!("../../schema/css_snippets.sql"),
             include_str!("../../schema/authoring_drafts.sql"),
+            include_str!("../../schema/deferred_edits.sql"),
         ]
         .join("\n")
     })

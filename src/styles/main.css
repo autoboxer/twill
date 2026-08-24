@@ -1867,8 +1867,16 @@ button {
   gap: 0.55rem;
 }
 
+.study-progress__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .study-progress__copy {
   display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
   justify-content: space-between;
   gap: 1rem;
   color: var(--ui-text-muted);
@@ -1879,6 +1887,11 @@ button {
 .study-progress__copy span:first-child {
   color: var(--ui-text-highlighted);
   font-weight: 620;
+}
+
+.study-progress__undo {
+  min-height: 2.75rem;
+  flex: 0 0 auto;
 }
 
 .study-progress__track {
@@ -1893,6 +1906,14 @@ button {
   background: var(--ui-primary);
   border-radius: inherit;
   transition: width var(--duration-slow) var(--ease-standard);
+}
+
+.study-recovery-error {
+  margin: 0 0.25rem;
+}
+
+.study-deferred-notice {
+  margin: 0 0.25rem;
 }
 
 .study-card {
@@ -1920,6 +1941,11 @@ button {
 
 .study-card__header > div {
   min-width: 0;
+}
+
+.study-edit-later {
+  min-height: 2.75rem;
+  flex: 0 0 auto;
 }
 
 .study-card__eyebrow,
@@ -2161,7 +2187,8 @@ button {
   border-top: 1px solid var(--ui-border);
 }
 
-.study-assessment-error {
+.study-assessment-error,
+.study-correction-notice {
   margin-bottom: 1rem;
 }
 
@@ -2313,6 +2340,135 @@ button {
   font-size: 1.5rem;
   font-weight: 680;
   font-variant-numeric: tabular-nums;
+}
+
+.deferred-edit-queue {
+  display: grid;
+  overflow: hidden;
+  width: min(100%, 36rem);
+  text-align: left;
+  background: var(--ui-bg-muted);
+  border: 1px solid var(--ui-border);
+  border-radius: 0.6rem;
+}
+
+.study-page > .deferred-edit-queue {
+  margin: 1rem auto 3rem;
+}
+
+.deferred-edit-queue > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1rem 1.1rem;
+  gap: 1rem;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.deferred-edit-queue h3 {
+  margin: 0;
+  color: var(--ui-text-highlighted);
+  font-size: 0.95rem;
+  font-weight: 680;
+}
+
+.deferred-edit-queue header p,
+.deferred-edit-queue footer p {
+  margin: 0.25rem 0 0;
+  color: var(--ui-text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.deferred-edit-queue header > span {
+  display: grid;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  padding: 0 0.4rem;
+  color: var(--ui-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: var(--ui-primary-50);
+  border: 1px solid var(--ui-primary-100);
+  border-radius: 0.4rem;
+  place-items: center;
+}
+
+.deferred-edit-queue ol {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.deferred-edit-queue li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 4.25rem;
+  align-items: center;
+  padding: 0.65rem 0.85rem 0.65rem 1.1rem;
+  gap: 0.8rem;
+}
+
+.deferred-edit-queue li + li {
+  border-top: 1px solid var(--ui-border-muted);
+}
+
+.deferred-edit-queue li > svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--ui-text-dimmed);
+}
+
+.deferred-edit-queue li > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.18rem;
+}
+
+.deferred-edit-queue li strong {
+  overflow: hidden;
+  color: var(--ui-text-highlighted);
+  font-size: 0.88rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deferred-edit-queue li span {
+  color: var(--ui-text-muted);
+  font-size: 0.76rem;
+}
+
+.deferred-edit-queue li[data-twill-deferred-status='changed'] > svg,
+.deferred-edit-queue li[data-twill-deferred-status='archived'] > svg {
+  color: var(--ui-warning);
+}
+
+.deferred-edit-queue li[data-twill-deferred-status='missing'] > svg {
+  color: var(--ui-error);
+}
+
+.deferred-edit-queue li > button {
+  min-height: 2.75rem;
+}
+
+.deferred-edit-queue > footer {
+  display: flex;
+  min-height: 4rem;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.65rem 1.1rem;
+  border-top: 1px solid var(--ui-border);
+}
+
+.deferred-edit-queue footer p {
+  width: 100%;
+  margin: 0;
+  text-align: center;
+}
+
+.deferred-edit-context {
+  margin-bottom: 1rem;
 }
 
 .library-layout {
@@ -4036,6 +4192,16 @@ button {
     gap: 0.75rem;
   }
 
+  .study-progress__row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .study-progress__undo {
+    width: 100%;
+    justify-content: center;
+  }
+
   .study-card,
   .study-complete {
     min-height: 0;
@@ -4113,6 +4279,11 @@ button {
   .study-complete__actions > * {
     width: 100%;
     justify-content: center;
+  }
+
+  .deferred-edit-queue li strong {
+    overflow-wrap: anywhere;
+    white-space: normal;
   }
 
   .library-layout {

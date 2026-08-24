@@ -54,6 +54,9 @@ pub enum LibraryError {
     #[error("authoring draft {message}")]
     InvalidAuthoringDraft { message: String },
 
+    #[error("deferred edit {message}")]
+    InvalidDeferredEdit { message: String },
+
     #[error("the selected image cannot be larger than {maximum_megabytes} MB")]
     ImageTooLarge { maximum_megabytes: usize },
 
@@ -71,6 +74,12 @@ pub enum LibraryError {
 
     #[error("card {card_id} is not due until {due_at}")]
     CardNotDue { card_id: String, due_at: i64 },
+
+    #[error("review {0} was not found")]
+    ReviewNotFound(String),
+
+    #[error("only the latest grade for a card can be undone")]
+    ReviewNotReversible,
 
     #[error("scheduler configuration {0} is not supported")]
     UnsupportedSchedulerConfiguration(String),

@@ -20,13 +20,14 @@ use crate::library::retrieval_forms::{
 use crate::library::study::{
     create_cloze_card, create_image_occlusion_card, create_recall_card,
     create_type_answer_card, query_scheduling_settings, query_study_queue, record_review,
-    update_scheduling_settings,
+    reverse_review, update_scheduling_settings,
 };
 use crate::library::{
     AppearancePreferences, CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput,
     DevicePreferences, GradingMode, LibraryError, LibraryResult, LibrarySnapshot, MediaSummary,
-    NamedItem, OrganizationSummary, RecordReviewInput, RetrievalFormKind, ReviewOutcome,
-    SchedulingSettings, SchedulingState, StartupDestination, StudyQueue, TypeAnswerSettings,
+    NamedItem, OrganizationSummary, RecordReviewInput, RetrievalFormKind,
+    ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome, SchedulingSettings,
+    SchedulingState, StartupDestination, StudyQueue, TypeAnswerSettings,
     UpdateConceptInput, UpdateSchedulingSettingsInput,
 };
 
@@ -64,6 +65,13 @@ impl<'store> ConceptLibrary<'store> {
 
     pub fn record_review(&self, input: RecordReviewInput) -> LibraryResult<ReviewOutcome> {
         self.record_review_at(input, current_timestamp()?)
+    }
+
+    pub fn reverse_review(
+        &self,
+        input: ReverseReviewInput,
+    ) -> LibraryResult<ReviewReversalOutcome> {
+        self.reverse_review_at(input, current_timestamp()?)
     }
 
     pub fn device_preferences(&self) -> LibraryResult<DevicePreferences> {
@@ -132,6 +140,18 @@ impl<'store> ConceptLibrary<'store> {
 
         self.store.write_result(|transaction| {
             record_review(transaction, &card_id, input.rating, now)
+        })
+    }
+
+    fn reverse_review_at(
+        &self,
+        input: ReverseReviewInput,
+        now: i64,
+    ) -> LibraryResult<ReviewReversalOutcome> {
+        let review_id = input.review_id.trim().to_owned();
+
+        self.store.write_result(|transaction| {
+            reverse_review(transaction, &review_id, now)
         })
     }
 
@@ -1331,9 +1351,10 @@ mod tests {
     use crate::library::{
         AppearancePreferences, AppearanceTheme, ConceptContent, CreateConceptInput,
         CreateTemplateInput, GradingMode, LibraryError, MotionPreference, ReadingFont,
-        ReadingTextSize, RecordReviewInput, RetrievalFormKind, ReviewRating, SchedulingState,
-        StartupDestination, TemplateContent, TemplateLibrary, TypeAnswerSettings,
-        UpdateConceptInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
+        ReadingTextSize, RecordReviewInput, RetrievalFormKind, ReverseReviewInput,
+        ReviewRating, SchedulingState, StartupDestination, TemplateContent,
+        TemplateLibrary, TypeAnswerSettings, UpdateConceptInput,
+        UpdateSchedulingSettingsInput, UpdateTemplateInput,
     };
 
     fn test_store() -> (TempDir, LocalDataStore) {
@@ -3041,6 +3062,330 @@ mod tests {
 
         assert!(altered_history.is_err());
         assert!(removed_history.is_err());
+    }
+
+    #[test]
+    fn reversing_a_review_restores_the_schedule_and_is_idempotent() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+
+        library
+            .create_concept(CreateConceptInput {
+                title: "Review reversal".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                type_answer: None,
+            })
+            .unwrap();
+
+        let card = library.study_queue().unwrap().cards[0].clone();
+        let review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                card.due_at,
+            )
+            .unwrap();
+        let reversal = library
+            .reverse_review_at(
+                ReverseReviewInput {
+                    review_id: review.review_id.clone(),
+                },
+                review.reviewed_at + 1,
+            )
+            .unwrap();
+        let restored_schedule: (
+            String,
+            i64,
+            Option<f64>,
+            Option<f64>,
+            Option<i64>,
+            Option<String>,
+            Option<String>,
+            i64,
+            i64,
+        ) = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok(connection.query_row(
+                    "SELECT
+                        state,
+                        due_at,
+                        stability,
+                        difficulty,
+                        last_reviewed_at,
+                        last_review_id,
+                        last_reversal_id,
+                        review_count,
+                        lapse_count
+                    FROM card_scheduling
+                    WHERE card_id = ?1",
+                    [&card.id],
+                    |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                            row.get(5)?,
+                            row.get(6)?,
+                            row.get(7)?,
+                            row.get(8)?,
+                        ))
+                    },
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(reversal.review_id, review.review_id);
+        assert_eq!(reversal.card_id, card.id);
+        assert_eq!(
+            restored_schedule,
+            (
+                "new".to_owned(),
+                card.due_at,
+                None,
+                None,
+                None,
+                None,
+                Some(reversal.reversal_id.clone()),
+                0,
+                0,
+            )
+        );
+
+        let changes_after_reversal = store.changes_after(0, 100).unwrap();
+        let repeated = library
+            .reverse_review_at(
+                ReverseReviewInput {
+                    review_id: review.review_id.clone(),
+                },
+                reversal.reversed_at + 1,
+            )
+            .unwrap();
+
+        assert_eq!(repeated, reversal);
+        assert_eq!(store.changes_after(0, 100).unwrap(), changes_after_reversal);
+
+        let replacement = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Easy,
+                },
+                reversal.reversed_at,
+            )
+            .unwrap();
+        let history_counts: (i64, i64, i64, Option<String>) = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok(connection.query_row(
+                    "SELECT
+                        (SELECT COUNT(*) FROM reviews WHERE card_id = ?1),
+                        (SELECT COUNT(*) FROM review_reversals WHERE card_id = ?1),
+                        review_count,
+                        last_reversal_id
+                    FROM card_scheduling
+                    WHERE card_id = ?1",
+                    [&card.id],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                )?)
+            })
+            .unwrap();
+
+        assert_ne!(replacement.review_id, review.review_id);
+        assert_eq!(history_counts, (2, 1, 1, None));
+    }
+
+    #[test]
+    fn only_the_latest_effective_review_can_be_reversed() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+
+        library
+            .create_concept(CreateConceptInput {
+                title: "Review history".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                type_answer: None,
+            })
+            .unwrap();
+
+        let card = library.study_queue().unwrap().cards[0].clone();
+        let first_review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                card.due_at,
+            )
+            .unwrap();
+        let second_review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Again,
+                },
+                first_review.due_at,
+            )
+            .unwrap();
+        let changes_before_invalid_reversal = store.changes_after(0, 100).unwrap();
+        let invalid_reversal = library.reverse_review_at(
+            ReverseReviewInput {
+                review_id: first_review.review_id.clone(),
+            },
+            second_review.reviewed_at + 1,
+        );
+
+        assert!(matches!(
+            invalid_reversal,
+            Err(LibraryError::ReviewNotReversible)
+        ));
+        assert_eq!(
+            store.changes_after(0, 100).unwrap(),
+            changes_before_invalid_reversal
+        );
+
+        let reversal = library
+            .reverse_review_at(
+                ReverseReviewInput {
+                    review_id: second_review.review_id,
+                },
+                second_review.reviewed_at + 1,
+            )
+            .unwrap();
+        let restored: (String, i64, Option<String>, Option<String>, i64, i64) = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok(connection.query_row(
+                    "SELECT
+                        state,
+                        due_at,
+                        last_review_id,
+                        last_reversal_id,
+                        review_count,
+                        lapse_count
+                    FROM card_scheduling
+                    WHERE card_id = ?1",
+                    [&card.id],
+                    |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                            row.get(5)?,
+                        ))
+                    },
+                )?)
+            })
+            .unwrap();
+
+        assert_eq!(
+            restored,
+            (
+                "review".to_owned(),
+                first_review.due_at,
+                Some(first_review.review_id),
+                Some(reversal.reversal_id),
+                1,
+                0,
+            )
+        );
+    }
+
+    #[test]
+    fn a_failed_reversal_rolls_back_the_event_and_schedule() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+
+        library
+            .create_concept(CreateConceptInput {
+                title: "Reversal rollback".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                type_answer: None,
+            })
+            .unwrap();
+
+        let card = library.study_queue().unwrap().cards[0].clone();
+        let review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                card.due_at,
+            )
+            .unwrap();
+
+        store
+            .write(|transaction| {
+                transaction.execute_batch(
+                    "CREATE TRIGGER force_reversal_failure
+                    AFTER INSERT ON review_reversals
+                    FOR EACH ROW
+                    BEGIN
+                        SELECT RAISE(ABORT, 'forced reversal failure');
+                    END;",
+                )?;
+
+                Ok(())
+            })
+            .unwrap();
+
+        let changes_before = store.changes_after(0, 100).unwrap();
+        let result = library.reverse_review_at(
+            ReverseReviewInput {
+                review_id: review.review_id.clone(),
+            },
+            review.reviewed_at + 1,
+        );
+
+        assert!(result.is_err());
+        assert_eq!(store.changes_after(0, 100).unwrap(), changes_before);
+
+        let persisted: (i64, i64, Option<String>, i64) = store
+            .read_result(|connection| -> DataResult<_> {
+                let reversal_entities = connection.query_row(
+                    "SELECT COUNT(*) FROM entities WHERE kind = 'review_reversal'",
+                    [],
+                    |row| row.get(0),
+                )?;
+                let reversals = connection.query_row(
+                    "SELECT COUNT(*) FROM review_reversals",
+                    [],
+                    |row| row.get(0),
+                )?;
+                let schedule = connection.query_row(
+                    "SELECT review_count, last_reversal_id
+                    FROM card_scheduling
+                    WHERE card_id = ?1",
+                    [&card.id],
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?)),
+                )?;
+
+                Ok((
+                    reversal_entities,
+                    reversals,
+                    schedule.1,
+                    schedule.0,
+                ))
+            })
+            .unwrap();
+
+        assert_eq!(persisted, (0, 0, None, 1));
     }
 
     #[test]

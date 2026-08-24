@@ -116,6 +116,7 @@ pub struct StudyTemplate {
 pub struct StudyCard {
     pub id: String,
     pub concept_id: String,
+    pub concept_last_change_id: String,
     pub concept_title: String,
     pub content: ConceptContent,
     pub retrieval_kind: RetrievalFormKind,
@@ -125,6 +126,38 @@ pub struct StudyCard {
     pub template: Option<StudyTemplate>,
     pub scheduling_state: SchedulingState,
     pub due_at: i64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DeferredEditTargetStatus {
+    Current,
+    Changed,
+    Archived,
+    Missing,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeferredConceptEdit {
+    pub concept_id: String,
+    pub concept_title: String,
+    pub base_change_id: String,
+    pub queued_at: i64,
+    pub target_status: DeferredEditTargetStatus,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeferredEditQueue {
+    pub items: Vec<DeferredConceptEdit>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct QueueDeferredEditInput {
+    pub concept_id: String,
+    pub base_change_id: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -543,6 +576,12 @@ pub struct RecordReviewInput {
     pub rating: ReviewRating,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ReverseReviewInput {
+    pub review_id: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewOutcome {
@@ -553,6 +592,15 @@ pub struct ReviewOutcome {
     pub reviewed_at: i64,
     pub due_at: i64,
     pub scheduled_interval_days: f64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewReversalOutcome {
+    pub reversal_id: String,
+    pub review_id: String,
+    pub card_id: String,
+    pub reversed_at: i64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

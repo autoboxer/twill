@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use fsrs::{ItemState, MemoryState, FSRS};
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
 use crate::data::{current_timestamp, EntityKind, WriteTransaction};
@@ -12,8 +12,9 @@ use crate::library::retrieval_forms::{
 };
 use crate::library::{
     ClozeSettings, ImageOcclusionSettings, LibraryError, LibraryResult,
-    RetrievalFormKind, ReviewOutcome, ReviewRating, SchedulingSettings, SchedulingState,
-    StudyCard, StudyQueue, StudyTemplate, TypeAnswerSettings,
+    RetrievalFormKind, ReviewOutcome, ReviewRating, ReviewReversalOutcome,
+    SchedulingSettings, SchedulingState, StudyCard, StudyQueue, StudyTemplate,
+    TypeAnswerSettings,
     UpdateSchedulingSettingsInput,
 };
 
@@ -31,6 +32,7 @@ struct StoredSchedule {
     stability: Option<f64>,
     difficulty: Option<f64>,
     last_reviewed_at: Option<i64>,
+    last_review_id: Option<String>,
     review_count: i64,
     lapse_count: i64,
 }
@@ -219,6 +221,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
         "SELECT
             cards.entity_id,
             concepts.entity_id,
+            concepts.last_change_id,
             concepts.title,
             concepts.content_json,
             cards.retrieval_kind,
@@ -259,11 +262,12 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             row.get::<_, String>(3)?,
             row.get::<_, String>(4)?,
             row.get::<_, String>(5)?,
-            row.get::<_, Option<String>>(6)?,
+            row.get::<_, String>(6)?,
             row.get::<_, Option<String>>(7)?,
             row.get::<_, Option<String>>(8)?,
-            row.get::<_, String>(9)?,
-            row.get::<_, i64>(10)?,
+            row.get::<_, Option<String>>(9)?,
+            row.get::<_, String>(10)?,
+            row.get::<_, i64>(11)?,
         ))
     })?;
     let card_rows = rows.collect::<Result<Vec<_>, _>>()?;
@@ -277,6 +281,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             let (
                 id,
                 concept_id,
+                concept_last_change_id,
                 concept_title,
                 content,
                 retrieval_kind,
@@ -310,6 +315,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             Ok(StudyCard {
                 id,
                 concept_id,
+                concept_last_change_id,
                 concept_title,
                 content: serde_json::from_str(&content)?,
                 retrieval_kind,
@@ -471,6 +477,7 @@ pub fn record_review(
             difficulty = ?4,
             last_reviewed_at = ?5,
             last_review_id = ?6,
+            last_reversal_id = NULL,
             review_count = ?7,
             lapse_count = ?8
         WHERE card_id = ?9",
@@ -498,6 +505,83 @@ pub fn record_review(
     })
 }
 
+pub fn reverse_review(
+    transaction: &WriteTransaction<'_>,
+    review_id: &str,
+    now: i64,
+) -> LibraryResult<ReviewReversalOutcome> {
+    if let Some(reversal) = query_review_reversal(transaction, review_id)? {
+        return Ok(reversal);
+    }
+
+    let review = transaction
+        .query_row(
+            "SELECT card_id, reviewed_at
+            FROM reviews
+            WHERE entity_id = ?1",
+            [review_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .optional()?;
+    let Some((card_id, reviewed_at)) = review else {
+        return Err(LibraryError::ReviewNotFound(review_id.to_owned()));
+    };
+    let schedule = query_schedule(transaction, &card_id)?;
+
+    if schedule.last_review_id.as_deref() != Some(review_id) {
+        return Err(LibraryError::ReviewNotReversible);
+    }
+
+    let reversed_at = now.max(reviewed_at);
+    let reversal = transaction.create_entity_at(EntityKind::ReviewReversal, reversed_at)?;
+
+    transaction.execute(
+        "INSERT INTO review_reversals (
+            entity_id,
+            review_id,
+            card_id,
+            reversed_at,
+            last_change_id
+        ) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            reversal.id,
+            review_id,
+            card_id,
+            reversed_at,
+            reversal.last_change_id,
+        ],
+    )?;
+
+    Ok(ReviewReversalOutcome {
+        reversal_id: reversal.id,
+        review_id: review_id.to_owned(),
+        card_id,
+        reversed_at,
+    })
+}
+
+fn query_review_reversal(
+    connection: &Connection,
+    review_id: &str,
+) -> LibraryResult<Option<ReviewReversalOutcome>> {
+    Ok(connection
+        .query_row(
+            "SELECT entity_id, review_id, card_id, reversed_at
+            FROM review_reversals
+            WHERE review_id = ?1",
+            [review_id],
+            |row| {
+                Ok(ReviewReversalOutcome {
+                    reversal_id: row.get(0)?,
+                    review_id: row.get(1)?,
+                    card_id: row.get(2)?,
+                    reversed_at: row.get(3)?,
+                })
+            },
+        )
+        .optional()?)
+}
+
 fn query_schedule(
     connection: &Connection,
     card_id: &str,
@@ -509,6 +593,7 @@ fn query_schedule(
             card_scheduling.stability,
             card_scheduling.difficulty,
             card_scheduling.last_reviewed_at,
+            card_scheduling.last_review_id,
             card_scheduling.review_count,
             card_scheduling.lapse_count
         FROM card_scheduling
@@ -532,20 +617,31 @@ fn query_schedule(
                 row.get::<_, Option<f64>>(2)?,
                 row.get::<_, Option<f64>>(3)?,
                 row.get::<_, Option<i64>>(4)?,
-                row.get::<_, i64>(5)?,
+                row.get::<_, Option<String>>(5)?,
                 row.get::<_, i64>(6)?,
+                row.get::<_, i64>(7)?,
             ))
         },
     );
 
     match result {
-        Ok((state, due_at, stability, difficulty, last_reviewed_at, review_count, lapse_count)) => {
+        Ok((
+            state,
+            due_at,
+            stability,
+            difficulty,
+            last_reviewed_at,
+            last_review_id,
+            review_count,
+            lapse_count,
+        )) => {
             Ok(StoredSchedule {
                 state: SchedulingState::try_from(state.as_str())?,
                 due_at,
                 stability,
                 difficulty,
                 last_reviewed_at,
+                last_review_id,
                 review_count,
                 lapse_count,
             })

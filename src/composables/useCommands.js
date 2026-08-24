@@ -211,6 +211,10 @@ function createCommandRuntime( router ) {
 }
 
 function shouldPreserveNativeInteraction( event ) {
+  if ( /^F(?:[1-9]|1[0-2])$/u.test( event.key ) ) {
+    return false;
+  }
+
   if ( event.altKey || event.ctrlKey || event.metaKey ) {
     return false;
   }
