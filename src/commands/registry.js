@@ -14,6 +14,7 @@ export const COMMAND_IDS = Object.freeze({
   studyGradeSimpleForgot: 'study.grade.simple.forgot',
   studyGradeSimpleRemembered: 'study.grade.simple.remembered',
   studyReveal: 'study.reveal',
+  studyUndoLastGrade: 'study.undo-last-grade',
   templateSave: 'template.save'
 });
 
@@ -106,6 +107,15 @@ export const commandRegistry = Object.freeze([
     icon: 'i-lucide-eye',
     label: 'Reveal answer',
     shortcut: 'Space'
+  }),
+  localCommand({
+    id: COMMAND_IDS.studyUndoLastGrade,
+    context: 'Study, after a grade',
+    description: 'Remove the last saved grade and return to that answer.',
+    group: 'Study',
+    icon: 'i-lucide-undo-2',
+    label: 'Undo last grade',
+    shortcut: 'Mod+Z'
   }),
   studyGradeCommand({
     id: COMMAND_IDS.studyGradeSimpleForgot,

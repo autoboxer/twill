@@ -55,6 +55,9 @@ export function useConceptLibrary() {
     recordReview: ( cardId, rating ) => run( 'record_review', {
       input: { cardId, rating }
     }),
+    reverseReview: ( reviewId ) => run( 'reverse_review', {
+      input: { reviewId }
+    }),
     renameDeck: ( id, name ) => run( 'rename_deck', { input: { id, name } }),
     renameTag: ( id, name ) => run( 'rename_tag', { input: { id, name } }),
     setConceptArchived: ( id, archived ) => run( 'set_concept_archived', {

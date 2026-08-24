@@ -22,7 +22,8 @@ import { normalizeTypeAnswer } from '../type-answer/comparison';
 const {
   clearError,
   getStudyQueue,
-  recordReview
+  recordReview,
+  reverseReview
 } = useConceptLibrary();
 const {
   getDevicePreferences,
@@ -33,13 +34,16 @@ const {
   assess,
   begin,
   completedCount,
+  correctionPending,
   currentCard,
   hasCards,
   isComplete,
+  lastAssessment,
   position,
   progress,
   ratingCounts,
   revealAnswer,
+  restoreLastAssessment,
   totalCards
 } = useRecallSession();
 const commands = useCommands();
@@ -54,6 +58,7 @@ const initialLoading = ref( true );
 const loadError = ref( '' );
 const nextDueAt = ref( null );
 const pendingAssessment = ref( '' );
+const recoveryError = ref( '' );
 const revealButton = ref( null );
 const sessionGradingMode = ref( 'simple' );
 const studyContent = ref( null );
@@ -61,8 +66,10 @@ const studyMedia = ref([]);
 const totalAvailableCards = ref( 0 );
 const typeAnswerResponse = ref( null );
 const typedResponse = ref( '' );
+const undoPending = ref( false );
 let loadRequestSequence = 0;
 let viewActive = true;
+const pausedResponses = new Map();
 
 const cardTransition = {
   duration: 0.22,
@@ -128,8 +135,19 @@ const gradingOptionsByMode = {
 };
 
 const gradingModeLocked = computed( () => {
-  return completedCount.value > 0 && !isComplete.value;
+  return (
+    completedCount.value > 0
+    || correctionPending.value
+  ) && !isComplete.value;
 });
+
+const canUndoLastGrade = computed( () => (
+  Boolean( lastAssessment.value )
+  && !correctionPending.value
+  && !assessmentPending.value
+  && !gradingModePending.value
+  && !undoPending.value
+) );
 
 const gradingOptions = computed( () => {
   return gradingOptionsForMode( gradingMode.value );
@@ -211,9 +229,15 @@ const revealCommand = useCommandHandler( COMMAND_IDS.studyReveal, {
     && !answerRevealed.value
     && !assessmentPending.value
     && !gradingModePending.value
+    && !undoPending.value
     && canRevealAnswer.value
   ) ),
   execute: showAnswer
+});
+
+const undoCommand = useCommandHandler( COMMAND_IDS.studyUndoLastGrade, {
+  enabled: canUndoLastGrade,
+  execute: undoLastGrade
 });
 
 registerGradingCommand(
@@ -271,6 +295,7 @@ async function loadStudyQueue() {
 
     studyMedia.value = queue.media;
     begin( queue.cards );
+    pausedResponses.clear();
     typedResponse.value = '';
     gradingMode.value = preferences.gradingMode;
     nextDueAt.value = queue.nextDueAt;
@@ -288,7 +313,12 @@ async function loadStudyQueue() {
 }
 
 async function showAnswer() {
-  if ( !canRevealAnswer.value ) {
+  if (
+    !canRevealAnswer.value
+    || assessmentPending.value
+    || gradingModePending.value
+    || undoPending.value
+  ) {
     return;
   }
 
@@ -311,6 +341,7 @@ async function recordAssessment( rating ) {
     !visibleRating
     || assessmentPending.value
     || gradingModePending.value
+    || undoPending.value
     || !answerRevealed.value
     || !currentCard.value
   ) {
@@ -318,8 +349,10 @@ async function recordAssessment( rating ) {
   }
 
   const cardId = currentCard.value.id;
+  const response = typedResponse.value;
 
   assessmentError.value = '';
+  recoveryError.value = '';
   assessmentPending.value = true;
   pendingAssessment.value = rating;
 
@@ -328,14 +361,18 @@ async function recordAssessment( rating ) {
   }
 
   try {
-    await recordReview( cardId, rating );
+    const review = await recordReview( cardId, rating );
 
     if ( !viewActive || currentCard.value?.id !== cardId ) {
       return;
     }
 
-    assess( rating );
-    typedResponse.value = '';
+    assess({
+      rating,
+      response,
+      reviewId: review.reviewId
+    });
+    typedResponse.value = takePausedResponse( currentCard.value?.id );
     await nextTick();
 
     focusCurrentState();
@@ -351,10 +388,56 @@ async function recordAssessment( rating ) {
   }
 }
 
+async function undoLastGrade() {
+  const assessment = lastAssessment.value;
+
+  if ( !assessment || !canUndoLastGrade.value ) {
+    return;
+  }
+
+  const visibleCard = currentCard.value;
+
+  if ( visibleCard ) {
+    pausedResponses.set( visibleCard.id, typedResponse.value );
+  }
+
+  assessmentError.value = '';
+  recoveryError.value = '';
+  undoPending.value = true;
+
+  try {
+    await reverseReview( assessment.reviewId );
+
+    if (
+      !viewActive
+      || lastAssessment.value?.reviewId !== assessment.reviewId
+    ) {
+      return;
+    }
+
+    const restored = restoreLastAssessment( assessment.reviewId );
+
+    if ( !restored ) {
+      return;
+    }
+
+    typedResponse.value = restored.response ?? '';
+  } catch ( cause ) {
+    if ( viewActive ) {
+      recoveryError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      undoPending.value = false;
+    }
+  }
+}
+
 async function updateGradingMode( nextMode ) {
   if (
     gradingModePending.value
     || assessmentPending.value
+    || undoPending.value
     || gradingModeLocked.value
     || !gradingOptionsByMode[ nextMode ]
     || nextMode === gradingMode.value
@@ -408,6 +491,7 @@ function registerGradingCommand( commandId, mode, rating ) {
       && answerRevealed.value
       && !assessmentPending.value
       && !gradingModePending.value
+      && !undoPending.value
     ) ),
     execute: () => recordAssessment( rating )
   });
@@ -419,13 +503,43 @@ function focusCurrentState() {
     return;
   }
 
-  if ( currentCard.value && !answerRevealed.value ) {
-    if ( typeAnswerSettings.value ) {
-      typeAnswerResponse.value?.focus();
-    } else {
-      focusButton( revealButton.value );
-    }
+  if ( !currentCard.value ) {
+    return;
   }
+
+  if ( answerRevealed.value ) {
+    if ( correctionPending.value ) {
+      focusRevealedAnswer();
+    }
+
+    return;
+  }
+
+  if ( typeAnswerSettings.value ) {
+    typeAnswerResponse.value?.focus();
+  } else {
+    focusButton( revealButton.value );
+  }
+}
+
+function focusRevealedAnswer() {
+  if ( typeAnswerSettings.value ) {
+    typeAnswerResponse.value?.focus();
+  } else {
+    studyContent.value?.focus();
+  }
+}
+
+function takePausedResponse( cardId ) {
+  if ( !cardId ) {
+    return '';
+  }
+
+  const response = pausedResponses.get( cardId ) ?? '';
+
+  pausedResponses.delete( cardId );
+
+  return response;
 }
 
 function studyCardName( card ) {
@@ -470,7 +584,10 @@ function focusButton( button ) {
             id="grading-mode"
             :model-value="gradingMode"
             :items="gradingModeItems"
-            :disabled="gradingModeLocked || assessmentPending || initialLoading"
+            :disabled="gradingModeLocked
+              || assessmentPending
+              || initialLoading
+              || undoPending"
             :loading="gradingModePending"
             value-key="value"
             leading-icon="i-lucide-list-checks"
@@ -589,10 +706,28 @@ function focusButton( button ) {
       class="study-session"
     >
       <div class="study-progress">
-        <div class="study-progress__copy">
-          <span v-if="isComplete">Session complete</span>
-          <span v-else>Card {{ position }} of {{ totalCards }}</span>
-          <span>{{ completedCount }} completed</span>
+        <div class="study-progress__row">
+          <div class="study-progress__copy">
+            <span v-if="isComplete">Session complete</span>
+            <span v-else>Card {{ position }} of {{ totalCards }}</span>
+            <span>{{ completedCount }} completed</span>
+          </div>
+
+          <UButton
+            v-if="canUndoLastGrade || undoPending"
+            leading-icon="i-lucide-undo-2"
+            color="neutral"
+            variant="subtle"
+            size="md"
+            class="study-progress__undo"
+            :disabled="!canUndoLastGrade"
+            :loading="undoPending"
+            :aria-keyshortcuts="undoCommand.ariaKeyshortcuts"
+            :title="undoCommand.tooltip"
+            @click="undoLastGrade"
+          >
+            Undo last grade
+          </UButton>
         </div>
 
         <div
@@ -610,6 +745,16 @@ function focusButton( button ) {
         </div>
       </div>
 
+      <UAlert
+        v-if="recoveryError"
+        class="study-recovery-error"
+        title="Grade could not be undone"
+        :description="recoveryError"
+        icon="i-lucide-circle-alert"
+        color="error"
+        variant="subtle"
+      />
+
       <AnimatePresence
         mode="wait"
         :initial="false"
@@ -619,6 +764,7 @@ function focusButton( button ) {
           :key="currentCard.id"
           class="study-card"
           data-twill-study-card
+          :data-twill-card-id="currentCard.id"
           :initial="{ opacity: 0, x: 18 }"
           :animate="{ opacity: 1, x: 0 }"
           :exit="{ opacity: 0, x: -14 }"
@@ -666,6 +812,16 @@ function focusButton( button ) {
           </div>
 
           <footer class="study-card__footer">
+            <UAlert
+              v-if="correctionPending"
+              class="study-correction-notice"
+              title="Grade undone"
+              description="Choose the intended grade to continue."
+              icon="i-lucide-undo-2"
+              color="primary"
+              variant="subtle"
+            />
+
             <UAlert
               v-if="assessmentError"
               class="study-assessment-error"
