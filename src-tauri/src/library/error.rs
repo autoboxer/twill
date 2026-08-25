@@ -114,6 +114,15 @@ pub enum LibraryError {
     #[error("explain card key points must be unique")]
     DuplicateExplainKeyPoint,
 
+    #[error("problem cards require at least one checkpoint")]
+    MissingProblemCheckpoint,
+
+    #[error("problem cards cannot have more than {maximum} checkpoints")]
+    TooManyProblemCheckpoints { maximum: usize },
+
+    #[error("problem card checkpoints must be unique")]
+    DuplicateProblemCheckpoint,
+
     #[error("this template is used by {retrieval_form_count} active retrieval forms")]
     TemplateInUse { retrieval_form_count: i64 },
 

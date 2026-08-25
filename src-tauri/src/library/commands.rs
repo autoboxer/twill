@@ -48,7 +48,10 @@ impl From<LibraryError> for CommandError {
             | LibraryError::DuplicateAcceptedAnswer
             | LibraryError::MissingExplainKeyPoint
             | LibraryError::TooManyExplainKeyPoints { .. }
-            | LibraryError::DuplicateExplainKeyPoint => "validation",
+            | LibraryError::DuplicateExplainKeyPoint
+            | LibraryError::MissingProblemCheckpoint
+            | LibraryError::TooManyProblemCheckpoints { .. }
+            | LibraryError::DuplicateProblemCheckpoint => "validation",
             LibraryError::DuplicateName { .. }
             | LibraryError::CardNotDue { .. }
             | LibraryError::ReviewNotReversible
