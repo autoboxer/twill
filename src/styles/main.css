@@ -2122,7 +2122,8 @@ button {
   width: 100%;
 }
 
-.explain-response {
+.explain-response,
+.problem-response {
   display: grid;
   padding: 1.25rem;
   gap: 1.25rem;
@@ -2131,13 +2132,15 @@ button {
   border-radius: 0.6rem;
 }
 
-.explain-response__heading {
+.explain-response__heading,
+.problem-response__heading {
   display: flex;
   align-items: flex-start;
   gap: 0.75rem;
 }
 
-.explain-response__heading > span {
+.explain-response__heading > span,
+.problem-response__heading > span {
   display: grid;
   width: 2rem;
   height: 2rem;
@@ -2149,49 +2152,59 @@ button {
   place-items: center;
 }
 
-.explain-response__heading svg {
+.explain-response__heading svg,
+.problem-response__heading svg {
   width: 1rem;
   height: 1rem;
 }
 
 .explain-response__heading strong,
-.explain-comparison__heading strong {
+.explain-comparison__heading strong,
+.problem-response__heading strong,
+.problem-comparison__heading strong {
   color: var(--ui-text-highlighted);
   font-size: 0.95rem;
   font-weight: 670;
 }
 
 .explain-response__heading p,
-.explain-comparison__heading p {
+.explain-comparison__heading p,
+.problem-response__heading p,
+.problem-comparison__heading p {
   margin: 0.2rem 0 0;
   color: var(--ui-text-muted);
   font-size: 0.82rem;
   line-height: 1.5;
 }
 
-.explain-response__input {
+.explain-response__input,
+.problem-response__input {
   width: 100%;
 }
 
-.explain-comparison {
+.explain-comparison,
+.problem-comparison {
   display: grid;
   gap: 1rem;
   outline: none;
 }
 
-.explain-comparison:focus-visible {
+.explain-comparison:focus-visible,
+.problem-comparison:focus-visible {
   outline: 2px solid var(--ui-primary);
   outline-offset: 0.5rem;
   border-radius: 0.35rem;
 }
 
-.explain-comparison__content {
+.explain-comparison__content,
+.problem-comparison__content {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
 }
 
-.explain-comparison__content > div {
+.explain-comparison__content > div,
+.problem-comparison__content > div {
   min-width: 0;
   padding: 0.9rem;
   background: var(--ui-bg);
@@ -2199,7 +2212,8 @@ button {
   border-radius: 0.5rem;
 }
 
-.explain-comparison__content > div > span {
+.explain-comparison__content > div > span,
+.problem-comparison__content > div > span {
   display: block;
   margin-bottom: 0.65rem;
   color: var(--ui-text-dimmed);
@@ -2210,7 +2224,9 @@ button {
 }
 
 .explain-comparison__attempt,
-.explain-comparison__empty {
+.explain-comparison__empty,
+.problem-comparison__attempt,
+.problem-comparison__empty {
   margin: 0;
   color: var(--ui-text-highlighted);
   font-size: 0.95rem;
@@ -2219,7 +2235,8 @@ button {
   white-space: pre-wrap;
 }
 
-.explain-comparison__empty {
+.explain-comparison__empty,
+.problem-comparison__empty {
   color: var(--ui-text-muted);
 }
 
@@ -2247,6 +2264,33 @@ button {
   height: 1rem;
   margin-top: 0.2rem;
   color: var(--ui-primary);
+}
+
+.problem-comparison ol {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  gap: 0.65rem;
+  counter-reset: problem-solution-checkpoint;
+  list-style: none;
+}
+
+.problem-comparison li {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.5rem;
+  color: var(--ui-text-highlighted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  counter-increment: problem-solution-checkpoint;
+}
+
+.problem-comparison li::before {
+  color: var(--ui-primary);
+  content: counter(problem-solution-checkpoint) '.';
+  font-weight: 680;
 }
 
 .type-answer-comparison {
@@ -4419,12 +4463,14 @@ button {
     padding: 1rem;
   }
 
-  .explain-response {
+  .explain-response,
+  .problem-response {
     padding: 1rem;
   }
 
   .type-answer-comparison__rows,
-  .explain-comparison__content {
+  .explain-comparison__content,
+  .problem-comparison__content {
     grid-template-columns: minmax(0, 1fr);
   }
 
