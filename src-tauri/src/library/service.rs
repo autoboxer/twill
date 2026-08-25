@@ -1457,15 +1457,15 @@ mod tests {
 
     use super::ConceptLibrary;
     use crate::data::{DataResult, EntityKind, LocalDataStore};
-    use crate::library::models::{ExplainFocus, TemplateMode};
+    use crate::library::models::{AnswerFeedback, ExplainFocus, TemplateMode};
     use crate::library::{
         AppearancePreferences, AppearanceTheme, ConceptContent, CreateConceptInput,
         CreateTemplateInput, ExplainSettings, GradingMode, LibraryError,
         MotionPreference, ProblemSettings, ReadingFont, ReadingTextSize,
         RecordReviewInput, RetrievalFormKind, ReverseReviewInput, ReviewRating,
         SchedulingState, StartupDestination, TemplateContent, TemplateLibrary,
-        TypeAnswerSettings, UpdateConceptInput,
-        UpdateSchedulingSettingsInput, UpdateTemplateInput,
+        TypeAnswerSettings, UpdateConceptInput, UpdateSchedulingSettingsInput,
+        UpdateTemplateInput,
     };
 
     fn test_store() -> (TempDir, LocalDataStore) {
@@ -1743,23 +1743,13 @@ mod tests {
             schema_version: 1,
             prompt: json!({
                 "type": "doc",
-                "content": [
-                    {
-                        "type": "paragraph",
-                        "content": [{
-                            "type": "text",
-                            "text": "Identify this structure."
-                        }]
-                    },
-                    {
-                        "type": "mediaImage",
-                        "attrs": {
-                            "mediaId": media.id,
-                            "alt": "A test image",
-                            "title": null
-                        }
-                    }
-                ]
+                "content": [{
+                    "type": "paragraph",
+                    "content": [{
+                        "type": "text",
+                        "text": "Identify this structure."
+                    }]
+                }]
             }),
             answer: json!({
                 "type": "doc",
@@ -1772,6 +1762,29 @@ mod tests {
                     }]
                 }]
             }),
+            feedback: AnswerFeedback {
+                explanation: json!({
+                    "type": "doc",
+                    "content": [{
+                        "type": "mediaImage",
+                        "attrs": {
+                            "mediaId": media.id,
+                            "alt": "Why this is a cell",
+                            "title": null
+                        }
+                    }]
+                }),
+                common_mistakes: json!({
+                    "type": "doc",
+                    "content": [{
+                        "type": "paragraph",
+                        "content": [{
+                            "type": "text",
+                            "text": "Do not confuse the cell wall with the membrane."
+                        }]
+                    }]
+                }),
+            },
         };
         let concept = library
             .create_concept(CreateConceptInput {
@@ -1795,18 +1808,22 @@ mod tests {
         let revision = store.entity(&concept.id).unwrap().unwrap().revision;
         let invalid_content = ConceptContent {
             schema_version: 1,
-            prompt: json!({
-                "type": "doc",
-                "content": [{
-                    "type": "mediaImage",
-                    "attrs": {
-                        "mediaId": "018f1e2d-3c4b-7a69-8f10-123456789abc",
-                        "alt": null,
-                        "title": null
-                    }
-                }]
-            }),
+            prompt: ConceptContent::default().prompt,
             answer: ConceptContent::default().answer,
+            feedback: AnswerFeedback {
+                explanation: json!({
+                    "type": "doc",
+                    "content": [{
+                        "type": "mediaImage",
+                        "attrs": {
+                            "mediaId": "018f1e2d-3c4b-7a69-8f10-123456789abc",
+                            "alt": null,
+                            "title": null
+                        }
+                    }]
+                }),
+                ..Default::default()
+            },
         };
         let invalid_update = library.update_concept(UpdateConceptInput {
             id: concept.id.clone(),
@@ -1996,6 +2013,7 @@ mod tests {
                         }]
                     }),
                     answer: ConceptContent::default().answer,
+                    feedback: Default::default(),
                 },
                 include_standard_recall: false,
                 template_ids: vec![
@@ -2458,6 +2476,7 @@ mod tests {
                     }]
                 }]
             }),
+            feedback: Default::default(),
         };
         let create_problem = |checkpoints| CreateConceptInput {
             title: "Cart acceleration".to_owned(),
@@ -2556,6 +2575,7 @@ mod tests {
                 }]
             }),
             answer: ConceptContent::default().answer,
+            feedback: Default::default(),
         };
         let concept = library
             .create_concept(CreateConceptInput {
@@ -2702,6 +2722,7 @@ mod tests {
                 cloze_text("respiration", second_group),
             ]),
             answer: ConceptContent::default().answer,
+            feedback: Default::default(),
         };
         let concept = library
             .create_concept(CreateConceptInput {
@@ -2754,6 +2775,7 @@ mod tests {
                 cloze_text("oxidative phosphorylation", third_group),
             ]),
             answer: concept.content.answer.clone(),
+            feedback: concept.content.feedback.clone(),
         };
         let updated = library
             .update_concept(UpdateConceptInput {
@@ -2800,6 +2822,7 @@ mod tests {
                 cloze_text("cellular work", second_group),
             ]),
             answer: concept.content.answer,
+            feedback: concept.content.feedback,
         };
         let readded = library
             .update_concept(UpdateConceptInput {
@@ -2871,6 +2894,7 @@ mod tests {
                 region(second_region, second_group, 0.1, 0.55),
             ]),
             answer: ConceptContent::default().answer,
+            feedback: Default::default(),
         };
         let concept = library
             .create_concept(CreateConceptInput {
@@ -2939,6 +2963,7 @@ mod tests {
                 region(third_region, third_group, 0.6, 0.55),
             ]),
             answer: concept.content.answer.clone(),
+            feedback: concept.content.feedback.clone(),
         };
         let updated = library
             .update_concept(UpdateConceptInput {
@@ -2988,6 +3013,7 @@ mod tests {
                 region(replacement_region, second_group, 0.1, 0.55),
             ]),
             answer: concept.content.answer,
+            feedback: concept.content.feedback,
         };
         let readded = library
             .update_concept(UpdateConceptInput {
@@ -3149,6 +3175,7 @@ mod tests {
                     "content": [{ "type": "text", "text": "An answer" }]
                 }]
             }),
+            feedback: Default::default(),
         };
         let active = library
             .create_concept(CreateConceptInput {

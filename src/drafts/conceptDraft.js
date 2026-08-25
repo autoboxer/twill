@@ -71,6 +71,8 @@ export function conceptDraftMediaIds( state ) {
 
   collectMediaIds( state?.content?.prompt, mediaIds );
   collectMediaIds( state?.content?.answer, mediaIds );
+  collectMediaIds( state?.content?.feedback?.explanation, mediaIds );
+  collectMediaIds( state?.content?.feedback?.commonMistakes, mediaIds );
 
   return [ ...mediaIds ].sort();
 }

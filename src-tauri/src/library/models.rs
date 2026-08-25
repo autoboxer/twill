@@ -647,10 +647,28 @@ pub struct MediaSummary {
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnswerFeedback {
+    pub explanation: Value,
+    pub common_mistakes: Value,
+}
+
+impl Default for AnswerFeedback {
+    fn default() -> Self {
+        Self {
+            explanation: empty_rich_text_document(),
+            common_mistakes: empty_rich_text_document(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConceptContent {
     pub schema_version: u32,
     pub prompt: Value,
     pub answer: Value,
+    #[serde(default)]
+    pub feedback: AnswerFeedback,
 }
 
 impl Default for ConceptContent {
@@ -659,6 +677,7 @@ impl Default for ConceptContent {
             schema_version: RICH_CONTENT_SCHEMA_VERSION,
             prompt: empty_rich_text_document(),
             answer: empty_rich_text_document(),
+            feedback: AnswerFeedback::default(),
         }
     }
 }

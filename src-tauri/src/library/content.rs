@@ -8,6 +8,7 @@ use crate::library::{
 };
 
 const MAXIMUM_DOCUMENT_BYTES: usize = 1_000_000;
+const MAXIMUM_CONCEPT_DOCUMENTS: usize = 4;
 const MAXIMUM_DOCUMENT_DEPTH: usize = 32;
 const MAXIMUM_DOCUMENT_NODES: usize = 10_000;
 const MAXIMUM_DOCUMENT_TEXT: usize = 500_000;
@@ -56,7 +57,7 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
 
     let serialized = serde_json::to_string(&content)?;
 
-    if serialized.len() > MAXIMUM_DOCUMENT_BYTES * 2 {
+    if serialized.len() > MAXIMUM_DOCUMENT_BYTES * MAXIMUM_CONCEPT_DOCUMENTS {
         return Err(invalid_content("Content", "is too large"));
     }
 
@@ -73,6 +74,16 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
 
     validate_document(&content.prompt, "Prompt", &mut state)?;
     validate_document(&content.answer, "Answer", &mut state)?;
+    validate_document(
+        &content.feedback.explanation,
+        "Feedback explanation",
+        &mut state,
+    )?;
+    validate_document(
+        &content.feedback.common_mistakes,
+        "Feedback common mistakes",
+        &mut state,
+    )?;
 
     Ok(ValidatedContent {
         cloze_group_ids: state.cloze_group_ids,
@@ -822,6 +833,7 @@ mod tests {
     use serde_json::{json, Value};
 
     use super::{rich_document_has_content, validate_content};
+    use crate::library::models::AnswerFeedback;
     use crate::library::{ConceptContent, LibraryError};
 
     #[test]
@@ -861,6 +873,7 @@ mod tests {
     #[test]
     fn allowlisted_documents_collect_media_references() {
         let media_id = "018f1e2d-3c4b-7a69-8f10-123456789abc";
+        let feedback_media_id = "018f1e2d-3c4b-7a69-8f10-123456789ac0";
         let cloze_group_id = "018f1e2d-3c4b-7a69-8f10-123456789abd";
         let occlusion_group_id = "018f1e2d-3c4b-7a69-8f10-123456789abe";
         let occlusion_region_id = "018f1e2d-3c4b-7a69-8f10-123456789abf";
@@ -920,6 +933,29 @@ mod tests {
                     }]
                 }]
             }),
+            feedback: AnswerFeedback {
+                explanation: json!({
+                    "type": "doc",
+                    "content": [{
+                        "type": "mediaImage",
+                        "attrs": {
+                            "mediaId": feedback_media_id,
+                            "alt": "Why the relationship holds",
+                            "title": null
+                        }
+                    }]
+                }),
+                common_mistakes: json!({
+                    "type": "doc",
+                    "content": [{
+                        "type": "paragraph",
+                        "content": [{
+                            "type": "text",
+                            "text": "Do not confuse mass with weight."
+                        }]
+                    }]
+                }),
+            },
         };
 
         let validated = validate_content(content).unwrap();
@@ -929,8 +965,51 @@ mod tests {
             validated.image_occlusion_group_ids,
             vec![occlusion_group_id]
         );
-        assert_eq!(validated.media_ids, [media_id.to_owned()].into());
+        assert_eq!(
+            validated.media_ids,
+            [media_id.to_owned(), feedback_media_id.to_owned()].into()
+        );
         assert!(validated.serialized.contains("Cell membrane"));
+        assert!(validated.serialized.contains("mass with weight"));
+    }
+
+    #[test]
+    fn feedback_documents_use_the_rich_content_allowlist() {
+        let invalid_document = json!({
+            "type": "doc",
+            "content": [{ "type": "script", "content": [] }]
+        });
+        let invalid_fields = [
+            (
+                "Feedback explanation",
+                AnswerFeedback {
+                    explanation: invalid_document.clone(),
+                    ..Default::default()
+                },
+            ),
+            (
+                "Feedback common mistakes",
+                AnswerFeedback {
+                    common_mistakes: invalid_document,
+                    ..Default::default()
+                },
+            ),
+        ];
+
+        for (field, feedback) in invalid_fields {
+            let content = ConceptContent {
+                feedback,
+                ..Default::default()
+            };
+
+            assert!(matches!(
+                validate_content(content),
+                Err(LibraryError::InvalidContent {
+                    field: invalid_field,
+                    ..
+                }) if invalid_field == field
+            ));
+        }
     }
 
     #[test]
@@ -960,16 +1039,19 @@ mod tests {
             schema_version: 1,
             prompt: ConceptContent::default().prompt,
             answer: document(marked_text("Answer", group_id)),
+            feedback: Default::default(),
         };
         let invalid_group = ConceptContent {
             schema_version: 1,
             prompt: document(marked_text("Prompt", "not-a-uuid")),
             answer: ConceptContent::default().answer,
+            feedback: Default::default(),
         };
         let empty_omission = ConceptContent {
             schema_version: 1,
             prompt: document(marked_text("   ", group_id)),
             answer: ConceptContent::default().answer,
+            feedback: Default::default(),
         };
 
         for content in [answer_mark, invalid_group, empty_omission] {
@@ -1017,6 +1099,7 @@ mod tests {
                     first_media,
                     vec![region(first_region, group_id, 0.1, 0.3)],
                 )]),
+                feedback: Default::default(),
             },
             ConceptContent {
                 schema_version: 1,
@@ -1025,6 +1108,7 @@ mod tests {
                     vec![region(first_region, "not-a-uuid", 0.1, 0.3)],
                 )]),
                 answer: ConceptContent::default().answer,
+                feedback: Default::default(),
             },
             ConceptContent {
                 schema_version: 1,
@@ -1033,6 +1117,7 @@ mod tests {
                     vec![region(first_region, group_id, 0.1, 0.0)],
                 )]),
                 answer: ConceptContent::default().answer,
+                feedback: Default::default(),
             },
             ConceptContent {
                 schema_version: 1,
@@ -1041,6 +1126,7 @@ mod tests {
                     vec![region(first_region, group_id, 0.8, 0.3)],
                 )]),
                 answer: ConceptContent::default().answer,
+                feedback: Default::default(),
             },
             ConceptContent {
                 schema_version: 1,
@@ -1052,6 +1138,7 @@ mod tests {
                     ],
                 )]),
                 answer: ConceptContent::default().answer,
+                feedback: Default::default(),
             },
             ConceptContent {
                 schema_version: 1,
@@ -1066,6 +1153,7 @@ mod tests {
                     ),
                 ]),
                 answer: ConceptContent::default().answer,
+                feedback: Default::default(),
             },
         ];
 
@@ -1102,6 +1190,7 @@ mod tests {
                 }]
             }),
             answer: ConceptContent::default().answer,
+            feedback: Default::default(),
         };
 
         assert!(matches!(

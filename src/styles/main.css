@@ -1104,6 +1104,15 @@ button {
   gap: 1.5rem;
 }
 
+.answer-feedback-section .editor-section__heading > button {
+  flex: 0 0 auto;
+}
+
+.answer-feedback-editors .rich-editor__surface [data-slot="content"],
+.answer-feedback-editors .rich-editor__surface .ProseMirror {
+  min-height: 10rem;
+}
+
 .cloze-preview,
 .image-occlusion-preview {
   display: grid;
@@ -1833,12 +1842,24 @@ button {
   gap: 2rem;
 }
 
+.concept-feedback-panel,
+.concept-feedback-documents {
+  display: grid;
+  gap: 1.5rem;
+}
+
 .concept-content-document + .concept-content-document {
   padding-top: 2rem;
   border-top: 1px solid var(--ui-border);
 }
 
-.concept-content-document > h2 {
+.concept-feedback-document + .concept-feedback-document {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ui-border);
+}
+
+.concept-content-document > h2,
+.concept-feedback-document > h3 {
   margin: 0 0 1rem;
   color: var(--ui-text-highlighted);
   font-size: 0.78rem;
@@ -2039,6 +2060,46 @@ button {
 .study-template--standard .study-template-block + .study-template-block {
   padding-top: clamp(1.5rem, 4vw, 2.5rem);
   border-top: 1px solid var(--ui-border);
+}
+
+.study-answer-feedback {
+  display: grid;
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  gap: 1.25rem;
+  background: color-mix(in srgb, var(--ui-primary) 5%, var(--ui-bg));
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 24%, var(--ui-border));
+  border-radius: 0.65rem;
+}
+
+.study-answer-feedback:focus {
+  outline: 2px solid color-mix(in srgb, var(--ui-primary) 72%, transparent);
+  outline-offset: 3px;
+}
+
+.study-answer-feedback > h3,
+.study-answer-feedback__document > h4 {
+  margin: 0;
+  color: var(--ui-text-highlighted);
+  font-size: 0.75rem;
+  font-weight: 720;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.study-answer-feedback__documents {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.study-answer-feedback__document {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.study-answer-feedback__document + .study-answer-feedback__document {
+  padding-top: 1.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--ui-primary) 18%, var(--ui-border));
 }
 
 .study-template--cloze [data-type="cloze"] {

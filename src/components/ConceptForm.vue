@@ -113,6 +113,7 @@ const form = reactive({
   title: ''
 });
 
+const feedbackFieldsOpen = ref( false );
 const submitted = ref( false );
 
 const deckItems = computed( () => props.decks.map( ( deck ) => ({
@@ -177,6 +178,16 @@ const clozeGroups = computed( () => collectClozeGroups( form.content.prompt ) );
 const clozeSelected = computed( () => form.retrievalFormIds.includes( CLOZE_ID ) );
 const explainSelected = computed( () => form.retrievalFormIds.includes( EXPLAIN_ID ) );
 const problemSelected = computed( () => form.retrievalFormIds.includes( PROBLEM_ID ) );
+const hasAnswerFeedback = computed( () => answerFeedbackHasContent(
+  form.content.feedback
+) );
+const feedbackButtonLabel = computed( () => {
+  if ( feedbackFieldsOpen.value ) {
+    return 'Hide fields';
+  }
+
+  return hasAnswerFeedback.value ? 'Edit feedback' : 'Add feedback';
+});
 const imageOcclusionGroups = computed( () => (
   collectImageOcclusionGroups( form.content.prompt )
 ) );
@@ -346,6 +357,7 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
     : createConceptEditorState( concept );
 
   form.content = state.content;
+  feedbackFieldsOpen.value = answerFeedbackHasContent( state.content.feedback );
   form.title = state.title;
   form.deckIds = state.deckIds;
   form.explainFocus = state.explainFocus;
@@ -381,6 +393,11 @@ function updateRetrievalForms( retrievalFormIds ) {
 
 function normalizeAcceptedAnswer( answer ) {
   return answer.trim().replace( /\s+/gu, ' ' );
+}
+
+function answerFeedbackHasContent( feedback ) {
+  return richDocumentHasContent( feedback?.explanation )
+    || richDocumentHasContent( feedback?.commonMistakes );
 }
 
 function acceptedAnswerLength( answer ) {
@@ -612,6 +629,53 @@ defineExpose({ submit });
         <ImageOcclusionPreview
           v-if="imageOcclusionSelected"
           :document="form.content.prompt"
+        />
+      </div>
+    </section>
+
+    <section
+      class="editor-section answer-feedback-section"
+      data-twill-editor-section="answer-feedback"
+    >
+      <div class="editor-section__heading">
+        <div>
+          <h2>Answer feedback</h2>
+          <p>Add explanation or common mistakes when the expected answer needs more context.</p>
+        </div>
+
+        <UButton
+          type="button"
+          :leading-icon="feedbackFieldsOpen
+            ? 'i-lucide-panel-top-close'
+            : 'i-lucide-message-square-plus'"
+          color="neutral"
+          variant="subtle"
+          :disabled="disabled"
+          :aria-expanded="feedbackFieldsOpen"
+          aria-controls="answer-feedback-fields"
+          @click="feedbackFieldsOpen = !feedbackFieldsOpen"
+        >
+          {{ feedbackButtonLabel }}
+        </UButton>
+      </div>
+
+      <div
+        v-if="feedbackFieldsOpen"
+        id="answer-feedback-fields"
+        class="concept-content-editors answer-feedback-editors"
+      >
+        <RichContentEditor
+          v-model="form.content.feedback.explanation"
+          label="Explanation and context"
+          placeholder="Explain why the answer is correct or add useful context"
+          :disabled="disabled"
+        />
+
+        <RichContentEditor
+          v-model="form.content.feedback.commonMistakes"
+          label="Common mistakes"
+          placeholder="Describe likely mistakes or misconceptions"
+          :disabled="disabled"
         />
       </div>
     </section>

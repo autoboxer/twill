@@ -12,6 +12,7 @@ import {
   useConceptLibrary
 } from '../composables/useConceptLibrary';
 import { collectImageOcclusionGroups } from '../image-occlusion/documents';
+import { richDocumentHasContent } from '../rich-content/schema';
 
 const route = useRoute();
 const router = useRouter();
@@ -67,6 +68,18 @@ const imageOcclusionGroups = computed( () => collectImageOcclusionGroups(
 const imageOcclusionGroupsById = computed( () => new Map(
   imageOcclusionGroups.value.map( ( group, index ) => [ group.id, { group, index }])
 ) );
+const answerFeedbackDocuments = computed( () => [
+  {
+    document: concept.value?.content.feedback?.explanation,
+    id: 'explanation',
+    label: 'Explanation and context'
+  },
+  {
+    document: concept.value?.content.feedback?.commonMistakes,
+    id: 'common-mistakes',
+    label: 'Common mistakes'
+  }
+].filter( ( item ) => richDocumentHasContent( item.document ) ) );
 
 watch( conceptId, loadConcept, { immediate: true });
 
@@ -426,6 +439,34 @@ function schedulingStateDetails( state ) {
             :document="concept.content.answer"
             label="Answer"
           />
+        </div>
+      </section>
+
+      <section
+        v-if="answerFeedbackDocuments.length"
+        class="concept-detail-panel concept-feedback-panel"
+        data-twill-concept-feedback
+      >
+        <div class="concept-detail-panel__heading">
+          <div>
+            <h2>Answer feedback</h2>
+            <p>Shown after the expected answer during study.</p>
+          </div>
+        </div>
+
+        <div class="concept-feedback-documents">
+          <div
+            v-for="item in answerFeedbackDocuments"
+            :key="item.id"
+            class="concept-feedback-document"
+          >
+            <h3>{{ item.label }}</h3>
+
+            <RichContentRenderer
+              :document="item.document"
+              :label="item.label"
+            />
+          </div>
         </div>
       </section>
 
