@@ -8,6 +8,7 @@ import DeferredEditQueue from '../components/DeferredEditQueue.vue';
 import ExplainResponse from '../components/ExplainResponse.vue';
 import PageHeader from '../components/PageHeader.vue';
 import ProblemResponse from '../components/ProblemResponse.vue';
+import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
 import { COMMAND_IDS } from '../commands/registry';
@@ -26,6 +27,7 @@ import {
   preserveStudySession,
   takeStudySession
 } from '../study/resume';
+import { richDocumentHasContent } from '../rich-content/schema';
 import { normalizeTypeAnswer } from '../type-answer/comparison';
 
 const {
@@ -67,6 +69,8 @@ const router = useRouter();
 
 const assessmentError = ref( '' );
 const assessmentPending = ref( false );
+const answerFeedback = ref( null );
+const answerFeedbackReviewed = ref( false );
 const completionHeading = ref( null );
 const deferredEdits = ref([]);
 const deferredError = ref( '' );
@@ -76,6 +80,7 @@ const deferredStartPending = ref( false );
 const gradingMode = ref( 'simple' );
 const gradingModeError = ref( '' );
 const gradingModePending = ref( false );
+const gradingActions = ref( null );
 const initialLoading = ref( true );
 const loadError = ref( '' );
 const nextDueAt = ref( null );
@@ -223,6 +228,25 @@ const problemSettings = computed( () => {
 
 const canRevealAnswer = computed( () => (
   !typeAnswerSettings.value || Boolean( normalizeTypeAnswer( studyResponse.value ) )
+) );
+
+const currentAnswerFeedback = computed( () => {
+  const feedback = currentCard.value?.content.feedback;
+
+  if (
+    !richDocumentHasContent( feedback?.explanation )
+    && !richDocumentHasContent( feedback?.commonMistakes )
+  ) {
+    return null;
+  }
+
+  return feedback;
+});
+
+const answerFeedbackPending = computed( () => (
+  answerRevealed.value
+  && Boolean( currentAnswerFeedback.value )
+  && !answerFeedbackReviewed.value
 ) );
 
 const revealActionCopy = computed( () => {
@@ -405,6 +429,7 @@ async function loadStudyQueue() {
     pausedResponses.clear();
     sessionChangedConceptIds.value = new Set();
     studyResponse.value = '';
+    answerFeedbackReviewed.value = false;
     gradingMode.value = preferences.gradingMode;
     nextDueAt.value = queue.nextDueAt;
     sessionGradingMode.value = preferences.gradingMode;
@@ -534,10 +559,13 @@ async function showAnswer() {
     return;
   }
 
+  answerFeedbackReviewed.value = false;
   revealAnswer();
   await nextTick();
 
-  if ( typeAnswerSettings.value ) {
+  if ( answerFeedbackPending.value ) {
+    answerFeedback.value?.focus();
+  } else if ( typeAnswerSettings.value ) {
     typeAnswerResponse.value?.focus();
   } else if ( explainSettings.value ) {
     explainResponse.value?.focus();
@@ -558,6 +586,7 @@ async function recordAssessment( rating ) {
     || assessmentPending.value
     || gradingModePending.value
     || undoPending.value
+    || answerFeedbackPending.value
     || !answerRevealed.value
     || !currentCard.value
   ) {
@@ -588,6 +617,7 @@ async function recordAssessment( rating ) {
       response,
       reviewId: review.reviewId
     });
+    answerFeedbackReviewed.value = false;
     studyResponse.value = takePausedResponse( currentCard.value?.id );
     await nextTick();
 
@@ -638,6 +668,7 @@ async function undoLastGrade() {
     }
 
     studyResponse.value = restored.response ?? '';
+    answerFeedbackReviewed.value = true;
   } catch ( cause ) {
     if ( viewActive ) {
       recoveryError.value = conceptLibraryErrorMessage( cause );
@@ -705,6 +736,7 @@ function registerGradingCommand( commandId, mode, rating ) {
     enabled: computed( () => (
       gradingMode.value === mode
       && answerRevealed.value
+      && !answerFeedbackPending.value
       && !assessmentPending.value
       && !gradingModePending.value
       && !undoPending.value
@@ -724,10 +756,17 @@ function focusCurrentState() {
   }
 
   if ( answerRevealed.value ) {
-    if ( correctionPending.value ) {
-      focusRevealedAnswer();
+    if ( answerFeedbackPending.value ) {
+      answerFeedback.value?.focus();
+      return;
     }
 
+    if ( correctionPending.value ) {
+      focusRevealedAnswer();
+      return;
+    }
+
+    focusFirstGradingAction();
     return;
   }
 
@@ -739,6 +778,32 @@ function focusCurrentState() {
     problemResponse.value?.focus();
   } else {
     focusButton( revealButton.value );
+  }
+}
+
+async function continueToGrading() {
+  if ( !answerFeedbackPending.value ) {
+    return;
+  }
+
+  answerFeedbackReviewed.value = true;
+  await nextTick();
+  focusFirstGradingAction();
+}
+
+function focusFirstGradingAction() {
+  const element = gradingActions.value?.$el ?? gradingActions.value;
+
+  element?.querySelector( 'button:not(:disabled)' )?.focus();
+}
+
+function focusGradingAfterFeedback() {
+  if (
+    answerFeedbackReviewed.value
+    && currentAnswerFeedback.value
+    && !correctionPending.value
+  ) {
+    focusFirstGradingAction();
   }
 }
 
@@ -773,6 +838,7 @@ function createStudySessionSnapshot() {
     nextDueAt: nextDueAt.value,
     pausedResponses: [ ...pausedResponses.entries() ],
     recall: createSnapshot(),
+    answerFeedbackReviewed: answerFeedbackReviewed.value,
     sessionGradingMode: sessionGradingMode.value,
     studyMedia: [ ...studyMedia.value ],
     totalAvailableCards: totalAvailableCards.value,
@@ -782,6 +848,7 @@ function createStudySessionSnapshot() {
 
 function restoreStudySession( session ) {
   restoreSnapshot( session.recall );
+  answerFeedbackReviewed.value = Boolean( session.answerFeedbackReviewed );
   gradingMode.value = session.gradingMode;
   nextDueAt.value = session.nextDueAt;
   sessionGradingMode.value = session.sessionGradingMode;
@@ -1125,6 +1192,12 @@ function focusButton( button ) {
               :settings="problemSettings"
               :revealed="answerRevealed"
             />
+
+            <StudyAnswerFeedback
+              v-if="answerRevealed && currentAnswerFeedback"
+              ref="answerFeedback"
+              :feedback="currentAnswerFeedback"
+            />
           </div>
 
           <footer class="study-card__footer">
@@ -1175,12 +1248,34 @@ function focusButton( button ) {
               </m.div>
 
               <m.div
+                v-else-if="answerFeedbackPending"
+                key="feedback"
+                class="study-actions"
+                :initial="{ opacity: 0, y: 5 }"
+                :animate="{ opacity: 1, y: 0 }"
+                :exit="{ opacity: 0, y: -5 }"
+              >
+                <p>Review the feedback before grading.</p>
+
+                <UButton
+                  leading-icon="i-lucide-arrow-right"
+                  size="lg"
+                  @click="continueToGrading"
+                >
+                  Continue to grading
+                </UButton>
+              </m.div>
+
+              <m.div
                 v-else
+                id="study-grading-actions"
+                ref="gradingActions"
                 key="assess"
                 class="study-actions study-actions--assessment"
                 :initial="{ opacity: 0, y: 5 }"
                 :animate="{ opacity: 1, y: 0 }"
                 :exit="{ opacity: 0, y: -5 }"
+                :on-animation-complete="focusGradingAfterFeedback"
               >
                 <p>{{ assessmentActionCopy }}</p>
 
