@@ -1104,6 +1104,15 @@ button {
   gap: 1.5rem;
 }
 
+.answer-feedback-section .editor-section__heading > button {
+  flex: 0 0 auto;
+}
+
+.answer-feedback-editors .rich-editor__surface [data-slot="content"],
+.answer-feedback-editors .rich-editor__surface .ProseMirror {
+  min-height: 10rem;
+}
+
 .cloze-preview,
 .image-occlusion-preview {
   display: grid;
@@ -1833,12 +1842,24 @@ button {
   gap: 2rem;
 }
 
+.concept-feedback-panel,
+.concept-feedback-documents {
+  display: grid;
+  gap: 1.5rem;
+}
+
 .concept-content-document + .concept-content-document {
   padding-top: 2rem;
   border-top: 1px solid var(--ui-border);
 }
 
-.concept-content-document > h2 {
+.concept-feedback-document + .concept-feedback-document {
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--ui-border);
+}
+
+.concept-content-document > h2,
+.concept-feedback-document > h3 {
   margin: 0 0 1rem;
   color: var(--ui-text-highlighted);
   font-size: 0.78rem;

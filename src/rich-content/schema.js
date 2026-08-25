@@ -169,16 +169,42 @@ export function createEmptyRichDocument() {
   };
 }
 
+export function createEmptyAnswerFeedback() {
+  return {
+    explanation: createEmptyRichDocument(),
+    commonMistakes: createEmptyRichDocument()
+  };
+}
+
 export function createEmptyConceptContent() {
   return {
     schemaVersion: RICH_CONTENT_SCHEMA_VERSION,
     prompt: createEmptyRichDocument(),
-    answer: createEmptyRichDocument()
+    answer: createEmptyRichDocument(),
+    feedback: createEmptyAnswerFeedback()
   };
 }
 
 export function cloneConceptContent( content ) {
-  return JSON.parse( JSON.stringify( content ?? createEmptyConceptContent() ) );
+  const fallback = createEmptyConceptContent();
+
+  return {
+    schemaVersion: content?.schemaVersion ?? fallback.schemaVersion,
+    prompt: cloneRichDocument( content?.prompt ?? fallback.prompt ),
+    answer: cloneRichDocument( content?.answer ?? fallback.answer ),
+    feedback: {
+      explanation: cloneRichDocument(
+        content?.feedback?.explanation ?? fallback.feedback.explanation
+      ),
+      commonMistakes: cloneRichDocument(
+        content?.feedback?.commonMistakes ?? fallback.feedback.commonMistakes
+      )
+    }
+  };
+}
+
+function cloneRichDocument( document ) {
+  return JSON.parse( JSON.stringify( document ) );
 }
 
 export function richDocumentHasContent( document ) {
