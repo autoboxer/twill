@@ -117,6 +117,9 @@ pub enum LibraryError {
     #[error("problem cards require at least one checkpoint")]
     MissingProblemCheckpoint,
 
+    #[error("problem cards require a problem in the Prompt")]
+    MissingProblemPrompt,
+
     #[error("problem cards cannot have more than {maximum} checkpoints")]
     TooManyProblemCheckpoints { maximum: usize },
 

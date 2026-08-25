@@ -977,7 +977,8 @@ button {
 }
 
 .type-answer-settings,
-.explain-settings {
+.explain-settings,
+.problem-settings {
   display: grid;
   padding: 1.25rem;
   gap: 1rem;
@@ -987,7 +988,8 @@ button {
 }
 
 .type-answer-settings__heading,
-.explain-settings__heading {
+.explain-settings__heading,
+.problem-settings__heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -995,7 +997,8 @@ button {
 }
 
 .type-answer-settings__heading h3,
-.explain-settings__heading h3 {
+.explain-settings__heading h3,
+.problem-settings__heading h3 {
   margin: 0;
   color: var(--ui-text-highlighted);
   font-size: 0.95rem;
@@ -1003,7 +1006,8 @@ button {
 }
 
 .type-answer-settings__heading p,
-.explain-settings__heading p {
+.explain-settings__heading p,
+.problem-settings__heading p {
   margin: 0.3rem 0 0;
   color: var(--ui-text-muted);
   font-size: 0.84rem;
@@ -1011,7 +1015,8 @@ button {
 }
 
 .type-answer-settings__heading > span,
-.explain-settings__heading > span {
+.explain-settings__heading > span,
+.problem-settings__heading > span {
   flex: 0 0 auto;
   color: var(--ui-text-dimmed);
   font-size: 0.78rem;
@@ -1023,7 +1028,8 @@ button {
   gap: 0.85rem;
 }
 
-.explain-key-point-list {
+.explain-key-point-list,
+.problem-checkpoint-list {
   display: grid;
   gap: 0.85rem;
 }
@@ -1034,7 +1040,8 @@ button {
   gap: 0.4rem;
 }
 
-.explain-key-point-row {
+.explain-key-point-row,
+.problem-checkpoint-row {
   display: flex;
   align-items: flex-start;
   gap: 0.4rem;
@@ -1045,9 +1052,15 @@ button {
   flex: 1;
 }
 
-.explain-key-point-row__input {
+.explain-key-point-row__input,
+.problem-checkpoint-row__input {
   min-width: 0;
   flex: 1;
+}
+
+.problem-checkpoint-row__actions {
+  display: grid;
+  gap: 0.1rem;
 }
 
 .explain-settings__focus {
@@ -1055,7 +1068,8 @@ button {
 }
 
 .type-answer-settings__add,
-.explain-settings__add {
+.explain-settings__add,
+.problem-settings__add {
   justify-self: start;
 }
 
@@ -2979,6 +2993,28 @@ button {
   list-style: none;
 }
 
+.retrieval-form-list__answers ol {
+  display: grid;
+  padding: 0;
+  margin: 0;
+  gap: 0.3rem;
+  counter-reset: problem-checkpoint;
+  list-style: none;
+}
+
+.retrieval-form-list__answers ol li {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  gap: 0.4rem;
+  counter-increment: problem-checkpoint;
+}
+
+.retrieval-form-list__answers ol li::before {
+  color: var(--ui-primary);
+  content: counter(problem-checkpoint) '.';
+  font-weight: 650;
+}
+
 .retrieval-form-list__answers li {
   padding: 0.35rem 0.55rem;
   color: var(--ui-text);
@@ -4462,7 +4498,8 @@ button {
   }
 
   .type-answer-settings,
-  .explain-settings {
+  .explain-settings,
+  .problem-settings {
     padding: 1rem;
   }
 

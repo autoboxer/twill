@@ -50,6 +50,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::TooManyExplainKeyPoints { .. }
             | LibraryError::DuplicateExplainKeyPoint
             | LibraryError::MissingProblemCheckpoint
+            | LibraryError::MissingProblemPrompt
             | LibraryError::TooManyProblemCheckpoints { .. }
             | LibraryError::DuplicateProblemCheckpoint => "validation",
             LibraryError::DuplicateName { .. }

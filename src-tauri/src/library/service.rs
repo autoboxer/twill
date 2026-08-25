@@ -171,6 +171,10 @@ impl<'store> ConceptLibrary<'store> {
         let problem = normalize_problem(input.problem)?;
         let type_answer = normalize_type_answer(input.type_answer)?;
 
+        if problem.is_some() && !content.prompt_has_content {
+            return Err(LibraryError::MissingProblemPrompt);
+        }
+
         validate_retrieval_form_selection(
             input.include_standard_recall,
             &template_ids,
@@ -272,6 +276,10 @@ impl<'store> ConceptLibrary<'store> {
         let explain = normalize_explain(input.explain)?;
         let problem = normalize_problem(input.problem)?;
         let type_answer = normalize_type_answer(input.type_answer)?;
+
+        if problem.is_some() && !content.prompt_has_content {
+            return Err(LibraryError::MissingProblemPrompt);
+        }
 
         validate_retrieval_form_selection(
             input.include_standard_recall,
@@ -2464,6 +2472,23 @@ mod tests {
         };
 
         assert!(matches!(
+            library.create_concept(CreateConceptInput {
+                title: "Empty problem".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: ConceptContent::default(),
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                problem: Some(ProblemSettings {
+                    checkpoints: vec!["Solve the problem.".to_owned()],
+                }),
+                explain: None,
+                type_answer: None,
+            }),
+            Err(LibraryError::MissingProblemPrompt)
+        ));
+
+        assert!(matches!(
             library.create_concept(create_problem(Vec::new())),
             Err(LibraryError::MissingProblemCheckpoint)
         ));
@@ -2518,12 +2543,26 @@ mod tests {
     fn problem_edits_keep_schedules_and_readded_forms_start_fresh() {
         let (_directory, store) = test_store();
         let library = ConceptLibrary::new(&store);
+        let content = ConceptContent {
+            schema_version: 1,
+            prompt: json!({
+                "type": "doc",
+                "content": [{
+                    "type": "paragraph",
+                    "content": [{
+                        "type": "text",
+                        "text": "How long does a falling object take to reach the ground?"
+                    }]
+                }]
+            }),
+            answer: ConceptContent::default().answer,
+        };
         let concept = library
             .create_concept(CreateConceptInput {
                 title: "Falling object".to_owned(),
                 deck_ids: Vec::new(),
                 tag_ids: Vec::new(),
-                content: Default::default(),
+                content,
                 include_standard_recall: false,
                 template_ids: Vec::new(),
                 problem: Some(ProblemSettings {
