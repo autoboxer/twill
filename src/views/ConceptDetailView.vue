@@ -169,6 +169,10 @@ function retrievalFormName( card ) {
     return 'Explain';
   }
 
+  if ( card.retrievalKind === 'problem' ) {
+    return 'Problem';
+  }
+
   if ( card.retrievalKind === 'imageOcclusion' ) {
     const group = imageOcclusionGroupDetails( card );
 
@@ -189,6 +193,10 @@ function retrievalFormIcon( card ) {
 
   if ( card.retrievalKind === 'explain' ) {
     return 'i-lucide-message-square-text';
+  }
+
+  if ( card.retrievalKind === 'problem' ) {
+    return 'i-lucide-list-ordered';
   }
 
   if ( card.retrievalKind === 'imageOcclusion' ) {
@@ -217,6 +225,12 @@ function retrievalFormDescription( card ) {
     return `${ explainFocusLabel( card.explain.focus ) } · ${ count } key ${ count === 1
       ? 'point'
       : 'points' }`;
+  }
+
+  if ( card.retrievalKind === 'problem' ) {
+    const count = card.problem.checkpoints.length;
+
+    return `${ count } ${ count === 1 ? 'checkpoint' : 'checkpoints' }`;
   }
 
   if ( card.retrievalKind === 'imageOcclusion' ) {
@@ -477,6 +491,22 @@ function schedulingStateDetails( state ) {
                     {{ keyPoint }}
                   </li>
                 </ul>
+              </div>
+
+              <div
+                v-if="card.problem"
+                class="retrieval-form-list__answers"
+              >
+                <span>Solution checkpoints</span>
+
+                <ol>
+                  <li
+                    v-for="checkpoint in card.problem.checkpoints"
+                    :key="checkpoint"
+                  >
+                    <span>{{ checkpoint }}</span>
+                  </li>
+                </ol>
               </div>
 
               <div

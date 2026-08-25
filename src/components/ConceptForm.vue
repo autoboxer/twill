@@ -14,7 +14,8 @@ import {
 } from '../image-occlusion/documents';
 import {
   cloneConceptContent,
-  createEmptyConceptContent
+  createEmptyConceptContent,
+  richDocumentHasContent
 } from '../rich-content/schema';
 import {
   cloneConceptEditorState,
@@ -25,12 +26,15 @@ import {
 const CLOZE_ID = 'cloze';
 const EXPLAIN_ID = 'explain';
 const IMAGE_OCCLUSION_ID = 'image-occlusion';
+const PROBLEM_ID = 'problem';
 const STANDARD_RECALL_ID = 'standard-recall';
 const TYPE_ANSWER_ID = 'type-answer';
 const MAXIMUM_ACCEPTED_ANSWERS = 20;
 const MAXIMUM_ACCEPTED_ANSWER_LENGTH = 500;
 const MAXIMUM_EXPLAIN_KEY_POINTS = 12;
 const MAXIMUM_EXPLAIN_KEY_POINT_LENGTH = 280;
+const MAXIMUM_PROBLEM_CHECKPOINTS = 12;
+const MAXIMUM_PROBLEM_CHECKPOINT_LENGTH = 280;
 
 const explainFocusItems = [
   {
@@ -102,6 +106,7 @@ const form = reactive({
   deckIds: [],
   explainFocus: 'why',
   explainKeyPoints: [ '' ],
+  problemCheckpoints: [ '' ],
   retrievalFormIds: [ STANDARD_RECALL_ID ],
   tagIds: [],
   typeAnswerAcceptedAnswers: [ '' ],
@@ -137,6 +142,11 @@ const retrievalFormItems = computed( () => [
     value: EXPLAIN_ID
   },
   {
+    description: 'Works through a problem and checks the solution steps.',
+    label: 'Problem',
+    value: PROBLEM_ID
+  },
+  {
     description: 'Hides marked Prompt passages and reveals them in context.',
     label: 'Cloze',
     value: CLOZE_ID
@@ -166,6 +176,7 @@ const titleLength = computed( () => Array.from( form.title ).length );
 const clozeGroups = computed( () => collectClozeGroups( form.content.prompt ) );
 const clozeSelected = computed( () => form.retrievalFormIds.includes( CLOZE_ID ) );
 const explainSelected = computed( () => form.retrievalFormIds.includes( EXPLAIN_ID ) );
+const problemSelected = computed( () => form.retrievalFormIds.includes( PROBLEM_ID ) );
 const imageOcclusionGroups = computed( () => (
   collectImageOcclusionGroups( form.content.prompt )
 ) );
@@ -178,6 +189,9 @@ const atAcceptedAnswerLimit = computed( () => (
 ) );
 const atExplainKeyPointLimit = computed( () => (
   form.explainKeyPoints.length >= MAXIMUM_EXPLAIN_KEY_POINTS
+) );
+const atProblemCheckpointLimit = computed( () => (
+  form.problemCheckpoints.length >= MAXIMUM_PROBLEM_CHECKPOINTS
 ) );
 const acceptedAnswerErrors = computed( () => {
   if ( !submitted.value || !typeAnswerSelected.value ) {
@@ -241,6 +255,48 @@ const explainKeyPointErrors = computed( () => {
 const explainKeyPointsValid = computed( () => (
   explainKeyPointErrors.value.every( ( error ) => !error )
 ) );
+const problemCheckpointErrors = computed( () => {
+  if ( !submitted.value || !problemSelected.value ) {
+    return form.problemCheckpoints.map( () => '' );
+  }
+
+  const normalizedCheckpoints = form.problemCheckpoints.map( normalizeProblemCheckpoint );
+
+  return normalizedCheckpoints.map( ( checkpoint, index ) => {
+    if ( !checkpoint ) {
+      return 'Enter a checkpoint.';
+    }
+
+    if ( Array.from( checkpoint ).length > MAXIMUM_PROBLEM_CHECKPOINT_LENGTH ) {
+      return `Checkpoints cannot exceed ${ MAXIMUM_PROBLEM_CHECKPOINT_LENGTH } characters.`;
+    }
+
+    const comparisonCheckpoint = checkpoint.toLowerCase();
+    const duplicateIndex = normalizedCheckpoints.findIndex( ( candidate ) => (
+      candidate.toLowerCase() === comparisonCheckpoint
+    ) );
+
+    if ( duplicateIndex !== index ) {
+      return 'Checkpoints must be unique.';
+    }
+
+    return '';
+  });
+});
+const problemCheckpointsValid = computed( () => (
+  problemCheckpointErrors.value.every( ( error ) => !error )
+) );
+const problemPromptError = computed( () => {
+  if (
+    !submitted.value
+    || !problemSelected.value
+    || richDocumentHasContent( form.content.prompt )
+  ) {
+    return '';
+  }
+
+  return 'Write the problem in Prompt.';
+});
 
 const retrievalFormsError = computed( () => {
   if ( !submitted.value || form.retrievalFormIds.length ) {
@@ -294,6 +350,7 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
   form.deckIds = state.deckIds;
   form.explainFocus = state.explainFocus;
   form.explainKeyPoints = state.explainKeyPoints;
+  form.problemCheckpoints = state.problemCheckpoints;
   form.retrievalFormIds = state.retrievalFormIds;
   form.tagIds = state.tagIds;
   form.typeAnswerAcceptedAnswers = state.typeAnswerAcceptedAnswers;
@@ -338,6 +395,14 @@ function explainKeyPointLength( keyPoint ) {
   return Array.from( normalizeExplainKeyPoint( keyPoint ) ).length;
 }
 
+function normalizeProblemCheckpoint( checkpoint ) {
+  return checkpoint.trim().replace( /\s+/gu, ' ' );
+}
+
+function problemCheckpointLength( checkpoint ) {
+  return Array.from( normalizeProblemCheckpoint( checkpoint ) ).length;
+}
+
 function addAcceptedAnswer() {
   if ( atAcceptedAnswerLimit.value ) {
     return;
@@ -370,6 +435,37 @@ function removeExplainKeyPoint( index ) {
   form.explainKeyPoints.splice( index, 1 );
 }
 
+function addProblemCheckpoint() {
+  if ( atProblemCheckpointLimit.value ) {
+    return;
+  }
+
+  form.problemCheckpoints.push( '' );
+}
+
+function removeProblemCheckpoint( index ) {
+  if ( form.problemCheckpoints.length === 1 ) {
+    return;
+  }
+
+  form.problemCheckpoints.splice( index, 1 );
+}
+
+function moveProblemCheckpoint( index, offset ) {
+  const nextIndex = index + offset;
+
+  if (
+    nextIndex < 0
+    || nextIndex >= form.problemCheckpoints.length
+  ) {
+    return;
+  }
+
+  const [ checkpoint ] = form.problemCheckpoints.splice( index, 1 );
+
+  form.problemCheckpoints.splice( nextIndex, 0, checkpoint );
+}
+
 function submit() {
   if ( props.disabled ) {
     return;
@@ -382,7 +478,9 @@ function submit() {
     || !form.retrievalFormIds.length
     || Boolean( clozeError.value )
     || Boolean( imageOcclusionError.value )
+    || Boolean( problemPromptError.value )
     || !explainKeyPointsValid.value
+    || !problemCheckpointsValid.value
     || !acceptedAnswersValid.value
   ) {
     return;
@@ -399,17 +497,24 @@ function submit() {
       keyPoints: form.explainKeyPoints.map( normalizeExplainKeyPoint )
     }
     : null;
+  const problem = problemSelected.value
+    ? {
+      checkpoints: form.problemCheckpoints.map( normalizeProblemCheckpoint )
+    }
+    : null;
 
   emit( 'submit', {
     content: cloneConceptContent( form.content ),
     deckIds: [ ...form.deckIds ],
     explain,
     includeStandardRecall: form.retrievalFormIds.includes( STANDARD_RECALL_ID ),
+    problem,
     tagIds: [ ...form.tagIds ],
     templateIds: form.retrievalFormIds.filter( ( id ) => (
       id !== CLOZE_ID
       && id !== EXPLAIN_ID
       && id !== IMAGE_OCCLUSION_ID
+      && id !== PROBLEM_ID
       && id !== STANDARD_RECALL_ID
       && id !== TYPE_ANSWER_ID
     ) ),
@@ -484,6 +589,13 @@ defineExpose({ submit });
           :disabled="disabled"
           :image-occlusion-enabled="imageOcclusionSelected"
         />
+
+        <p
+          v-if="problemPromptError"
+          class="editor-field-error"
+        >
+          {{ problemPromptError }}
+        </p>
 
         <RichContentEditor
           v-model="form.content.answer"
@@ -684,6 +796,94 @@ defineExpose({ submit });
           :disabled="disabled || atExplainKeyPointLimit"
           class="explain-settings__add"
           @click="addExplainKeyPoint"
+        />
+      </div>
+
+      <div
+        v-if="problemSelected"
+        class="problem-settings"
+      >
+        <div class="problem-settings__heading">
+          <div>
+            <h3>Solution checkpoints</h3>
+            <p>The Prompt is the problem. The Answer can hold a full worked solution.</p>
+          </div>
+
+          <span>
+            {{ form.problemCheckpoints.length }} / {{ MAXIMUM_PROBLEM_CHECKPOINTS }}
+          </span>
+        </div>
+
+        <div class="problem-checkpoint-list">
+          <UFormField
+            v-for="( checkpoint, index ) in form.problemCheckpoints"
+            :key="index"
+            :label="`Checkpoint ${ index + 1 }`"
+            :error="problemCheckpointErrors[ index ] || false"
+            :hint="`${ problemCheckpointLength( checkpoint ) } / ${ MAXIMUM_PROBLEM_CHECKPOINT_LENGTH }`"
+            required
+          >
+            <div class="problem-checkpoint-row">
+              <UTextarea
+                v-model="form.problemCheckpoints[ index ]"
+                placeholder="Expected step or criterion"
+                :rows="2"
+                autoresize
+                :maxrows="5"
+                class="problem-checkpoint-row__input"
+                :disabled="disabled"
+              />
+
+              <div class="problem-checkpoint-row__actions">
+                <UButton
+                  type="button"
+                  icon="i-lucide-chevron-up"
+                  :aria-label="`Move checkpoint ${ index + 1 } up`"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  square
+                  :disabled="disabled || index === 0"
+                  @click="moveProblemCheckpoint( index, -1 )"
+                />
+
+                <UButton
+                  type="button"
+                  icon="i-lucide-chevron-down"
+                  :aria-label="`Move checkpoint ${ index + 1 } down`"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  square
+                  :disabled="disabled || index === form.problemCheckpoints.length - 1"
+                  @click="moveProblemCheckpoint( index, 1 )"
+                />
+
+                <UButton
+                  type="button"
+                  icon="i-lucide-x"
+                  :aria-label="`Remove checkpoint ${ index + 1 }`"
+                  color="neutral"
+                  variant="ghost"
+                  size="sm"
+                  square
+                  :disabled="disabled || form.problemCheckpoints.length === 1"
+                  @click="removeProblemCheckpoint( index )"
+                />
+              </div>
+            </div>
+          </UFormField>
+        </div>
+
+        <UButton
+          type="button"
+          label="Add checkpoint"
+          leading-icon="i-lucide-plus"
+          color="neutral"
+          variant="subtle"
+          :disabled="disabled || atProblemCheckpointLimit"
+          class="problem-settings__add"
+          @click="addProblemCheckpoint"
         />
       </div>
 

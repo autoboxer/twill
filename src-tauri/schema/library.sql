@@ -57,6 +57,7 @@ CREATE TABLE cards (
             'recall',
             'type_answer',
             'explain',
+            'problem',
             'cloze',
             'image_occlusion'
         )

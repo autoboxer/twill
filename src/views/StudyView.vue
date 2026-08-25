@@ -7,6 +7,7 @@ import ContentState from '../components/ContentState.vue';
 import DeferredEditQueue from '../components/DeferredEditQueue.vue';
 import ExplainResponse from '../components/ExplainResponse.vue';
 import PageHeader from '../components/PageHeader.vue';
+import ProblemResponse from '../components/ProblemResponse.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
 import { COMMAND_IDS } from '../commands/registry';
@@ -79,6 +80,7 @@ const initialLoading = ref( true );
 const loadError = ref( '' );
 const nextDueAt = ref( null );
 const pendingAssessment = ref( '' );
+const problemResponse = ref( null );
 const recoveryError = ref( '' );
 const explainResponse = ref( null );
 const revealButton = ref( null );
@@ -211,6 +213,14 @@ const explainSettings = computed( () => {
   return currentCard.value.explain;
 });
 
+const problemSettings = computed( () => {
+  if ( currentCard.value?.retrievalKind !== 'problem' ) {
+    return null;
+  }
+
+  return currentCard.value.problem;
+});
+
 const canRevealAnswer = computed( () => (
   !typeAnswerSettings.value || Boolean( normalizeTypeAnswer( studyResponse.value ) )
 ) );
@@ -222,6 +232,10 @@ const revealActionCopy = computed( () => {
 
   if ( explainSettings.value ) {
     return 'Use the scratchpad if useful, then compare your explanation.';
+  }
+
+  if ( problemSettings.value ) {
+    return 'Use the workpad if useful, then check the solution.';
   }
 
   if ( currentCard.value?.retrievalKind === 'cloze' ) {
@@ -244,7 +258,19 @@ const revealActionLabel = computed( () => {
     return 'Compare explanation';
   }
 
+  if ( problemSettings.value ) {
+    return 'Check solution';
+  }
+
   return 'Reveal answer';
+});
+
+const assessmentActionCopy = computed( () => {
+  if ( problemSettings.value ) {
+    return 'How did the problem-solving attempt go?';
+  }
+
+  return 'How did the recall attempt go?';
 });
 
 const sessionResultItems = computed( () => {
@@ -515,6 +541,8 @@ async function showAnswer() {
     typeAnswerResponse.value?.focus();
   } else if ( explainSettings.value ) {
     explainResponse.value?.focus();
+  } else if ( problemSettings.value ) {
+    problemResponse.value?.focus();
   } else {
     studyContent.value?.focus();
   }
@@ -707,6 +735,8 @@ function focusCurrentState() {
     typeAnswerResponse.value?.focus();
   } else if ( explainSettings.value ) {
     explainResponse.value?.focus();
+  } else if ( problemSettings.value ) {
+    problemResponse.value?.focus();
   } else {
     focusButton( revealButton.value );
   }
@@ -717,6 +747,8 @@ function focusRevealedAnswer() {
     typeAnswerResponse.value?.focus();
   } else if ( explainSettings.value ) {
     explainResponse.value?.focus();
+  } else if ( problemSettings.value ) {
+    problemResponse.value?.focus();
   } else {
     studyContent.value?.focus();
   }
@@ -775,6 +807,10 @@ function studyCardName( card ) {
 
   if ( card.retrievalKind === 'explain' ) {
     return 'Explain';
+  }
+
+  if ( card.retrievalKind === 'problem' ) {
+    return 'Problem';
   }
 
   if ( card.retrievalKind === 'imageOcclusion' ) {
@@ -1081,6 +1117,14 @@ function focusButton( button ) {
               :settings="explainSettings"
               :revealed="answerRevealed"
             />
+
+            <ProblemResponse
+              v-if="problemSettings"
+              ref="problemResponse"
+              v-model="studyResponse"
+              :settings="problemSettings"
+              :revealed="answerRevealed"
+            />
           </div>
 
           <footer class="study-card__footer">
@@ -1138,7 +1182,7 @@ function focusButton( button ) {
                 :animate="{ opacity: 1, y: 0 }"
                 :exit="{ opacity: 0, y: -5 }"
               >
-                <p>How did the recall attempt go?</p>
+                <p>{{ assessmentActionCopy }}</p>
 
                 <div class="study-actions__buttons">
                   <UButton

@@ -23,6 +23,7 @@ pub struct ValidatedContent {
     pub content: ConceptContent,
     pub image_occlusion_group_ids: Vec<String>,
     pub media_ids: HashSet<String>,
+    pub prompt_has_content: bool,
     pub serialized: String,
 }
 
@@ -75,11 +76,36 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
 
     Ok(ValidatedContent {
         cloze_group_ids: state.cloze_group_ids,
+        prompt_has_content: rich_document_has_content(&content.prompt),
         content,
         image_occlusion_group_ids: state.image_occlusion_group_ids,
         media_ids: state.media_ids,
         serialized,
     })
+}
+
+fn rich_document_has_content(document: &Value) -> bool {
+    let Some(node) = document.as_object() else {
+        return false;
+    };
+
+    match node.get("type").and_then(Value::as_str) {
+        Some("text") => node
+            .get("text")
+            .and_then(Value::as_str)
+            .is_some_and(|text| !text.trim().is_empty()),
+        Some("inlineMath" | "blockMath") => node
+            .get("attrs")
+            .and_then(Value::as_object)
+            .and_then(|attributes| attributes.get("latex"))
+            .and_then(Value::as_str)
+            .is_some_and(|latex| !latex.trim().is_empty()),
+        Some("mediaImage") => true,
+        _ => node
+            .get("content")
+            .and_then(Value::as_array)
+            .is_some_and(|content| content.iter().any(rich_document_has_content)),
+    }
 }
 
 fn validate_document(
@@ -795,8 +821,42 @@ fn invalid_content(
 mod tests {
     use serde_json::{json, Value};
 
-    use super::validate_content;
+    use super::{rich_document_has_content, validate_content};
     use crate::library::{ConceptContent, LibraryError};
+
+    #[test]
+    fn meaningful_content_distinguishes_empty_structure_from_problem_material() {
+        let empty = ConceptContent::default().prompt;
+        let whitespace = json!({
+            "type": "doc",
+            "content": [{
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": " \n " }]
+            }]
+        });
+        let equation = json!({
+            "type": "doc",
+            "content": [{
+                "type": "paragraph",
+                "content": [{
+                    "type": "inlineMath",
+                    "attrs": { "latex": "F = ma" }
+                }]
+            }]
+        });
+        let image = json!({
+            "type": "doc",
+            "content": [{
+                "type": "mediaImage",
+                "attrs": { "mediaId": "018f1e2d-3c4b-7a69-8f10-123456789abc" }
+            }]
+        });
+
+        assert!(!rich_document_has_content(&empty));
+        assert!(!rich_document_has_content(&whitespace));
+        assert!(rich_document_has_content(&equation));
+        assert!(rich_document_has_content(&image));
+    }
 
     #[test]
     fn allowlisted_documents_collect_media_references() {

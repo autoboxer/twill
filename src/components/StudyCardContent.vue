@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { createClozePrompt } from '../cloze/documents';
 import { useAppearance } from '../composables/useAppearance';
 import { useConceptLibrary } from '../composables/useConceptLibrary';
+import { richDocumentHasContent } from '../rich-content/schema';
 import { createCustomTemplateDocument } from '../templates/customFrame';
 import { templateFields } from '../templates/defaults';
 import { createStudyTemplateFields } from '../templates/studyFields';
@@ -40,6 +41,7 @@ let renderRequestSequence = 0;
 const side = computed( () => props.answerRevealed ? 'answer' : 'front' );
 const isCloze = computed( () => props.card.retrievalKind === 'cloze' );
 const isExplain = computed( () => props.card.retrievalKind === 'explain' );
+const isProblem = computed( () => props.card.retrievalKind === 'problem' );
 const isImageOcclusion = computed( () => (
   props.card.retrievalKind === 'imageOcclusion'
 ) );
@@ -66,7 +68,10 @@ const visibleBlocks = computed( () => {
 
     if (
       props.answerRevealed
-      && ( !isExplain.value || richDocumentHasContent( props.card.content.answer ) )
+      && (
+        ( !isExplain.value && !isProblem.value )
+        || richDocumentHasContent( props.card.content.answer )
+      )
     ) {
       blocks.push({ type: 'field', field: 'answer' });
     }
@@ -114,12 +119,6 @@ function fieldValue( field ) {
   }
 
   return props.card.content[ field ];
-}
-
-function richDocumentHasContent( document ) {
-  return document.content?.some( ( node ) => (
-    node.type !== 'paragraph' || Boolean( node.content?.length )
-  ) );
 }
 
 function focus() {

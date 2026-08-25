@@ -10,6 +10,9 @@ export function createConceptEditorState( concept = null ) {
   const explain = concept?.cards.find( ( card ) => (
     card.retrievalKind === 'explain'
   ) );
+  const problem = concept?.cards.find( ( card ) => (
+    card.retrievalKind === 'problem'
+  ) );
   const typeAnswer = concept?.cards.find( ( card ) => (
     card.retrievalKind === 'typeAnswer'
   ) );
@@ -20,6 +23,9 @@ export function createConceptEditorState( concept = null ) {
     explainFocus: explain?.explain?.focus ?? DEFAULT_EXPLAIN_FOCUS,
     explainKeyPoints: explain?.explain?.keyPoints?.length
       ? [ ...explain.explain.keyPoints ]
+      : [ '' ],
+    problemCheckpoints: problem?.problem?.checkpoints?.length
+      ? [ ...problem.problem.checkpoints ]
       : [ '' ],
     retrievalFormIds: concept
       ? [ ...new Set( concept.cards.map( conceptRetrievalFormId ) ) ]
@@ -48,6 +54,7 @@ export function cloneConceptEditorState( state ) {
       ? state.explainFocus
       : fallback.explainFocus,
     explainKeyPoints: stringArray( state.explainKeyPoints, [ '' ]),
+    problemCheckpoints: stringArray( state.problemCheckpoints, [ '' ]),
     retrievalFormIds: stringArray( state.retrievalFormIds ),
     tagIds: stringArray( state.tagIds ),
     typeAnswerAcceptedAnswers: stringArray( state.typeAnswerAcceptedAnswers, [ '' ]),
@@ -99,6 +106,10 @@ export function conceptRetrievalFormId( card ) {
 
   if ( card.retrievalKind === 'cloze' ) {
     return 'cloze';
+  }
+
+  if ( card.retrievalKind === 'problem' ) {
+    return 'problem';
   }
 
   if ( card.retrievalKind === 'typeAnswer' ) {

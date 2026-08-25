@@ -5,19 +5,22 @@ use uuid::Uuid;
 
 use crate::library::{
     ClozeSettings, ExplainSettings, ImageOcclusionSettings, LibraryError,
-    LibraryResult, RetrievalFormKind, TypeAnswerSettings,
+    LibraryResult, ProblemSettings, RetrievalFormKind, TypeAnswerSettings,
 };
 
 const MAXIMUM_ACCEPTED_ANSWERS: usize = 20;
 const MAXIMUM_ACCEPTED_ANSWER_LENGTH: usize = 500;
 const MAXIMUM_EXPLAIN_KEY_POINTS: usize = 12;
 const MAXIMUM_EXPLAIN_KEY_POINT_LENGTH: usize = 280;
+const MAXIMUM_PROBLEM_CHECKPOINTS: usize = 12;
+const MAXIMUM_PROBLEM_CHECKPOINT_LENGTH: usize = 280;
 const EMPTY_CONFIGURATION: &str = "{}";
 
 pub(crate) struct ParsedRetrievalFormConfiguration {
     pub cloze: Option<ClozeSettings>,
     pub explain: Option<ExplainSettings>,
     pub image_occlusion: Option<ImageOcclusionSettings>,
+    pub problem: Option<ProblemSettings>,
     pub type_answer: Option<TypeAnswerSettings>,
 }
 
@@ -112,27 +115,89 @@ pub(crate) fn normalize_type_answer(
     Ok(Some(TypeAnswerSettings { accepted_answers }))
 }
 
+pub(crate) fn normalize_problem(
+    settings: Option<ProblemSettings>,
+) -> LibraryResult<Option<ProblemSettings>> {
+    let Some(settings) = settings else {
+        return Ok(None);
+    };
+
+    if settings.checkpoints.is_empty() {
+        return Err(LibraryError::MissingProblemCheckpoint);
+    }
+
+    if settings.checkpoints.len() > MAXIMUM_PROBLEM_CHECKPOINTS {
+        return Err(LibraryError::TooManyProblemCheckpoints {
+            maximum: MAXIMUM_PROBLEM_CHECKPOINTS,
+        });
+    }
+
+    let mut checkpoints = Vec::with_capacity(settings.checkpoints.len());
+    let mut normalized_checkpoints = HashSet::new();
+
+    for checkpoint in settings.checkpoints {
+        let checkpoint = checkpoint.split_whitespace().collect::<Vec<_>>().join(" ");
+
+        if checkpoint.is_empty() {
+            return Err(LibraryError::MissingProblemCheckpoint);
+        }
+
+        if checkpoint.chars().count() > MAXIMUM_PROBLEM_CHECKPOINT_LENGTH {
+            return Err(LibraryError::ValueTooLong {
+                field: "Problem checkpoint",
+                maximum: MAXIMUM_PROBLEM_CHECKPOINT_LENGTH,
+            });
+        }
+
+        if !normalized_checkpoints.insert(checkpoint.to_lowercase()) {
+            return Err(LibraryError::DuplicateProblemCheckpoint);
+        }
+
+        checkpoints.push(checkpoint);
+    }
+
+    Ok(Some(ProblemSettings { checkpoints }))
+}
+
 pub(crate) fn retrieval_form_configuration(
     retrieval_kind: RetrievalFormKind,
     type_answer: Option<&TypeAnswerSettings>,
     explain: Option<&ExplainSettings>,
+    problem: Option<&ProblemSettings>,
     cloze: Option<&ClozeSettings>,
     image_occlusion: Option<&ImageOcclusionSettings>,
 ) -> LibraryResult<String> {
-    match (retrieval_kind, type_answer, explain, cloze, image_occlusion) {
-        (RetrievalFormKind::Recall, None, None, None, None) => {
+    match (
+        retrieval_kind,
+        type_answer,
+        explain,
+        problem,
+        cloze,
+        image_occlusion,
+    ) {
+        (RetrievalFormKind::Recall, None, None, None, None, None) => {
             Ok(EMPTY_CONFIGURATION.to_owned())
         }
-        (RetrievalFormKind::TypeAnswer, Some(settings), None, None, None) => {
+        (RetrievalFormKind::TypeAnswer, Some(settings), None, None, None, None) => {
             serde_json::to_string(settings).map_err(Into::into)
         }
-        (RetrievalFormKind::Explain, None, Some(settings), None, None) => {
+        (RetrievalFormKind::Explain, None, Some(settings), None, None, None) => {
             serde_json::to_string(settings).map_err(Into::into)
         }
-        (RetrievalFormKind::Cloze, None, None, Some(settings), None) => {
+        (RetrievalFormKind::Problem, None, None, Some(settings), None, None) => {
             serde_json::to_string(settings).map_err(Into::into)
         }
-        (RetrievalFormKind::ImageOcclusion, None, None, None, Some(settings)) => {
+        (RetrievalFormKind::Cloze, None, None, None, Some(settings), None) => {
+            serde_json::to_string(settings).map_err(Into::into)
+        }
+        (
+            RetrievalFormKind::ImageOcclusion,
+            None,
+            None,
+            None,
+            None,
+            Some(settings),
+        ) => {
             serde_json::to_string(settings).map_err(Into::into)
         }
         _ => Err(LibraryError::InvalidRetrievalForm),
@@ -173,6 +238,16 @@ pub(crate) fn parse_retrieval_form_configuration(
                 ..empty_parsed_configuration()
             })
         }
+        RetrievalFormKind::Problem => {
+            let settings = serde_json::from_str(configuration)?;
+            let settings = normalize_problem(Some(settings))
+                .map_err(|_| LibraryError::InvalidRetrievalForm)?;
+
+            Ok(ParsedRetrievalFormConfiguration {
+                problem: settings,
+                ..empty_parsed_configuration()
+            })
+        }
         RetrievalFormKind::Cloze => {
             let settings: ClozeSettings = serde_json::from_str(configuration)?;
 
@@ -201,6 +276,7 @@ fn empty_parsed_configuration() -> ParsedRetrievalFormConfiguration {
         cloze: None,
         explain: None,
         image_occlusion: None,
+        problem: None,
         type_answer: None,
     }
 }

@@ -181,6 +181,27 @@ export function cloneConceptContent( content ) {
   return JSON.parse( JSON.stringify( content ?? createEmptyConceptContent() ) );
 }
 
+export function richDocumentHasContent( document ) {
+  function nodeHasContent( node ) {
+    if ( node?.type === 'text' ) {
+      return Boolean( node.text?.trim() );
+    }
+
+    if ([ 'inlineMath', 'blockMath' ].includes( node?.type ) ) {
+      return Boolean( node.attrs?.latex?.trim() );
+    }
+
+    if ( node?.type === 'mediaImage' ) {
+      return true;
+    }
+
+    return Array.isArray( node?.content )
+      && node.content.some( nodeHasContent );
+  }
+
+  return nodeHasContent( document );
+}
+
 export function createRichContentExtensions({
   imageOcclusionDocument = null,
   imageOcclusionDisplay = null,

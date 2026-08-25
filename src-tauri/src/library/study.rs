@@ -12,9 +12,9 @@ use crate::library::retrieval_forms::{
 };
 use crate::library::{
     ClozeSettings, ExplainSettings, ImageOcclusionSettings, LibraryError,
-    LibraryResult, RetrievalFormKind, ReviewOutcome, ReviewRating,
-    ReviewReversalOutcome, SchedulingSettings, SchedulingState, StudyCard,
-    StudyQueue, StudyTemplate, TypeAnswerSettings,
+    LibraryResult, ProblemSettings, RetrievalFormKind, ReviewOutcome,
+    ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
+    StudyCard, StudyQueue, StudyTemplate, TypeAnswerSettings,
     UpdateSchedulingSettingsInput,
 };
 
@@ -60,6 +60,7 @@ pub fn create_recall_card(
         None,
         None,
         None,
+        None,
     )
 }
 
@@ -77,6 +78,7 @@ pub fn create_type_answer_card(
         None,
         None,
         None,
+        None,
     )
 }
 
@@ -89,6 +91,25 @@ pub fn create_explain_card(
         transaction,
         concept_id,
         RetrievalFormKind::Explain,
+        None,
+        None,
+        Some(settings),
+        None,
+        None,
+        None,
+    )
+}
+
+pub fn create_problem_card(
+    transaction: &WriteTransaction<'_>,
+    concept_id: &str,
+    settings: &ProblemSettings,
+) -> LibraryResult<()> {
+    create_card(
+        transaction,
+        concept_id,
+        RetrievalFormKind::Problem,
+        None,
         None,
         None,
         Some(settings),
@@ -110,6 +131,7 @@ pub fn create_cloze_card(
         transaction,
         concept_id,
         RetrievalFormKind::Cloze,
+        None,
         None,
         None,
         None,
@@ -135,6 +157,7 @@ pub fn create_image_occlusion_card(
         None,
         None,
         None,
+        None,
         Some(&settings),
     )
 }
@@ -146,6 +169,7 @@ fn create_card(
     template_id: Option<&str>,
     type_answer: Option<&TypeAnswerSettings>,
     explain: Option<&ExplainSettings>,
+    problem: Option<&ProblemSettings>,
     cloze: Option<&ClozeSettings>,
     image_occlusion: Option<&ImageOcclusionSettings>,
 ) -> LibraryResult<()> {
@@ -153,6 +177,7 @@ fn create_card(
         retrieval_kind,
         type_answer,
         explain,
+        problem,
         cloze,
         image_occlusion,
     )?;
@@ -330,6 +355,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             if template
                 .as_ref()
                 .is_some_and(|template| template.content.mode == TemplateMode::Custom)
+                || retrieval_kind == RetrievalFormKind::Problem
                 || retrieval_kind == RetrievalFormKind::ImageOcclusion
             {
                 media_concept_ids.insert(concept_id.clone());
@@ -343,6 +369,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 content: serde_json::from_str(&content)?,
                 retrieval_kind,
                 explain: parsed.explain,
+                problem: parsed.problem,
                 cloze: parsed.cloze,
                 image_occlusion: parsed.image_occlusion,
                 type_answer: parsed.type_answer,
