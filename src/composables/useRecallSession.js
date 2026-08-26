@@ -21,6 +21,10 @@ export function useRecallSession() {
   const masteryItems = ref([]);
   const masteryResults = ref([]);
   const masteryStarted = ref( false );
+  const pretestHandledConceptIds = ref( new Set() );
+  const pretestResults = ref([]);
+  const pretestTeaching = ref( null );
+  const pretestingEnabled = ref( false );
   const ratingCounts = ref( emptyRatingCounts() );
 
   const completedCount = computed( () => currentIndex.value );
@@ -60,6 +64,12 @@ export function useRecallSession() {
   });
 
   const lastAssessment = computed( () => assessments.value.at( -1 ) ?? null );
+  const lastAssessmentCanBeRestored = computed( () => (
+    Boolean( lastAssessment.value )
+    && !pretestTeaching.value
+    && cards.value[ currentIndex.value - 1 ]?.id
+      === lastAssessment.value?.cardId
+  ) );
   const masteryCompletedCount = computed( () => masteryIndex.value );
   const masteryMissedCount = computed( () => (
     masteryResults.value.filter( ( result ) => !result.recalled ).length
@@ -68,6 +78,23 @@ export function useRecallSession() {
     masteryResults.value.filter( ( result ) => result.recalled ).length
   ) );
   const masteryTotal = computed( () => masteryItems.value.length );
+  const pretestActive = computed( () => (
+    pretestingEnabled.value
+    && !masteryStarted.value
+    && !answerRevealed.value
+    && Boolean( currentCard.value?.pretestEligible )
+    && !pretestHandledConceptIds.value.has( currentCard.value?.conceptId )
+  ) );
+  const pretestAttemptedCount = computed( () => (
+    pretestResults.value.filter( ( result ) => result.outcome === 'attempted' ).length
+  ) );
+  const pretestSkippedCount = computed( () => (
+    pretestResults.value.filter( ( result ) => result.outcome === 'skipped' ).length
+  ) );
+  const pretestTeachingActive = computed( () => (
+    pretestTeaching.value?.cardId === currentCard.value?.id
+  ) );
+  const pretestTotal = computed( () => pretestResults.value.length );
 
   const position = computed( () => {
     return Math.min( currentIndex.value + 1, cards.value.length );
@@ -83,8 +110,9 @@ export function useRecallSession() {
 
   const totalCards = computed( () => cards.value.length );
 
-  function begin( studyCards ) {
+  function begin( studyCards, options = {}) {
     cards.value = [ ...studyCards ];
+    pretestingEnabled.value = Boolean( options.pretestingEnabled );
     restart();
   }
 
@@ -97,6 +125,7 @@ export function useRecallSession() {
   function assess({ rating, response, reviewId }) {
     if (
       masteryStarted.value
+      || pretestTeachingActive.value
       || reviewComplete.value
       || !answerRevealed.value
       || !currentCard.value
@@ -130,6 +159,90 @@ export function useRecallSession() {
     currentIndex.value += 1;
     answerRevealed.value = false;
     correctionPending.value = false;
+
+    return true;
+  }
+
+  function markPretestHandled( conceptId ) {
+    pretestHandledConceptIds.value = new Set([
+      ...pretestHandledConceptIds.value,
+      conceptId
+    ]);
+  }
+
+  function beginPretestTeaching({ pretestId, response }) {
+    const card = currentCard.value;
+
+    if (
+      !pretestActive.value
+      || typeof pretestId !== 'string'
+      || !pretestId
+      || !card
+    ) {
+      return false;
+    }
+
+    markPretestHandled( card.conceptId );
+    pretestResults.value.push({
+      cardId: card.id,
+      conceptId: card.conceptId,
+      outcome: 'attempted',
+      pretestId,
+      response
+    });
+    pretestTeaching.value = {
+      cardId: card.id,
+      conceptId: card.conceptId
+    };
+    answerRevealed.value = true;
+
+    return true;
+  }
+
+  function skipPretest({ pretestId }) {
+    const card = currentCard.value;
+
+    if (
+      !pretestActive.value
+      || typeof pretestId !== 'string'
+      || !pretestId
+      || !card
+    ) {
+      return false;
+    }
+
+    markPretestHandled( card.conceptId );
+    pretestResults.value.push({
+      cardId: card.id,
+      conceptId: card.conceptId,
+      outcome: 'skipped',
+      pretestId
+    });
+
+    return true;
+  }
+
+  function completePretestTeaching() {
+    const card = currentCard.value;
+
+    if (
+      !card
+      || !answerRevealed.value
+      || pretestTeaching.value?.cardId !== card.id
+    ) {
+      return false;
+    }
+
+    const completedCards = cards.value.slice( 0, currentIndex.value + 1 );
+    const remainingCards = cards.value
+      .slice( currentIndex.value + 1 )
+      .filter( ( candidate ) => candidate.conceptId !== card.conceptId );
+
+    cards.value = [ ...completedCards, ...remainingCards ];
+    currentIndex.value += 1;
+    answerRevealed.value = false;
+    correctionPending.value = false;
+    pretestTeaching.value = null;
 
     return true;
   }
@@ -183,6 +296,7 @@ export function useRecallSession() {
     if (
       correctionPending.value
       || masteryStarted.value
+      || !lastAssessmentCanBeRestored.value
       || !assessment
       || assessment.reviewId !== reviewId
       || previousIndex < 0
@@ -216,6 +330,9 @@ export function useRecallSession() {
     masteryItems.value = [];
     masteryResults.value = [];
     masteryStarted.value = false;
+    pretestHandledConceptIds.value = new Set();
+    pretestResults.value = [];
+    pretestTeaching.value = null;
     ratingCounts.value = emptyRatingCounts();
   }
 
@@ -230,6 +347,12 @@ export function useRecallSession() {
       masteryItems: masteryItems.value.map( ( item ) => ({ ...item }) ),
       masteryResults: masteryResults.value.map( ( result ) => ({ ...result }) ),
       masteryStarted: masteryStarted.value,
+      pretestHandledConceptIds: [ ...pretestHandledConceptIds.value ],
+      pretestResults: pretestResults.value.map( ( result ) => ({ ...result }) ),
+      pretestTeaching: pretestTeaching.value
+        ? { ...pretestTeaching.value }
+        : null,
+      pretestingEnabled: pretestingEnabled.value,
       ratingCounts: { ...ratingCounts.value }
     };
   }
@@ -250,6 +373,16 @@ export function useRecallSession() {
       ...result
     }) );
     masteryStarted.value = Boolean( snapshot.masteryStarted );
+    pretestHandledConceptIds.value = new Set(
+      snapshot.pretestHandledConceptIds ?? []
+    );
+    pretestResults.value = ( snapshot.pretestResults ?? []).map( ( result ) => ({
+      ...result
+    }) );
+    pretestTeaching.value = snapshot.pretestTeaching
+      ? { ...snapshot.pretestTeaching }
+      : null;
+    pretestingEnabled.value = Boolean( snapshot.pretestingEnabled );
     ratingCounts.value = { ...snapshot.ratingCounts };
   }
 
@@ -258,13 +391,16 @@ export function useRecallSession() {
     assess,
     assessMastery,
     begin,
+    beginPretestTeaching,
     completedCount,
+    completePretestTeaching,
     correctionPending,
     createSnapshot,
     currentCard,
     hasCards,
     isComplete,
     lastAssessment,
+    lastAssessmentCanBeRestored,
     masteryActive,
     masteryCompletedCount,
     masteryMissedCount,
@@ -272,12 +408,18 @@ export function useRecallSession() {
     masteryRecalledCount,
     masteryStarted,
     masteryTotal,
+    pretestActive,
+    pretestAttemptedCount,
+    pretestSkippedCount,
+    pretestTeachingActive,
+    pretestTotal,
     position,
     progress,
     ratingCounts,
     revealAnswer,
     restoreSnapshot,
     restoreLastAssessment,
+    skipPretest,
     startMastery,
     totalCards
   };

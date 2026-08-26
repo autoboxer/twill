@@ -33,6 +33,7 @@ import { normalizeTypeAnswer } from '../type-answer/comparison';
 const {
   clearError,
   getStudyQueue,
+  recordPretest,
   recordReview,
   reverseReview
 } = useConceptLibrary();
@@ -50,13 +51,16 @@ const {
   assess,
   assessMastery,
   begin,
+  beginPretestTeaching,
   completedCount,
+  completePretestTeaching,
   correctionPending,
   createSnapshot,
   currentCard,
   hasCards,
   isComplete,
   lastAssessment,
+  lastAssessmentCanBeRestored,
   masteryActive,
   masteryCompletedCount,
   masteryMissedCount,
@@ -64,11 +68,17 @@ const {
   masteryRecalledCount,
   masteryStarted,
   masteryTotal,
+  pretestActive,
+  pretestAttemptedCount,
+  pretestSkippedCount,
+  pretestTeachingActive,
+  pretestTotal,
   position,
   ratingCounts,
   revealAnswer,
   restoreLastAssessment,
   restoreSnapshot,
+  skipPretest,
   startMastery,
   totalCards
 } = useRecallSession();
@@ -94,6 +104,8 @@ const loadError = ref( '' );
 const masteryHeading = ref( null );
 const nextDueAt = ref( null );
 const pendingAssessment = ref( '' );
+const pendingPretestOutcome = ref( '' );
+const pretestPending = ref( false );
 const problemResponse = ref( null );
 const recoveryError = ref( '' );
 const explainResponse = ref( null );
@@ -183,12 +195,13 @@ const gradingModeLocked = computed( () => {
 });
 
 const canUndoLastGrade = computed( () => (
-  Boolean( lastAssessment.value )
+  lastAssessmentCanBeRestored.value
   && !sessionChangedConceptIds.value.has( lastAssessment.value?.conceptId )
   && !correctionPending.value
   && !masteryStarted.value
   && !assessmentPending.value
   && !gradingModePending.value
+  && !pretestPending.value
   && !undoPending.value
 ) );
 
@@ -206,6 +219,7 @@ const canQueueCurrentConcept = computed( () => (
   && !deferredLoading.value
   && !deferredPendingConceptId.value
   && !deferredStartPending.value
+  && !pretestPending.value
 ) );
 
 const gradingOptions = computed( () => {
@@ -239,6 +253,22 @@ const problemSettings = computed( () => {
 const canRevealAnswer = computed( () => (
   !typeAnswerSettings.value || Boolean( normalizeTypeAnswer( studyResponse.value ) )
 ) );
+
+const completedReviewCount = computed( () => (
+  Object.values( ratingCounts.value ).reduce( ( total, count ) => total + count, 0 )
+) );
+
+const completionDescription = computed( () => {
+  if ( completedReviewCount.value && pretestTotal.value ) {
+    return 'Reviews and pretests saved locally.';
+  }
+
+  if ( pretestTotal.value ) {
+    return 'Pretests saved locally. Attempted concepts will return as ordinary reviews next time.';
+  }
+
+  return 'Reviews saved locally.';
+});
 
 const currentAnswerFeedback = computed( () => {
   const feedback = currentCard.value?.content.feedback;
@@ -304,6 +334,10 @@ const visibleProgress = computed( () => {
 });
 
 const revealActionCopy = computed( () => {
+  if ( pretestActive.value ) {
+    return 'Make your best attempt, then inspect the answer. This does not affect scheduling.';
+  }
+
   if ( typeAnswerSettings.value ) {
     return 'Enter an answer before checking it.';
   }
@@ -408,6 +442,7 @@ const revealCommand = useCommandHandler( COMMAND_IDS.studyReveal, {
     && !answerRevealed.value
     && !assessmentPending.value
     && !gradingModePending.value
+    && !pretestPending.value
     && !undoPending.value
     && canRevealAnswer.value
   ) ),
@@ -489,7 +524,9 @@ async function loadStudyQueue() {
     }
 
     studyMedia.value = queue.media;
-    begin( queue.cards );
+    begin( queue.cards, {
+      pretestingEnabled: preferences.pretestingEnabled
+    });
     pausedResponses.clear();
     sessionChangedConceptIds.value = new Set();
     studyResponse.value = '';
@@ -618,8 +655,14 @@ async function showAnswer() {
     !canRevealAnswer.value
     || assessmentPending.value
     || gradingModePending.value
+    || pretestPending.value
     || undoPending.value
   ) {
+    return;
+  }
+
+  if ( pretestActive.value ) {
+    await recordCurrentPretest( 'attempted' );
     return;
   }
 
@@ -640,6 +683,79 @@ async function showAnswer() {
   }
 }
 
+async function skipCurrentPretest() {
+  if ( !pretestActive.value || pretestPending.value ) {
+    return;
+  }
+
+  await recordCurrentPretest( 'skipped' );
+}
+
+async function recordCurrentPretest( requestedOutcome ) {
+  const card = currentCard.value;
+
+  if (
+    !card
+    || !pretestActive.value
+    || pretestPending.value
+    || ![ 'attempted', 'skipped' ].includes( requestedOutcome )
+  ) {
+    return;
+  }
+
+  const response = studyResponse.value;
+
+  assessmentError.value = '';
+  pretestPending.value = true;
+  pendingPretestOutcome.value = requestedOutcome;
+
+  try {
+    const pretest = await recordPretest( card.id, requestedOutcome );
+
+    if ( !viewActive || currentCard.value?.id !== card.id ) {
+      return;
+    }
+
+    answerFeedbackReviewed.value = false;
+
+    if ( pretest.outcome === 'attempted' ) {
+      beginPretestTeaching({
+        pretestId: pretest.pretestId,
+        response
+      });
+    } else {
+      skipPretest({ pretestId: pretest.pretestId });
+    }
+
+    await nextTick();
+    focusCurrentState();
+  } catch ( cause ) {
+    if ( viewActive ) {
+      assessmentError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      pendingPretestOutcome.value = '';
+      pretestPending.value = false;
+    }
+  }
+}
+
+async function finishCurrentPretest() {
+  if ( !pretestTeachingActive.value || answerFeedbackPending.value ) {
+    return;
+  }
+
+  if ( !completePretestTeaching() ) {
+    return;
+  }
+
+  answerFeedbackReviewed.value = false;
+  studyResponse.value = takePausedResponse( currentCard.value?.id );
+  await nextTick();
+  focusCurrentState();
+}
+
 async function recordAssessment( rating ) {
   const visibleRating = gradingOptions.value.some( ( option ) => {
     return option.rating === rating;
@@ -649,8 +765,10 @@ async function recordAssessment( rating ) {
     !visibleRating
     || assessmentPending.value
     || gradingModePending.value
+    || pretestPending.value
     || undoPending.value
     || answerFeedbackPending.value
+    || pretestTeachingActive.value
     || !answerRevealed.value
     || !currentCard.value
   ) {
@@ -787,6 +905,7 @@ async function updateGradingMode( nextMode ) {
   if (
     gradingModePending.value
     || assessmentPending.value
+    || pretestPending.value
     || undoPending.value
     || gradingModeLocked.value
     || !gradingOptionsByMode[ nextMode ]
@@ -839,6 +958,7 @@ function registerGradingCommand( commandId, mode, rating ) {
     enabled: computed( () => (
       gradingMode.value === mode
       && !masteryActive.value
+      && !pretestTeachingActive.value
       && answerRevealed.value
       && !answerFeedbackPending.value
       && !assessmentPending.value
@@ -879,6 +999,11 @@ function focusCurrentState() {
       return;
     }
 
+    if ( pretestTeachingActive.value ) {
+      focusRevealedAnswer();
+      return;
+    }
+
     if ( correctionPending.value ) {
       focusRevealedAnswer();
       return;
@@ -905,6 +1030,12 @@ async function continueToGrading() {
   }
 
   answerFeedbackReviewed.value = true;
+
+  if ( pretestTeachingActive.value ) {
+    await finishCurrentPretest();
+    return;
+  }
+
   await nextTick();
   focusFirstGradingAction();
 }
@@ -920,6 +1051,7 @@ function focusGradingAfterFeedback() {
     answerFeedbackReviewed.value
     && currentAnswerFeedback.value
     && !correctionPending.value
+    && !pretestTeachingActive.value
   ) {
     focusFirstGradingAction();
   }
@@ -1034,6 +1166,7 @@ function focusButton( button ) {
             :disabled="gradingModeLocked
               || assessmentPending
               || initialLoading
+              || pretestPending
               || undoPending"
             :loading="gradingModePending"
             value-key="value"
@@ -1180,6 +1313,9 @@ function focusButton( button ) {
             <span v-else-if="masteryActive">
               Retry {{ masteryCompletedCount + 1 }} of {{ masteryTotal }}
             </span>
+            <span v-else-if="pretestActive || pretestTeachingActive">
+              Pretest {{ position }} of {{ totalCards }}
+            </span>
             <span v-else>Card {{ position }} of {{ totalCards }}</span>
 
             <span v-if="masteryReady">
@@ -1266,7 +1402,9 @@ function focusButton( button ) {
               <span class="study-card__eyebrow">
                 {{ masteryActive
                   ? `Mastery retry · ${ studyCardName( currentCard ) }`
-                  : studyCardName( currentCard ) }}
+                  : pretestActive || pretestTeachingActive
+                    ? `Pretest · ${ studyCardName( currentCard ) }`
+                    : studyCardName( currentCard ) }}
               </span>
               <h2>{{ currentCard.conceptTitle }}</h2>
             </div>
@@ -1292,6 +1430,16 @@ function focusButton( button ) {
           </header>
 
           <div class="study-card__body">
+            <UAlert
+              v-if="pretestActive || pretestTeachingActive"
+              class="study-pretest-notice"
+              title="Pretest"
+              description="Attempt this exact prompt before studying its answer. The result is separate from review grading."
+              icon="i-lucide-brain"
+              color="primary"
+              variant="subtle"
+            />
+
             <StudyCardContent
               ref="studyContent"
               :card="currentCard"
@@ -1365,17 +1513,34 @@ function focusButton( button ) {
               >
                 <p>{{ revealActionCopy }}</p>
 
-                <UButton
-                  ref="revealButton"
-                  leading-icon="i-lucide-eye"
-                  size="lg"
-                  :disabled="!canRevealAnswer"
-                  :aria-keyshortcuts="revealCommand.ariaKeyshortcuts"
-                  :title="revealCommand.tooltip"
-                  @click="showAnswer"
-                >
-                  {{ revealActionLabel }}
-                </UButton>
+                <div class="study-actions__primary">
+                  <UButton
+                    ref="revealButton"
+                    leading-icon="i-lucide-eye"
+                    size="lg"
+                    :disabled="!canRevealAnswer || pretestPending"
+                    :loading="pretestPending
+                      && pendingPretestOutcome === 'attempted'"
+                    :aria-keyshortcuts="revealCommand.ariaKeyshortcuts"
+                    :title="revealCommand.tooltip"
+                    @click="showAnswer"
+                  >
+                    {{ revealActionLabel }}
+                  </UButton>
+
+                  <UButton
+                    v-if="pretestActive"
+                    color="neutral"
+                    variant="link"
+                    size="lg"
+                    :disabled="pretestPending"
+                    :loading="pretestPending
+                      && pendingPretestOutcome === 'skipped'"
+                    @click="skipCurrentPretest"
+                  >
+                    Skip pretest
+                  </UButton>
+                </div>
               </m.div>
 
               <m.div
@@ -1386,14 +1551,41 @@ function focusButton( button ) {
                 :animate="{ opacity: 1, y: 0 }"
                 :exit="{ opacity: 0, y: -5 }"
               >
-                <p>Review the feedback before grading.</p>
+                <p>
+                  {{ pretestTeachingActive
+                    ? 'Review the answer and feedback before continuing.'
+                    : 'Review the feedback before grading.' }}
+                </p>
 
                 <UButton
                   leading-icon="i-lucide-arrow-right"
                   size="lg"
                   @click="continueToGrading"
                 >
-                  Continue to grading
+                  {{ pretestTeachingActive ? 'Continue' : 'Continue to grading' }}
+                </UButton>
+              </m.div>
+
+              <m.div
+                v-else-if="pretestTeachingActive"
+                ref="gradingActions"
+                key="pretest-complete"
+                class="study-actions"
+                :initial="{ opacity: 0, y: 5 }"
+                :animate="{ opacity: 1, y: 0 }"
+                :exit="{ opacity: 0, y: -5 }"
+              >
+                <p>
+                  This attempt is recorded separately. The concept will return
+                  as an ordinary review in a later session.
+                </p>
+
+                <UButton
+                  leading-icon="i-lucide-arrow-right"
+                  size="lg"
+                  @click="finishCurrentPretest"
+                >
+                  Continue
                 </UButton>
               </m.div>
 
@@ -1551,10 +1743,11 @@ function focusButton( button ) {
             >
               Session complete
             </h2>
-            <p>Reviews saved locally.</p>
+            <p>{{ completionDescription }}</p>
           </div>
 
           <dl
+            v-if="completedReviewCount"
             class="study-results"
             :class="{
               'study-results--advanced': sessionGradingMode === 'advanced'
@@ -1568,6 +1761,29 @@ function focusButton( button ) {
               <dd>{{ ratingCounts[ item.rating ] }}</dd>
             </div>
           </dl>
+
+          <section
+            v-if="pretestTotal"
+            class="study-pretest-results"
+            aria-labelledby="pretest-results-heading"
+          >
+            <div>
+              <h3 id="pretest-results-heading">Pretesting</h3>
+              <p>Recorded separately from review grades.</p>
+            </div>
+
+            <dl class="study-results">
+              <div>
+                <dt>Attempted</dt>
+                <dd>{{ pretestAttemptedCount }}</dd>
+              </div>
+
+              <div>
+                <dt>Skipped</dt>
+                <dd>{{ pretestSkippedCount }}</dd>
+              </div>
+            </dl>
+          </section>
 
           <section
             v-if="masteryTotal"

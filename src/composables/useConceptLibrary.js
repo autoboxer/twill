@@ -52,6 +52,9 @@ export function useConceptLibrary() {
     importImage: ( bytes ) => run( 'import_image', bytes ),
     isPending,
     readMedia: ( mediaId ) => run( 'read_media', { mediaId }),
+    recordPretest: ( cardId, outcome ) => run( 'record_pretest', {
+      input: { cardId, outcome }
+    }),
     recordReview: ( cardId, rating ) => run( 'record_review', {
       input: { cardId, rating }
     }),
