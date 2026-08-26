@@ -48,6 +48,7 @@ const {
 const {
   answerRevealed,
   assess,
+  assessMastery,
   begin,
   completedCount,
   correctionPending,
@@ -56,12 +57,19 @@ const {
   hasCards,
   isComplete,
   lastAssessment,
+  masteryActive,
+  masteryCompletedCount,
+  masteryMissedCount,
+  masteryReady,
+  masteryRecalledCount,
+  masteryStarted,
+  masteryTotal,
   position,
-  progress,
   ratingCounts,
   revealAnswer,
   restoreLastAssessment,
   restoreSnapshot,
+  startMastery,
   totalCards
 } = useRecallSession();
 const commands = useCommands();
@@ -83,6 +91,7 @@ const gradingModePending = ref( false );
 const gradingActions = ref( null );
 const initialLoading = ref( true );
 const loadError = ref( '' );
+const masteryHeading = ref( null );
 const nextDueAt = ref( null );
 const pendingAssessment = ref( '' );
 const problemResponse = ref( null );
@@ -177,6 +186,7 @@ const canUndoLastGrade = computed( () => (
   Boolean( lastAssessment.value )
   && !sessionChangedConceptIds.value.has( lastAssessment.value?.conceptId )
   && !correctionPending.value
+  && !masteryStarted.value
   && !assessmentPending.value
   && !gradingModePending.value
   && !undoPending.value
@@ -248,6 +258,50 @@ const answerFeedbackPending = computed( () => (
   && Boolean( currentAnswerFeedback.value )
   && !answerFeedbackReviewed.value
 ) );
+
+const masteryOptions = computed( () => [
+  {
+    color: 'error',
+    command: commands.command( COMMAND_IDS.studyMasteryMissed ),
+    icon: 'i-lucide-rotate-ccw',
+    outcome: 'missed',
+    recalled: false,
+    variant: 'soft'
+  },
+
+  {
+    color: 'primary',
+    command: commands.command( COMMAND_IDS.studyMasteryRecalled ),
+    icon: 'i-lucide-check',
+    outcome: 'recalled',
+    recalled: true,
+    variant: 'solid'
+  }
+].map( ( option ) => ({
+  ...option,
+  label: option.command.label,
+  shortcut: option.command.shortcutLabel
+}) ) );
+
+const masteryPhase = computed( () => (
+  masteryReady.value || masteryStarted.value
+) );
+
+const visibleCompletedCount = computed( () => (
+  masteryPhase.value ? masteryCompletedCount.value : completedCount.value
+) );
+
+const visibleTotalCards = computed( () => (
+  masteryPhase.value ? masteryTotal.value : totalCards.value
+) );
+
+const visibleProgress = computed( () => {
+  if ( !visibleTotalCards.value ) {
+    return 0;
+  }
+
+  return visibleCompletedCount.value / visibleTotalCards.value * 100;
+});
 
 const revealActionCopy = computed( () => {
   if ( typeAnswerSettings.value ) {
@@ -400,6 +454,16 @@ registerGradingCommand(
   'advanced',
   'easy'
 );
+
+useCommandHandler( COMMAND_IDS.studyMasteryMissed, {
+  enabled: computed( () => masteryActionEnabled() ),
+  execute: () => recordMasteryAssessment( false )
+});
+
+useCommandHandler( COMMAND_IDS.studyMasteryRecalled, {
+  enabled: computed( () => masteryActionEnabled() ),
+  execute: () => recordMasteryAssessment( true )
+});
 
 async function loadStudyQueue() {
   if ( gradingModePending.value ) {
@@ -634,6 +698,45 @@ async function recordAssessment( rating ) {
   }
 }
 
+async function beginMasteryRound() {
+  if ( !startMastery() ) {
+    return;
+  }
+
+  answerFeedbackReviewed.value = false;
+  studyResponse.value = '';
+  await nextTick();
+  focusCurrentState();
+}
+
+async function recordMasteryAssessment( recalled ) {
+  if ( !masteryActionEnabled() ) {
+    return;
+  }
+
+  const response = studyResponse.value;
+  const outcome = recalled ? 'recalled' : 'missed';
+
+  assessmentPending.value = true;
+  pendingAssessment.value = outcome;
+
+  try {
+    if ( !assessMastery({ recalled, response }) ) {
+      return;
+    }
+
+    answerFeedbackReviewed.value = false;
+    studyResponse.value = '';
+    await nextTick();
+    focusCurrentState();
+  } finally {
+    if ( viewActive ) {
+      assessmentPending.value = false;
+      pendingAssessment.value = '';
+    }
+  }
+}
+
 async function undoLastGrade() {
   const assessment = lastAssessment.value;
 
@@ -735,6 +838,7 @@ function registerGradingCommand( commandId, mode, rating ) {
   useCommandHandler( commandId, {
     enabled: computed( () => (
       gradingMode.value === mode
+      && !masteryActive.value
       && answerRevealed.value
       && !answerFeedbackPending.value
       && !assessmentPending.value
@@ -745,7 +849,21 @@ function registerGradingCommand( commandId, mode, rating ) {
   });
 }
 
+function masteryActionEnabled() {
+  return masteryActive.value
+    && answerRevealed.value
+    && !answerFeedbackPending.value
+    && !assessmentPending.value
+    && !gradingModePending.value
+    && !undoPending.value;
+}
+
 function focusCurrentState() {
+  if ( masteryReady.value ) {
+    masteryHeading.value?.focus();
+    return;
+  }
+
   if ( isComplete.value ) {
     completionHeading.value?.focus();
     return;
@@ -1058,8 +1176,19 @@ function focusButton( button ) {
         <div class="study-progress__row">
           <div class="study-progress__copy">
             <span v-if="isComplete">Session complete</span>
+            <span v-else-if="masteryReady">Mastery round ready</span>
+            <span v-else-if="masteryActive">
+              Retry {{ masteryCompletedCount + 1 }} of {{ masteryTotal }}
+            </span>
             <span v-else>Card {{ position }} of {{ totalCards }}</span>
-            <span>{{ completedCount }} completed</span>
+
+            <span v-if="masteryReady">
+              {{ masteryTotal }} {{ masteryTotal === 1 ? 'retry' : 'retries' }}
+            </span>
+            <span v-else-if="masteryStarted">
+              {{ masteryCompletedCount }} of {{ masteryTotal }} retries completed
+            </span>
+            <span v-else>{{ completedCount }} completed</span>
           </div>
 
           <UButton
@@ -1082,14 +1211,14 @@ function focusButton( button ) {
         <div
           class="study-progress__track"
           role="progressbar"
-          aria-label="Study progress"
+          :aria-label="masteryPhase ? 'Mastery progress' : 'Study progress'"
           aria-valuemin="0"
-          :aria-valuemax="totalCards"
-          :aria-valuenow="completedCount"
+          :aria-valuemax="visibleTotalCards"
+          :aria-valuenow="visibleCompletedCount"
         >
           <div
             class="study-progress__bar"
-            :style="{ width: `${ progress }%` }"
+            :style="{ width: `${ visibleProgress }%` }"
           />
         </div>
       </div>
@@ -1135,7 +1264,9 @@ function focusButton( button ) {
           <header class="study-card__header">
             <div>
               <span class="study-card__eyebrow">
-                {{ studyCardName( currentCard ) }}
+                {{ masteryActive
+                  ? `Mastery retry · ${ studyCardName( currentCard ) }`
+                  : studyCardName( currentCard ) }}
               </span>
               <h2>{{ currentCard.conceptTitle }}</h2>
             </div>
@@ -1267,6 +1398,47 @@ function focusButton( button ) {
               </m.div>
 
               <m.div
+                v-else-if="masteryActive"
+                id="study-mastery-actions"
+                ref="gradingActions"
+                key="mastery"
+                class="study-actions study-actions--assessment"
+                :initial="{ opacity: 0, y: 5 }"
+                :animate="{ opacity: 1, y: 0 }"
+                :exit="{ opacity: 0, y: -5 }"
+                :on-animation-complete="focusGradingAfterFeedback"
+              >
+                <p>Did you recall it this time?</p>
+
+                <div class="study-actions__buttons">
+                  <UButton
+                    v-for="option in masteryOptions"
+                    :key="option.outcome"
+                    :leading-icon="option.icon"
+                    :color="option.color"
+                    :variant="option.variant"
+                    :disabled="assessmentPending"
+                    :loading="assessmentPending
+                      && pendingAssessment === option.outcome"
+                    :aria-keyshortcuts="option.command.ariaKeyshortcuts"
+                    :title="option.command.tooltip"
+                    size="lg"
+                    class="study-grade-button"
+                    @click="recordMasteryAssessment( option.recalled )"
+                  >
+                    <span>{{ option.label }}</span>
+
+                    <kbd
+                      class="study-grade-button__shortcut"
+                      aria-hidden="true"
+                    >
+                      {{ option.shortcut }}
+                    </kbd>
+                  </UButton>
+                </div>
+              </m.div>
+
+              <m.div
                 v-else
                 id="study-grading-actions"
                 ref="gradingActions"
@@ -1310,6 +1482,55 @@ function focusButton( button ) {
         </m.article>
 
         <m.section
+          v-else-if="masteryReady"
+          key="mastery-ready"
+          class="study-complete study-mastery-ready"
+          :initial="{ opacity: 0, y: 12 }"
+          :animate="{ opacity: 1, y: 0 }"
+          :exit="{ opacity: 0, y: -8 }"
+          :transition="cardTransition"
+          :on-animation-complete="focusCurrentState"
+        >
+          <span class="study-complete__icon" aria-hidden="true">
+            <UIcon name="i-lucide-repeat-2" />
+          </span>
+
+          <div>
+            <h2
+              ref="masteryHeading"
+              tabindex="-1"
+            >
+              Mastery round ready
+            </h2>
+            <p>
+              {{ masteryTotal }}
+              {{ masteryTotal === 1 ? 'card needs' : 'cards need' }}
+              one more retrieval.
+            </p>
+            <p>Retries do not change saved schedules.</p>
+          </div>
+
+          <div class="study-complete__actions">
+            <UButton
+              leading-icon="i-lucide-play"
+              size="lg"
+              @click="beginMasteryRound"
+            >
+              Start mastery round
+            </UButton>
+
+            <UButton
+              :to="{ name: 'library' }"
+              color="neutral"
+              variant="link"
+              size="lg"
+            >
+              Finish for now
+            </UButton>
+          </div>
+        </m.section>
+
+        <m.section
           v-else-if="isComplete"
           key="complete"
           class="study-complete"
@@ -1347,6 +1568,33 @@ function focusButton( button ) {
               <dd>{{ ratingCounts[ item.rating ] }}</dd>
             </div>
           </dl>
+
+          <section
+            v-if="masteryTotal"
+            class="study-mastery-results"
+            aria-labelledby="mastery-results-heading"
+          >
+            <div>
+              <h3 id="mastery-results-heading">Mastery round</h3>
+              <p>One retry per missed card.</p>
+            </div>
+
+            <dl class="study-results">
+              <div>
+                <dt>Recalled</dt>
+                <dd>{{ masteryRecalledCount }}</dd>
+              </div>
+
+              <div>
+                <dt>Still learning</dt>
+                <dd>{{ masteryMissedCount }}</dd>
+              </div>
+            </dl>
+
+            <p v-if="masteryMissedCount">
+              Still-learning cards remain on their saved review schedules.
+            </p>
+          </section>
 
           <DeferredEditQueue
             v-if="deferredEdits.length"

@@ -13,6 +13,8 @@ export const COMMAND_IDS = Object.freeze({
   studyGradeAdvancedHard: 'study.grade.advanced.hard',
   studyGradeSimpleForgot: 'study.grade.simple.forgot',
   studyGradeSimpleRemembered: 'study.grade.simple.remembered',
+  studyMasteryMissed: 'study.mastery.missed',
+  studyMasteryRecalled: 'study.mastery.recalled',
   studyQueueEdit: 'study.queue-edit',
   studyReveal: 'study.reveal',
   studyUndoLastGrade: 'study.undo-last-grade',
@@ -168,6 +170,24 @@ export const commandRegistry = Object.freeze([
     label: 'Easy',
     rating: 'easy',
     shortcut: '4'
+  }),
+  localCommand({
+    id: COMMAND_IDS.studyMasteryMissed,
+    context: 'Study, mastery retry after reveal',
+    description: 'Mark the retry as still missed.',
+    group: 'Study',
+    icon: 'i-lucide-rotate-ccw',
+    label: 'Still missed',
+    shortcut: '1'
+  }),
+  localCommand({
+    id: COMMAND_IDS.studyMasteryRecalled,
+    context: 'Study, mastery retry after reveal',
+    description: 'Mark the retry as recalled.',
+    group: 'Study',
+    icon: 'i-lucide-check',
+    label: 'Recalled',
+    shortcut: '2'
   })
 ]);
 

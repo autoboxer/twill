@@ -1974,6 +1974,7 @@ button {
 }
 
 .study-deferred-notice {
+  width: calc(100% - 0.5rem);
   margin: 0 0.25rem;
 }
 
@@ -2564,6 +2565,25 @@ button {
   margin: 0.45rem 0 0;
   color: var(--ui-text-muted);
   font-size: 0.9rem;
+}
+
+.study-mastery-results {
+  display: grid;
+  width: min(100%, 26rem);
+  padding-top: 1.5rem;
+  gap: 1rem;
+  border-top: 1px solid var(--ui-border);
+}
+
+.study-mastery-results h3 {
+  margin: 0;
+  color: var(--ui-text-highlighted);
+  font-size: 1rem;
+  font-weight: 680;
+}
+
+.study-mastery-results .study-results {
+  width: 100%;
 }
 
 .study-results {
