@@ -158,6 +158,7 @@ pub struct StudyCard {
     pub template: Option<StudyTemplate>,
     pub scheduling_state: SchedulingState,
     pub due_at: i64,
+    pub pretest_eligible: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -292,6 +293,7 @@ pub struct AppearancePreferences {
 pub struct DevicePreferences {
     pub grading_mode: GradingMode,
     pub startup_destination: StartupDestination,
+    pub pretesting_enabled: bool,
     pub appearance: AppearancePreferences,
 }
 
@@ -588,6 +590,12 @@ pub struct SetStartupDestinationInput {
     pub startup_destination: StartupDestination,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SetPretestingEnabledInput {
+    pub enabled: bool,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SetAppearancePreferencesInput {
@@ -606,6 +614,30 @@ pub struct UpdateSchedulingSettingsInput {
 pub struct RecordReviewInput {
     pub card_id: String,
     pub rating: ReviewRating,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PretestOutcome {
+    Attempted,
+    Skipped,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RecordPretestInput {
+    pub card_id: String,
+    pub outcome: PretestOutcome,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PretestRecord {
+    pub pretest_id: String,
+    pub concept_id: String,
+    pub card_id: String,
+    pub outcome: PretestOutcome,
+    pub occurred_at: i64,
 }
 
 #[derive(Clone, Debug, Deserialize)]

@@ -9,10 +9,12 @@ use crate::library::{
     CreateTemplateInput, CssSnippet, CssSnippetCatalog, CssSnippetLibrary,
     DeferredConceptEdit, DeferredEditLibrary, DeferredEditQueue, DevicePreferences,
     EntityIdInput, LibraryError, LibrarySnapshot, OrganizationSummary,
-    QueueDeferredEditInput, RecordReviewInput, RenameNamedItemInput,
-    ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome, SchedulingSettings,
+    PretestRecord, QueueDeferredEditInput, RecordPretestInput, RecordReviewInput,
+    RenameNamedItemInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
+    SchedulingSettings,
     SetAppearancePreferencesInput, SetConceptArchivedInput, SetCssSnippetEnabledInput,
-    SetGradingModeInput, SetStartupDestinationInput, StudyQueue, TemplateCatalog,
+    SetGradingModeInput, SetPretestingEnabledInput, SetStartupDestinationInput,
+    StudyQueue, TemplateCatalog,
     TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
     UpdateCssSnippetInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
     UpsertAuthoringDraftInput,
@@ -55,6 +57,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::DuplicateProblemCheckpoint => "validation",
             LibraryError::DuplicateName { .. }
             | LibraryError::CardNotDue { .. }
+            | LibraryError::PretestNotEligible(_)
             | LibraryError::ReviewNotReversible
             | LibraryError::TemplateInUse { .. } => "conflict",
             LibraryError::ConceptNotFound(_)
@@ -74,6 +77,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidRetrievalFormKind(_)
             | LibraryError::InvalidRetrievalForm
             | LibraryError::InvalidGradingMode(_)
+            | LibraryError::InvalidPretestOutcome(_)
             | LibraryError::InvalidStartupDestination(_)
             | LibraryError::InvalidDevicePreference { .. }
             | LibraryError::InvalidSchedule
@@ -89,6 +93,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidRetrievalFormKind(_)
             | LibraryError::InvalidRetrievalForm
             | LibraryError::InvalidGradingMode(_)
+            | LibraryError::InvalidPretestOutcome(_)
             | LibraryError::InvalidStartupDestination(_)
             | LibraryError::InvalidDevicePreference { .. }
             | LibraryError::InvalidSchedule
@@ -138,6 +143,16 @@ pub(crate) fn record_review(
 ) -> CommandResult<ReviewOutcome> {
     ConceptLibrary::new(local_data.inner())
         .record_review(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn record_pretest(
+    local_data: State<'_, LocalDataStore>,
+    input: RecordPretestInput,
+) -> CommandResult<PretestRecord> {
+    ConceptLibrary::new(local_data.inner())
+        .record_pretest(input)
         .map_err(Into::into)
 }
 
@@ -196,6 +211,16 @@ pub(crate) fn set_grading_mode(
 ) -> CommandResult<DevicePreferences> {
     ConceptLibrary::new(local_data.inner())
         .set_grading_mode(input.grading_mode)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn set_pretesting_enabled(
+    local_data: State<'_, LocalDataStore>,
+    input: SetPretestingEnabledInput,
+) -> CommandResult<DevicePreferences> {
+    ConceptLibrary::new(local_data.inner())
+        .set_pretesting_enabled(input.enabled)
         .map_err(Into::into)
 }
 

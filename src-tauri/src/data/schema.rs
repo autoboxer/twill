@@ -24,6 +24,7 @@ fn initial_schema() -> &'static str {
             include_str!("../../schema/library.sql"),
             include_str!("../../schema/rich_content.sql"),
             include_str!("../../schema/scheduling.sql"),
+            include_str!("../../schema/pretesting.sql"),
             include_str!("../../schema/preferences.sql"),
             include_str!("../../schema/css_snippets.sql"),
             include_str!("../../schema/authoring_drafts.sql"),
@@ -95,7 +96,7 @@ mod tests {
             )
             .unwrap();
         let parameters: Vec<f32> = serde_json::from_str(&parameters_json).unwrap();
-        let preferences: (String, String, String, String, String, String) = connection
+        let preferences: (String, String, String, String, String, String, bool) = connection
             .query_row(
                 "SELECT
                     grading_mode,
@@ -103,7 +104,8 @@ mod tests {
                     theme,
                     reading_font,
                     reading_text_size,
-                    motion_preference
+                    motion_preference,
+                    pretesting_enabled
                 FROM device_preferences
                 WHERE singleton = 1",
                 [],
@@ -115,6 +117,7 @@ mod tests {
                         row.get(3)?,
                         row.get(4)?,
                         row.get(5)?,
+                        row.get(6)?,
                     ))
                 },
             )
@@ -135,6 +138,7 @@ mod tests {
                 "inter".to_owned(),
                 "medium".to_owned(),
                 "system".to_owned(),
+                false,
             )
         );
     }

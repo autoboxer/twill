@@ -11,8 +11,9 @@ use crate::library::media::{
 };
 use crate::library::preferences::{
     query_device_preferences, update_appearance_preferences, update_grading_mode,
-    update_startup_destination,
+    update_pretesting_enabled, update_startup_destination,
 };
+use crate::library::pretesting::record_pretest;
 use crate::library::retrieval_forms::{
     normalize_explain, normalize_problem, normalize_type_answer,
     parse_retrieval_form_configuration, retrieval_form_configuration,
@@ -27,7 +28,8 @@ use crate::library::{
     AppearancePreferences, CardSummary, ConceptDetail, ConceptSummary, CreateConceptInput,
     DevicePreferences, ExplainSettings, GradingMode, LibraryError, LibraryResult,
     LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary, RecordReviewInput,
-    ProblemSettings, RetrievalFormKind, ReverseReviewInput, ReviewOutcome,
+    PretestRecord, ProblemSettings, RecordPretestInput, RetrievalFormKind,
+    ReverseReviewInput, ReviewOutcome,
     ReviewReversalOutcome, SchedulingSettings, SchedulingState,
     StartupDestination, StudyQueue, TypeAnswerSettings, UpdateConceptInput,
     UpdateSchedulingSettingsInput,
@@ -69,6 +71,13 @@ impl<'store> ConceptLibrary<'store> {
         self.record_review_at(input, current_timestamp()?)
     }
 
+    pub fn record_pretest(
+        &self,
+        input: RecordPretestInput,
+    ) -> LibraryResult<PretestRecord> {
+        self.record_pretest_at(input, current_timestamp()?)
+    }
+
     pub fn reverse_review(
         &self,
         input: ReverseReviewInput,
@@ -86,6 +95,15 @@ impl<'store> ConceptLibrary<'store> {
     ) -> LibraryResult<DevicePreferences> {
         self.store.write_result(|transaction| {
             update_grading_mode(transaction, grading_mode)
+        })
+    }
+
+    pub fn set_pretesting_enabled(
+        &self,
+        enabled: bool,
+    ) -> LibraryResult<DevicePreferences> {
+        self.store.write_result(|transaction| {
+            update_pretesting_enabled(transaction, enabled)
         })
     }
 
@@ -142,6 +160,18 @@ impl<'store> ConceptLibrary<'store> {
 
         self.store.write_result(|transaction| {
             record_review(transaction, &card_id, input.rating, now)
+        })
+    }
+
+    fn record_pretest_at(
+        &self,
+        input: RecordPretestInput,
+        now: i64,
+    ) -> LibraryResult<PretestRecord> {
+        let card_id = input.card_id.trim().to_owned();
+
+        self.store.write_result(|transaction| {
+            record_pretest(transaction, &card_id, input.outcome, now)
         })
     }
 
@@ -1462,7 +1492,8 @@ mod tests {
         AppearancePreferences, AppearanceTheme, ConceptContent, CreateConceptInput,
         CreateTemplateInput, ExplainSettings, GradingMode, LibraryError,
         MotionPreference, ProblemSettings, ReadingFont, ReadingTextSize,
-        RecordReviewInput, RetrievalFormKind, ReverseReviewInput, ReviewRating,
+        PretestOutcome, RecordPretestInput, RecordReviewInput, RetrievalFormKind,
+        ReverseReviewInput, ReviewRating,
         SchedulingState, StartupDestination, TemplateContent, TemplateLibrary,
         TypeAnswerSettings, UpdateConceptInput, UpdateSchedulingSettingsInput,
         UpdateTemplateInput,
@@ -3232,6 +3263,7 @@ mod tests {
 
             assert_eq!(defaults.grading_mode, GradingMode::Simple);
             assert_eq!(defaults.startup_destination, StartupDestination::Study);
+            assert!(!defaults.pretesting_enabled);
             assert_eq!(
                 defaults.appearance,
                 AppearancePreferences {
@@ -3246,6 +3278,7 @@ mod tests {
             let preferences = library.set_grading_mode(GradingMode::Advanced).unwrap();
 
             assert_eq!(preferences.grading_mode, GradingMode::Advanced);
+            assert!(!preferences.pretesting_enabled);
             assert_eq!(
                 preferences.startup_destination,
                 StartupDestination::Study
@@ -3260,6 +3293,10 @@ mod tests {
                 preferences.startup_destination,
                 StartupDestination::Library
             );
+
+            let preferences = library.set_pretesting_enabled(true).unwrap();
+
+            assert!(preferences.pretesting_enabled);
 
             let appearance = AppearancePreferences {
                 theme: AppearanceTheme::RosePineDawn,
@@ -3286,6 +3323,7 @@ mod tests {
         let preferences = reopened_library.device_preferences().unwrap();
 
         assert_eq!(preferences.grading_mode, GradingMode::Advanced);
+        assert!(preferences.pretesting_enabled);
         assert_eq!(
             preferences.startup_destination,
             StartupDestination::Library
@@ -3299,6 +3337,227 @@ mod tests {
                 motion_preference: MotionPreference::Reduced,
             }
         );
+    }
+
+    #[test]
+    fn pretests_are_concept_level_events_separate_from_fsrs_history() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let concept = library
+            .create_concept(CreateConceptInput {
+                title: "Pretest target".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                problem: None,
+                explain: None,
+                type_answer: Some(TypeAnswerSettings {
+                    accepted_answers: vec!["Answer".to_owned()],
+                }),
+            })
+            .unwrap();
+        let queue = library.study_queue().unwrap();
+
+        assert_eq!(queue.cards.len(), 2);
+        assert!(queue.cards.iter().all(|card| card.pretest_eligible));
+
+        let card = queue.cards[0].clone();
+        let occurred_at = queue
+            .cards
+            .iter()
+            .map(|card| card.due_at)
+            .max()
+            .unwrap();
+        let pretest = library
+            .record_pretest_at(
+                RecordPretestInput {
+                    card_id: card.id.clone(),
+                    outcome: PretestOutcome::Attempted,
+                },
+                occurred_at,
+            )
+            .unwrap();
+
+        assert_eq!(pretest.concept_id, concept.id);
+        assert_eq!(pretest.card_id, card.id);
+        assert_eq!(pretest.outcome, PretestOutcome::Attempted);
+        assert_eq!(pretest.occurred_at, occurred_at);
+        assert_eq!(
+            store.entity(&pretest.pretest_id).unwrap().unwrap().kind,
+            EntityKind::Pretest
+        );
+
+        let queue_after_pretest = library.study_queue_at(occurred_at).unwrap();
+
+        assert_eq!(queue_after_pretest.cards.len(), 2);
+        assert!(queue_after_pretest
+            .cards
+            .iter()
+            .all(|card| !card.pretest_eligible));
+
+        let (review_count, lapse_count, review_rows, pretest_rows): (i64, i64, i64, i64) = store
+            .read_result(|connection| -> DataResult<_> {
+                Ok((
+                    connection.query_row(
+                        "SELECT SUM(review_count) FROM card_scheduling
+                        INNER JOIN cards ON cards.entity_id = card_scheduling.card_id
+                        WHERE cards.concept_id = ?1",
+                        [&concept.id],
+                        |row| row.get(0),
+                    )?,
+                    connection.query_row(
+                        "SELECT SUM(lapse_count) FROM card_scheduling
+                        INNER JOIN cards ON cards.entity_id = card_scheduling.card_id
+                        WHERE cards.concept_id = ?1",
+                        [&concept.id],
+                        |row| row.get(0),
+                    )?,
+                    connection.query_row(
+                        "SELECT COUNT(*) FROM reviews
+                        INNER JOIN cards ON cards.entity_id = reviews.card_id
+                        WHERE cards.concept_id = ?1",
+                        [&concept.id],
+                        |row| row.get(0),
+                    )?,
+                    connection.query_row(
+                        "SELECT COUNT(*) FROM pretests WHERE concept_id = ?1",
+                        [&concept.id],
+                        |row| row.get(0),
+                    )?,
+                ))
+            })
+            .unwrap();
+
+        assert_eq!(
+            (review_count, lapse_count, review_rows, pretest_rows),
+            (0, 0, 0, 1)
+        );
+
+        assert!(store
+            .write(|transaction| {
+                transaction.execute(
+                    "UPDATE pretests SET outcome = 'skipped' WHERE entity_id = ?1",
+                    [&pretest.pretest_id],
+                )?;
+
+                Ok(())
+            })
+            .is_err());
+        assert!(store
+            .write(|transaction| {
+                transaction.execute(
+                    "DELETE FROM pretests WHERE entity_id = ?1",
+                    [&pretest.pretest_id],
+                )?;
+
+                Ok(())
+            })
+            .is_err());
+        assert!(store
+            .write(|transaction| transaction.soft_delete_entity(&pretest.pretest_id))
+            .is_err());
+
+        let changes_after_pretest = store.changes_after(0, 100).unwrap();
+        let duplicate = library
+            .record_pretest_at(
+                RecordPretestInput {
+                    card_id: queue.cards[1].id.clone(),
+                    outcome: PretestOutcome::Skipped,
+                },
+                occurred_at + 1,
+            )
+            .unwrap();
+
+        assert_eq!(duplicate, pretest);
+        assert_eq!(store.changes_after(0, 100).unwrap(), changes_after_pretest);
+
+        let skipped_concept = library
+            .create_concept(CreateConceptInput {
+                title: "Skipped pretest".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                problem: None,
+                explain: None,
+                type_answer: None,
+            })
+            .unwrap();
+        let skipped_card = library
+            .study_queue()
+            .unwrap()
+            .cards
+            .into_iter()
+            .find(|card| card.concept_id == skipped_concept.id)
+            .unwrap();
+        let skipped = library
+            .record_pretest_at(
+                RecordPretestInput {
+                    card_id: skipped_card.id,
+                    outcome: PretestOutcome::Skipped,
+                },
+                skipped_card.due_at,
+            )
+            .unwrap();
+
+        assert_eq!(skipped.concept_id, skipped_concept.id);
+        assert_eq!(skipped.outcome, PretestOutcome::Skipped);
+    }
+
+    #[test]
+    fn reviewed_concepts_do_not_become_pretest_eligible_after_undo() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        library
+            .create_concept(CreateConceptInput {
+                title: "Previously studied".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                problem: None,
+                explain: None,
+                type_answer: None,
+            })
+            .unwrap();
+        let card = library.study_queue().unwrap().cards[0].clone();
+        let review = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: card.id.clone(),
+                    rating: ReviewRating::Good,
+                },
+                card.due_at,
+            )
+            .unwrap();
+
+        library
+            .reverse_review_at(
+                ReverseReviewInput {
+                    review_id: review.review_id,
+                },
+                review.reviewed_at + 1,
+            )
+            .unwrap();
+
+        let queue = library.study_queue_at(review.reviewed_at + 1).unwrap();
+
+        assert_eq!(queue.cards.len(), 1);
+        assert!(!queue.cards[0].pretest_eligible);
+        assert!(matches!(
+            library.record_pretest_at(
+                RecordPretestInput {
+                    card_id: card.id,
+                    outcome: PretestOutcome::Attempted,
+                },
+                review.reviewed_at + 1,
+            ),
+            Err(LibraryError::PretestNotEligible(_))
+        ));
     }
 
     #[test]

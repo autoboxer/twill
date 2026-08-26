@@ -278,7 +278,21 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             templates.name,
             templates.content_json,
             card_scheduling.state,
-            card_scheduling.due_at
+            card_scheduling.due_at,
+            card_scheduling.state = 'new'
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM reviews
+                    INNER JOIN cards AS reviewed_cards
+                        ON reviewed_cards.entity_id = reviews.card_id
+                    WHERE reviewed_cards.concept_id = concepts.entity_id
+                )
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM pretests
+                    WHERE pretests.concept_id = concepts.entity_id
+                )
+                AS pretest_eligible
         FROM card_scheduling
         INNER JOIN cards
             ON cards.entity_id = card_scheduling.card_id
@@ -316,6 +330,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             row.get::<_, Option<String>>(9)?,
             row.get::<_, String>(10)?,
             row.get::<_, i64>(11)?,
+            row.get::<_, bool>(12)?,
         ))
     })?;
     let card_rows = rows.collect::<Result<Vec<_>, _>>()?;
@@ -339,6 +354,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 template_content,
                 state,
                 due_at,
+                pretest_eligible,
             ) = row;
             let template = match (template_id, template_name, template_content) {
                 (Some(id), Some(name), Some(content)) => Some(StudyTemplate {
@@ -376,6 +392,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 template,
                 scheduling_state: SchedulingState::try_from(state.as_str())?,
                 due_at,
+                pretest_eligible,
             })
         })
         .collect::<LibraryResult<Vec<_>>>()?;
