@@ -19,6 +19,7 @@ CREATE TABLE entities (
             'template',
             'review',
             'review_reversal',
+            'pretest',
             'media',
             'css_snippet'
         )

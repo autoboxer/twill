@@ -81,6 +81,12 @@ pub enum LibraryError {
     #[error("only the latest grade for a card can be undone")]
     ReviewNotReversible,
 
+    #[error("card {0} is not eligible for pretesting")]
+    PretestNotEligible(String),
+
+    #[error("stored pretest outcome is not valid: {0}")]
+    InvalidPretestOutcome(String),
+
     #[error("scheduler configuration {0} is not supported")]
     UnsupportedSchedulerConfiguration(String),
 

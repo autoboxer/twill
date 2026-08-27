@@ -38,6 +38,9 @@ CREATE TABLE device_preferences (
     ),
     motion_preference TEXT NOT NULL CHECK (
         motion_preference IN ('system', 'full', 'reduced')
+    ),
+    pretesting_enabled INTEGER NOT NULL CHECK (
+        pretesting_enabled IN (0, 1)
     )
 ) STRICT;
 
@@ -63,7 +66,8 @@ INSERT INTO device_preferences (
     theme,
     reading_font,
     reading_text_size,
-    motion_preference
+    motion_preference,
+    pretesting_enabled
 )
 VALUES (
     1,
@@ -72,5 +76,6 @@ VALUES (
     'aubergine',
     'inter',
     'medium',
-    'system'
+    'system',
+    0
 );

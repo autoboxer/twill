@@ -6,6 +6,9 @@ export function useDevicePreferences() {
     setGradingMode: ( gradingMode ) => invoke( 'set_grading_mode', {
       input: { gradingMode }
     }),
+    setPretestingEnabled: ( enabled ) => invoke( 'set_pretesting_enabled', {
+      input: { enabled }
+    }),
     setStartupDestination: ( startupDestination ) => invoke(
       'set_startup_destination',
       { input: { startupDestination } }

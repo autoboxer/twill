@@ -22,6 +22,7 @@ import { useSchedulingSettings } from '../composables/useSchedulingSettings';
 const DEFAULT_DESIRED_RETENTION_PERCENT = 90;
 const DEFAULT_GRADING_MODE = 'simple';
 const DEFAULT_MAXIMUM_INTERVAL_DAYS = 36_500;
+const DEFAULT_PRETESTING_ENABLED = false;
 const DEFAULT_STARTUP_DESTINATION = 'study';
 const MINIMUM_DESIRED_RETENTION_PERCENT = 80;
 const MAXIMUM_DESIRED_RETENTION_PERCENT = 97;
@@ -62,6 +63,7 @@ const themeGroups = [
 const {
   getDevicePreferences,
   setGradingMode,
+  setPretestingEnabled,
   setStartupDestination
 } = useDevicePreferences();
 const {
@@ -84,10 +86,15 @@ const gradingModePending = ref( false );
 const gradingModeStatus = ref( '' );
 const initialLoading = ref( true );
 const loadError = ref( '' );
+const pretestingEnabled = ref( DEFAULT_PRETESTING_ENABLED );
+const pretestingError = ref( '' );
+const pretestingPending = ref( false );
+const pretestingStatus = ref( '' );
 const appearanceError = ref( '' );
 const appearancePendingCount = ref( 0 );
 const appearanceStatus = ref( '' );
 const savedGradingMode = ref( DEFAULT_GRADING_MODE );
+const savedPretestingEnabled = ref( DEFAULT_PRETESTING_ENABLED );
 const savedSchedulingSettings = ref( null );
 const savedStartupDestination = ref( DEFAULT_STARTUP_DESTINATION );
 const schedulingSaveAttempted = ref( false );
@@ -269,6 +276,8 @@ async function loadSettings() {
 function applyDevicePreferences( preferences ) {
   gradingMode.value = preferences.gradingMode;
   savedGradingMode.value = preferences.gradingMode;
+  pretestingEnabled.value = Boolean( preferences.pretestingEnabled );
+  savedPretestingEnabled.value = Boolean( preferences.pretestingEnabled );
   startupDestination.value = preferences.startupDestination;
   savedStartupDestination.value = preferences.startupDestination;
 }
@@ -285,6 +294,8 @@ function clearPreferenceFeedback() {
   appearanceStatus.value = '';
   gradingModeError.value = '';
   gradingModeStatus.value = '';
+  pretestingError.value = '';
+  pretestingStatus.value = '';
   startupDestinationError.value = '';
   startupDestinationStatus.value = '';
 }
@@ -434,6 +445,7 @@ async function updateGradingMode(
   gradingMode.value = nextMode;
   gradingModeError.value = '';
   gradingModeStatus.value = '';
+  pretestingStatus.value = '';
   gradingModePending.value = true;
 
   try {
@@ -455,6 +467,66 @@ async function updateGradingMode(
     if ( viewActive ) {
       gradingModePending.value = false;
     }
+  }
+}
+
+async function updatePretesting(
+  enabled,
+  successMessage = 'Pretesting preference saved.'
+) {
+  if (
+    pretestingPending.value
+    || typeof enabled !== 'boolean'
+    || enabled === savedPretestingEnabled.value
+  ) {
+    return;
+  }
+
+  const previousValue = savedPretestingEnabled.value;
+
+  pretestingEnabled.value = enabled;
+  gradingModeStatus.value = '';
+  pretestingError.value = '';
+  pretestingStatus.value = '';
+  pretestingPending.value = true;
+
+  try {
+    const preferences = await setPretestingEnabled( enabled );
+
+    if ( !viewActive ) {
+      return;
+    }
+
+    pretestingEnabled.value = preferences.pretestingEnabled;
+    savedPretestingEnabled.value = preferences.pretestingEnabled;
+    pretestingStatus.value = successMessage;
+  } catch ( cause ) {
+    if ( viewActive ) {
+      pretestingEnabled.value = previousValue;
+      pretestingError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      pretestingPending.value = false;
+    }
+  }
+}
+
+async function restoreStudyDefaults() {
+  if ( gradingModePending.value || pretestingPending.value ) {
+    return;
+  }
+
+  if ( savedPretestingEnabled.value !== DEFAULT_PRETESTING_ENABLED ) {
+    await updatePretesting( DEFAULT_PRETESTING_ENABLED, '' );
+  }
+
+  if ( savedGradingMode.value !== DEFAULT_GRADING_MODE ) {
+    await updateGradingMode( DEFAULT_GRADING_MODE, '' );
+  }
+
+  if ( !pretestingError.value && !gradingModeError.value ) {
+    gradingModeStatus.value = 'Study defaults restored.';
   }
 }
 
@@ -889,6 +961,34 @@ async function persistSchedulingSettings(
 
           <div class="settings-preference-row">
             <div>
+              <label for="settings-pretesting">Optional pretesting</label>
+              <p id="settings-pretesting-description">
+                Before the first review of a new concept, attempt one prompt and
+                then see its answer. Attempts stay separate from review grading
+                and FSRS scheduling.
+              </p>
+            </div>
+
+            <USwitch
+              id="settings-pretesting"
+              :model-value="pretestingEnabled"
+              :loading="pretestingPending"
+              :disabled="pretestingPending"
+              aria-describedby="settings-pretesting-description"
+              @update:model-value="updatePretesting"
+            />
+          </div>
+
+          <UAlert
+            v-if="pretestingError"
+            :description="pretestingError"
+            icon="i-lucide-circle-alert"
+            color="error"
+            variant="subtle"
+          />
+
+          <div class="settings-preference-row">
+            <div>
               <label for="settings-grading-mode">Grading mode</label>
               <p>Simple uses Forgot and Remembered. Advanced adds Hard and Easy.</p>
             </div>
@@ -919,19 +1019,18 @@ async function persistSchedulingSettings(
               class="settings-save-status"
               aria-live="polite"
             >
-              {{ gradingModeStatus }}
+              {{ pretestingStatus || gradingModeStatus }}
             </p>
 
             <UButton
               type="button"
               color="neutral"
               variant="link"
-              :disabled="savedGradingMode === DEFAULT_GRADING_MODE
-                || gradingModePending"
-              @click="updateGradingMode(
-                DEFAULT_GRADING_MODE,
-                'Study defaults restored.'
-              )"
+              :disabled="(savedGradingMode === DEFAULT_GRADING_MODE
+                && savedPretestingEnabled === DEFAULT_PRETESTING_ENABLED)
+                || gradingModePending
+                || pretestingPending"
+              @click="restoreStudyDefaults"
             >
               Restore default
             </UButton>

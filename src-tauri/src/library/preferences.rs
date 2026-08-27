@@ -16,7 +16,8 @@ pub fn query_device_preferences(
             theme,
             reading_font,
             reading_text_size,
-            motion_preference
+            motion_preference,
+            pretesting_enabled
         FROM device_preferences
         WHERE singleton = 1",
         [],
@@ -28,6 +29,7 @@ pub fn query_device_preferences(
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
+                row.get::<_, bool>(6)?,
             ))
         },
     )?;
@@ -35,6 +37,7 @@ pub fn query_device_preferences(
     Ok(DevicePreferences {
         grading_mode: GradingMode::try_from(stored.0.as_str())?,
         startup_destination: StartupDestination::try_from(stored.1.as_str())?,
+        pretesting_enabled: stored.6,
         appearance: AppearancePreferences {
             theme: AppearanceTheme::try_from(stored.2.as_str())?,
             reading_font: ReadingFont::try_from(stored.3.as_str())?,
@@ -42,6 +45,21 @@ pub fn query_device_preferences(
             motion_preference: MotionPreference::try_from(stored.5.as_str())?,
         },
     })
+}
+
+pub fn update_pretesting_enabled(
+    transaction: &WriteTransaction<'_>,
+    enabled: bool,
+) -> LibraryResult<DevicePreferences> {
+    transaction.execute(
+        "UPDATE device_preferences
+        SET pretesting_enabled = ?1
+        WHERE singleton = 1
+            AND pretesting_enabled != ?1",
+        [enabled],
+    )?;
+
+    query_device_preferences(transaction)
 }
 
 pub fn update_grading_mode(

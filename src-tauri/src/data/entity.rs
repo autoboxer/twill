@@ -9,12 +9,13 @@ pub enum EntityKind {
     Template,
     Review,
     ReviewReversal,
+    Pretest,
     Media,
     CssSnippet,
 }
 
 impl EntityKind {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::Concept,
         Self::Card,
         Self::Deck,
@@ -22,6 +23,7 @@ impl EntityKind {
         Self::Template,
         Self::Review,
         Self::ReviewReversal,
+        Self::Pretest,
         Self::Media,
         Self::CssSnippet,
     ];
@@ -35,6 +37,7 @@ impl EntityKind {
             Self::Template => "template",
             Self::Review => "review",
             Self::ReviewReversal => "review_reversal",
+            Self::Pretest => "pretest",
             Self::Media => "media",
             Self::CssSnippet => "css_snippet",
         }
@@ -53,6 +56,7 @@ impl TryFrom<&str> for EntityKind {
             "template" => Ok(Self::Template),
             "review" => Ok(Self::Review),
             "review_reversal" => Ok(Self::ReviewReversal),
+            "pretest" => Ok(Self::Pretest),
             "media" => Ok(Self::Media),
             "css_snippet" => Ok(Self::CssSnippet),
             _ => Err(DataError::UnknownEntityKind(value.to_owned())),

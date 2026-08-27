@@ -2037,6 +2037,10 @@ button {
   gap: clamp(2rem, 5vw, 3rem);
 }
 
+.study-pretest-notice {
+  min-width: 0;
+}
+
 .study-template,
 .study-template__visual,
 .study-template__custom,
@@ -2481,10 +2485,15 @@ button {
 }
 
 .study-actions__buttons,
+.study-actions__primary,
 .study-complete__actions {
   display: flex;
   flex: 0 0 auto;
   gap: 0.65rem;
+}
+
+.study-actions__primary {
+  align-items: center;
 }
 
 .study-actions__buttons {
@@ -2567,7 +2576,8 @@ button {
   font-size: 0.9rem;
 }
 
-.study-mastery-results {
+.study-mastery-results,
+.study-pretest-results {
   display: grid;
   width: min(100%, 26rem);
   padding-top: 1.5rem;
@@ -2575,14 +2585,16 @@ button {
   border-top: 1px solid var(--ui-border);
 }
 
-.study-mastery-results h3 {
+.study-mastery-results h3,
+.study-pretest-results h3 {
   margin: 0;
   color: var(--ui-text-highlighted);
   font-size: 1rem;
   font-weight: 680;
 }
 
-.study-mastery-results .study-results {
+.study-mastery-results .study-results,
+.study-pretest-results .study-results {
   width: 100%;
 }
 
@@ -4293,6 +4305,20 @@ button {
   .library-layout {
     grid-template-columns: minmax(11rem, 13.5rem) minmax(0, 1fr);
   }
+
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-navigation {
+    position: static;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .settings-navigation > * {
+    min-width: 0;
+    justify-content: center;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -4569,7 +4595,7 @@ button {
     text-align: center;
   }
 
-  .study-actions > :last-child:not(.study-actions__buttons) {
+  .study-actions > :last-child:not(.study-actions__buttons, .study-actions__primary) {
     width: 100%;
     justify-content: center;
   }
@@ -4578,6 +4604,16 @@ button {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
+  }
+
+  .study-actions__primary {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .study-actions__primary > * {
+    width: 100%;
+    justify-content: center;
   }
 
   .study-actions__buttons > * {

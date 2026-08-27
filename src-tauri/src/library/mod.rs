@@ -6,6 +6,7 @@ mod deferred_edits;
 mod error;
 mod media;
 mod models;
+mod pretesting;
 mod preferences;
 mod retrieval_forms;
 mod service;
@@ -26,11 +27,12 @@ pub use models::{
     ExplainSettings, ImageOcclusionSettings, LibrarySnapshot, MediaSummary,
     MotionPreference, NamedItem, OrganizationSummary,
     ProblemSettings, QueueDeferredEditInput, ReadingFont, ReadingTextSize,
-    RecordReviewInput,
+    PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput,
     RenameNamedItemInput, RetrievalFormKind, ReverseReviewInput, ReviewOutcome,
     ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
     SetAppearancePreferencesInput, SetConceptArchivedInput,
-    SetCssSnippetEnabledInput, SetGradingModeInput, SetStartupDestinationInput,
+    SetCssSnippetEnabledInput, SetGradingModeInput, SetPretestingEnabledInput,
+    SetStartupDestinationInput,
     StartupDestination, StudyCard, StudyQueue, StudyTemplate, TemplateBlock,
     TemplateCatalog, TemplateContent, TemplateDetail, TemplateSummary,
     TypeAnswerSettings, UpdateConceptInput, UpdateCssSnippetInput,
