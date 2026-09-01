@@ -102,6 +102,7 @@ const gradingActions = ref( null );
 const initialLoading = ref( true );
 const loadError = ref( '' );
 const masteryHeading = ref( null );
+const mixedPracticeEnabled = ref( false );
 const nextDueAt = ref( null );
 const pendingAssessment = ref( '' );
 const pendingPretestOutcome = ref( '' );
@@ -524,6 +525,7 @@ async function loadStudyQueue() {
     }
 
     studyMedia.value = queue.media;
+    mixedPracticeEnabled.value = Boolean( queue.mixedPracticeEnabled );
     begin( queue.cards, {
       pretestingEnabled: preferences.pretestingEnabled
     });
@@ -1085,6 +1087,7 @@ function createStudySessionSnapshot() {
   return {
     changedConceptIds: [ ...sessionChangedConceptIds.value ],
     gradingMode: gradingMode.value,
+    mixedPracticeEnabled: mixedPracticeEnabled.value,
     nextDueAt: nextDueAt.value,
     pausedResponses: [ ...pausedResponses.entries() ],
     recall: createSnapshot(),
@@ -1100,6 +1103,7 @@ function restoreStudySession( session ) {
   restoreSnapshot( session.recall );
   answerFeedbackReviewed.value = Boolean( session.answerFeedbackReviewed );
   gradingMode.value = session.gradingMode;
+  mixedPracticeEnabled.value = Boolean( session.mixedPracticeEnabled );
   nextDueAt.value = session.nextDueAt;
   sessionGradingMode.value = session.sessionGradingMode;
   sessionChangedConceptIds.value = new Set( session.changedConceptIds ?? []);
@@ -1308,15 +1312,29 @@ function focusButton( button ) {
       <div class="study-progress">
         <div class="study-progress__row">
           <div class="study-progress__copy">
-            <span v-if="isComplete">Session complete</span>
-            <span v-else-if="masteryReady">Mastery round ready</span>
-            <span v-else-if="masteryActive">
-              Retry {{ masteryCompletedCount + 1 }} of {{ masteryTotal }}
-            </span>
-            <span v-else-if="pretestActive || pretestTeachingActive">
-              Pretest {{ position }} of {{ totalCards }}
-            </span>
-            <span v-else>Card {{ position }} of {{ totalCards }}</span>
+            <div class="study-progress__primary">
+              <span v-if="isComplete">Session complete</span>
+              <span v-else-if="masteryReady">Mastery round ready</span>
+              <span v-else-if="masteryActive">
+                Retry {{ masteryCompletedCount + 1 }} of {{ masteryTotal }}
+              </span>
+              <span v-else-if="pretestActive || pretestTeachingActive">
+                Pretest {{ position }} of {{ totalCards }}
+              </span>
+              <span v-else>Card {{ position }} of {{ totalCards }}</span>
+
+              <span
+                v-if="mixedPracticeEnabled"
+                class="study-progress__mode"
+                title="This session mixes small groups of due cards using concept, retrieval form, learning state, and shared-tag signals."
+              >
+                <UIcon
+                  name="i-lucide-shuffle"
+                  aria-hidden="true"
+                />
+                Mixed practice
+              </span>
+            </div>
 
             <span v-if="masteryReady">
               {{ masteryTotal }} {{ masteryTotal === 1 ? 'retry' : 'retries' }}
@@ -1324,7 +1342,12 @@ function focusButton( button ) {
             <span v-else-if="masteryStarted">
               {{ masteryCompletedCount }} of {{ masteryTotal }} retries completed
             </span>
-            <span v-else>{{ completedCount }} completed</span>
+            <span
+              v-else
+              class="study-progress__count"
+            >
+              {{ completedCount }} completed
+            </span>
           </div>
 
           <UButton

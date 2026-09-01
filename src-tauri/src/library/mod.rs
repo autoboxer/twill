@@ -5,6 +5,7 @@ mod css_snippets;
 mod deferred_edits;
 mod error;
 mod media;
+mod mixed_practice;
 mod models;
 mod pretesting;
 mod preferences;
@@ -31,8 +32,8 @@ pub use models::{
     RenameNamedItemInput, RetrievalFormKind, ReverseReviewInput, ReviewOutcome,
     ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
     SetAppearancePreferencesInput, SetConceptArchivedInput,
-    SetCssSnippetEnabledInput, SetGradingModeInput, SetPretestingEnabledInput,
-    SetStartupDestinationInput,
+    SetCssSnippetEnabledInput, SetGradingModeInput, SetMixedPracticeEnabledInput,
+    SetPretestingEnabledInput, SetStartupDestinationInput,
     StartupDestination, StudyCard, StudyQueue, StudyTemplate, TemplateBlock,
     TemplateCatalog, TemplateContent, TemplateDetail, TemplateSummary,
     TypeAnswerSettings, UpdateConceptInput, UpdateCssSnippetInput,

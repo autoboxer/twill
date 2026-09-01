@@ -96,7 +96,16 @@ mod tests {
             )
             .unwrap();
         let parameters: Vec<f32> = serde_json::from_str(&parameters_json).unwrap();
-        let preferences: (String, String, String, String, String, String, bool) = connection
+        let preferences: (
+            String,
+            String,
+            String,
+            String,
+            String,
+            String,
+            bool,
+            bool,
+        ) = connection
             .query_row(
                 "SELECT
                     grading_mode,
@@ -105,7 +114,8 @@ mod tests {
                     reading_font,
                     reading_text_size,
                     motion_preference,
-                    pretesting_enabled
+                    pretesting_enabled,
+                    mixed_practice_enabled
                 FROM device_preferences
                 WHERE singleton = 1",
                 [],
@@ -118,6 +128,7 @@ mod tests {
                         row.get(4)?,
                         row.get(5)?,
                         row.get(6)?,
+                        row.get(7)?,
                     ))
                 },
             )
@@ -128,6 +139,8 @@ mod tests {
         assert_eq!(configuration.2, "6.6.1");
         assert_eq!(configuration.3, 0.9);
         assert_eq!(configuration.4, 36_500);
+        assert!(!preferences.6);
+        assert!(!preferences.7);
         assert_eq!(parameters, fsrs::DEFAULT_PARAMETERS);
         assert_eq!(
             preferences,
@@ -138,6 +151,7 @@ mod tests {
                 "inter".to_owned(),
                 "medium".to_owned(),
                 "system".to_owned(),
+                false,
                 false,
             )
         );

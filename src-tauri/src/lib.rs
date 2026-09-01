@@ -36,6 +36,7 @@ pub fn run() {
             library::commands::remove_deferred_edit,
             library::commands::get_device_preferences,
             library::commands::set_grading_mode,
+            library::commands::set_mixed_practice_enabled,
             library::commands::set_pretesting_enabled,
             library::commands::set_startup_destination,
             library::commands::set_appearance_preferences,

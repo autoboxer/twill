@@ -200,6 +200,7 @@ pub struct StudyQueue {
     pub media: Vec<MediaSummary>,
     pub next_due_at: Option<i64>,
     pub total_cards: i64,
+    pub mixed_practice_enabled: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -294,6 +295,7 @@ pub struct DevicePreferences {
     pub grading_mode: GradingMode,
     pub startup_destination: StartupDestination,
     pub pretesting_enabled: bool,
+    pub mixed_practice_enabled: bool,
     pub appearance: AppearancePreferences,
 }
 
@@ -593,6 +595,12 @@ pub struct SetStartupDestinationInput {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SetPretestingEnabledInput {
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SetMixedPracticeEnabledInput {
     pub enabled: bool,
 }
 

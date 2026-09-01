@@ -41,6 +41,9 @@ CREATE TABLE device_preferences (
     ),
     pretesting_enabled INTEGER NOT NULL CHECK (
         pretesting_enabled IN (0, 1)
+    ),
+    mixed_practice_enabled INTEGER NOT NULL CHECK (
+        mixed_practice_enabled IN (0, 1)
     )
 ) STRICT;
 
@@ -67,7 +70,8 @@ INSERT INTO device_preferences (
     reading_font,
     reading_text_size,
     motion_preference,
-    pretesting_enabled
+    pretesting_enabled,
+    mixed_practice_enabled
 )
 VALUES (
     1,
@@ -77,5 +81,6 @@ VALUES (
     'inter',
     'medium',
     'system',
+    0,
     0
 );
