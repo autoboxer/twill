@@ -22,6 +22,7 @@ import { useSchedulingSettings } from '../composables/useSchedulingSettings';
 const DEFAULT_DESIRED_RETENTION_PERCENT = 90;
 const DEFAULT_GRADING_MODE = 'simple';
 const DEFAULT_MAXIMUM_INTERVAL_DAYS = 36_500;
+const DEFAULT_MIXED_PRACTICE_ENABLED = false;
 const DEFAULT_PRETESTING_ENABLED = false;
 const DEFAULT_STARTUP_DESTINATION = 'study';
 const MINIMUM_DESIRED_RETENTION_PERCENT = 80;
@@ -63,6 +64,7 @@ const themeGroups = [
 const {
   getDevicePreferences,
   setGradingMode,
+  setMixedPracticeEnabled,
   setPretestingEnabled,
   setStartupDestination
 } = useDevicePreferences();
@@ -86,6 +88,10 @@ const gradingModePending = ref( false );
 const gradingModeStatus = ref( '' );
 const initialLoading = ref( true );
 const loadError = ref( '' );
+const mixedPracticeEnabled = ref( DEFAULT_MIXED_PRACTICE_ENABLED );
+const mixedPracticeError = ref( '' );
+const mixedPracticePending = ref( false );
+const mixedPracticeStatus = ref( '' );
 const pretestingEnabled = ref( DEFAULT_PRETESTING_ENABLED );
 const pretestingError = ref( '' );
 const pretestingPending = ref( false );
@@ -94,6 +100,7 @@ const appearanceError = ref( '' );
 const appearancePendingCount = ref( 0 );
 const appearanceStatus = ref( '' );
 const savedGradingMode = ref( DEFAULT_GRADING_MODE );
+const savedMixedPracticeEnabled = ref( DEFAULT_MIXED_PRACTICE_ENABLED );
 const savedPretestingEnabled = ref( DEFAULT_PRETESTING_ENABLED );
 const savedSchedulingSettings = ref( null );
 const savedStartupDestination = ref( DEFAULT_STARTUP_DESTINATION );
@@ -276,6 +283,10 @@ async function loadSettings() {
 function applyDevicePreferences( preferences ) {
   gradingMode.value = preferences.gradingMode;
   savedGradingMode.value = preferences.gradingMode;
+  mixedPracticeEnabled.value = Boolean( preferences.mixedPracticeEnabled );
+  savedMixedPracticeEnabled.value = Boolean(
+    preferences.mixedPracticeEnabled
+  );
   pretestingEnabled.value = Boolean( preferences.pretestingEnabled );
   savedPretestingEnabled.value = Boolean( preferences.pretestingEnabled );
   startupDestination.value = preferences.startupDestination;
@@ -294,6 +305,8 @@ function clearPreferenceFeedback() {
   appearanceStatus.value = '';
   gradingModeError.value = '';
   gradingModeStatus.value = '';
+  mixedPracticeError.value = '';
+  mixedPracticeStatus.value = '';
   pretestingError.value = '';
   pretestingStatus.value = '';
   startupDestinationError.value = '';
@@ -445,6 +458,7 @@ async function updateGradingMode(
   gradingMode.value = nextMode;
   gradingModeError.value = '';
   gradingModeStatus.value = '';
+  mixedPracticeStatus.value = '';
   pretestingStatus.value = '';
   gradingModePending.value = true;
 
@@ -486,6 +500,7 @@ async function updatePretesting(
 
   pretestingEnabled.value = enabled;
   gradingModeStatus.value = '';
+  mixedPracticeStatus.value = '';
   pretestingError.value = '';
   pretestingStatus.value = '';
   pretestingPending.value = true;
@@ -512,9 +527,60 @@ async function updatePretesting(
   }
 }
 
-async function restoreStudyDefaults() {
-  if ( gradingModePending.value || pretestingPending.value ) {
+async function updateMixedPractice(
+  enabled,
+  successMessage = 'Mixed practice preference saved.'
+) {
+  if (
+    mixedPracticePending.value
+    || typeof enabled !== 'boolean'
+    || enabled === savedMixedPracticeEnabled.value
+  ) {
     return;
+  }
+
+  const previousValue = savedMixedPracticeEnabled.value;
+
+  mixedPracticeEnabled.value = enabled;
+  gradingModeStatus.value = '';
+  mixedPracticeError.value = '';
+  mixedPracticeStatus.value = '';
+  pretestingStatus.value = '';
+  mixedPracticePending.value = true;
+
+  try {
+    const preferences = await setMixedPracticeEnabled( enabled );
+
+    if ( !viewActive ) {
+      return;
+    }
+
+    mixedPracticeEnabled.value = preferences.mixedPracticeEnabled;
+    savedMixedPracticeEnabled.value = preferences.mixedPracticeEnabled;
+    mixedPracticeStatus.value = successMessage;
+  } catch ( cause ) {
+    if ( viewActive ) {
+      mixedPracticeEnabled.value = previousValue;
+      mixedPracticeError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( viewActive ) {
+      mixedPracticePending.value = false;
+    }
+  }
+}
+
+async function restoreStudyDefaults() {
+  if (
+    gradingModePending.value
+    || mixedPracticePending.value
+    || pretestingPending.value
+  ) {
+    return;
+  }
+
+  if ( savedMixedPracticeEnabled.value !== DEFAULT_MIXED_PRACTICE_ENABLED ) {
+    await updateMixedPractice( DEFAULT_MIXED_PRACTICE_ENABLED, '' );
   }
 
   if ( savedPretestingEnabled.value !== DEFAULT_PRETESTING_ENABLED ) {
@@ -525,7 +591,11 @@ async function restoreStudyDefaults() {
     await updateGradingMode( DEFAULT_GRADING_MODE, '' );
   }
 
-  if ( !pretestingError.value && !gradingModeError.value ) {
+  if (
+    !gradingModeError.value
+    && !mixedPracticeError.value
+    && !pretestingError.value
+  ) {
     gradingModeStatus.value = 'Study defaults restored.';
   }
 }
@@ -989,6 +1059,34 @@ async function persistSchedulingSettings(
 
           <div class="settings-preference-row">
             <div>
+              <label for="settings-mixed-practice">Mixed practice</label>
+              <p id="settings-mixed-practice-description">
+                Reorder small groups of due cards to separate forms of one
+                concept and vary retrieval forms. Shared tags can place related
+                concepts together for contrast. Scheduling does not change.
+              </p>
+            </div>
+
+            <USwitch
+              id="settings-mixed-practice"
+              :model-value="mixedPracticeEnabled"
+              :loading="mixedPracticePending"
+              :disabled="mixedPracticePending"
+              aria-describedby="settings-mixed-practice-description"
+              @update:model-value="updateMixedPractice"
+            />
+          </div>
+
+          <UAlert
+            v-if="mixedPracticeError"
+            :description="mixedPracticeError"
+            icon="i-lucide-circle-alert"
+            color="error"
+            variant="subtle"
+          />
+
+          <div class="settings-preference-row">
+            <div>
               <label for="settings-grading-mode">Grading mode</label>
               <p>Simple uses Forgot and Remembered. Advanced adds Hard and Easy.</p>
             </div>
@@ -1019,7 +1117,7 @@ async function persistSchedulingSettings(
               class="settings-save-status"
               aria-live="polite"
             >
-              {{ pretestingStatus || gradingModeStatus }}
+              {{ mixedPracticeStatus || pretestingStatus || gradingModeStatus }}
             </p>
 
             <UButton
@@ -1027,8 +1125,10 @@ async function persistSchedulingSettings(
               color="neutral"
               variant="link"
               :disabled="(savedGradingMode === DEFAULT_GRADING_MODE
+                && savedMixedPracticeEnabled === DEFAULT_MIXED_PRACTICE_ENABLED
                 && savedPretestingEnabled === DEFAULT_PRETESTING_ENABLED)
                 || gradingModePending
+                || mixedPracticePending
                 || pretestingPending"
               @click="restoreStudyDefaults"
             >

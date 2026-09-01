@@ -9,6 +9,10 @@ export function useDevicePreferences() {
     setPretestingEnabled: ( enabled ) => invoke( 'set_pretesting_enabled', {
       input: { enabled }
     }),
+    setMixedPracticeEnabled: ( enabled ) => invoke(
+      'set_mixed_practice_enabled',
+      { input: { enabled } }
+    ),
     setStartupDestination: ( startupDestination ) => invoke(
       'set_startup_destination',
       { input: { startupDestination } }

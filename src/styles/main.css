@@ -1945,9 +1945,34 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.study-progress__copy span:first-child {
+.study-progress__primary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+}
+
+.study-progress__primary > span:first-child {
   color: var(--ui-text-highlighted);
   font-weight: 620;
+}
+
+.study-progress__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--ui-primary);
+  font-weight: 620;
+}
+
+.study-progress__mode svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.study-progress__count {
+  white-space: nowrap;
 }
 
 .study-progress__undo {
