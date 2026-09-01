@@ -13,8 +13,8 @@ use crate::library::{
     RenameNamedItemInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings,
     SetAppearancePreferencesInput, SetConceptArchivedInput, SetCssSnippetEnabledInput,
-    SetGradingModeInput, SetPretestingEnabledInput, SetStartupDestinationInput,
-    StudyQueue, TemplateCatalog,
+    SetGradingModeInput, SetMixedPracticeEnabledInput, SetPretestingEnabledInput,
+    SetStartupDestinationInput, StudyQueue, TemplateCatalog,
     TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
     UpdateCssSnippetInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
     UpsertAuthoringDraftInput,
@@ -221,6 +221,16 @@ pub(crate) fn set_pretesting_enabled(
 ) -> CommandResult<DevicePreferences> {
     ConceptLibrary::new(local_data.inner())
         .set_pretesting_enabled(input.enabled)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn set_mixed_practice_enabled(
+    local_data: State<'_, LocalDataStore>,
+    input: SetMixedPracticeEnabledInput,
+) -> CommandResult<DevicePreferences> {
+    ConceptLibrary::new(local_data.inner())
+        .set_mixed_practice_enabled(input.enabled)
         .map_err(Into::into)
 }
 

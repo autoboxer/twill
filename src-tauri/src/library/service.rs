@@ -11,7 +11,8 @@ use crate::library::media::{
 };
 use crate::library::preferences::{
     query_device_preferences, update_appearance_preferences, update_grading_mode,
-    update_pretesting_enabled, update_startup_destination,
+    update_mixed_practice_enabled, update_pretesting_enabled,
+    update_startup_destination,
 };
 use crate::library::pretesting::record_pretest;
 use crate::library::retrieval_forms::{
@@ -104,6 +105,15 @@ impl<'store> ConceptLibrary<'store> {
     ) -> LibraryResult<DevicePreferences> {
         self.store.write_result(|transaction| {
             update_pretesting_enabled(transaction, enabled)
+        })
+    }
+
+    pub fn set_mixed_practice_enabled(
+        &self,
+        enabled: bool,
+    ) -> LibraryResult<DevicePreferences> {
+        self.store.write_result(|transaction| {
+            update_mixed_practice_enabled(transaction, enabled)
         })
     }
 
@@ -1479,6 +1489,7 @@ fn organization_record_exists(
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
+    use std::time::Duration;
 
     use image::{DynamicImage, ImageFormat};
     use rusqlite::params;
@@ -3253,6 +3264,145 @@ mod tests {
     }
 
     #[test]
+    fn mixed_practice_reorders_due_cards_without_changing_eligibility() {
+        let (_directory, store) = test_store();
+        let library = ConceptLibrary::new(&store);
+        let shared_tag = library.create_tag("Related ideas".to_owned()).unwrap();
+        let first = library
+            .create_concept(CreateConceptInput {
+                title: "First concept".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: vec![shared_tag.id.clone()],
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                problem: None,
+                explain: None,
+                type_answer: Some(TypeAnswerSettings {
+                    accepted_answers: vec!["First".to_owned()],
+                }),
+            })
+            .unwrap();
+
+        std::thread::sleep(Duration::from_millis(2));
+
+        let unrelated = library
+            .create_concept(CreateConceptInput {
+                title: "Unrelated concept".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                problem: None,
+                explain: None,
+                type_answer: None,
+            })
+            .unwrap();
+
+        std::thread::sleep(Duration::from_millis(2));
+
+        let contrast = library
+            .create_concept(CreateConceptInput {
+                title: "Contrasting concept".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: vec![shared_tag.id],
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                problem: None,
+                explain: None,
+                type_answer: None,
+            })
+            .unwrap();
+
+        std::thread::sleep(Duration::from_millis(2));
+
+        let future = library
+            .create_concept(CreateConceptInput {
+                title: "Not due".to_owned(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                problem: None,
+                explain: None,
+                type_answer: None,
+            })
+            .unwrap();
+        let first_recall = first
+            .cards
+            .iter()
+            .find(|card| card.retrieval_kind == RetrievalFormKind::Recall)
+            .unwrap();
+        let first_type_answer = first
+            .cards
+            .iter()
+            .find(|card| card.retrieval_kind == RetrievalFormKind::TypeAnswer)
+            .unwrap();
+        let due_order = library
+            .study_queue_at(contrast.cards[0].due_at)
+            .unwrap();
+        let first_form_id = due_order.cards[0].id.as_str();
+        let second_form_id = due_order.cards[1].id.as_str();
+
+        assert!(!due_order.mixed_practice_enabled);
+        assert_eq!(due_order.total_cards, 5);
+        assert_eq!(due_order.next_due_at, Some(future.cards[0].due_at));
+        assert_eq!(due_order.cards[0].concept_id, first.id);
+        assert_eq!(due_order.cards[1].concept_id, first.id);
+        assert!(
+            [first_recall.id.as_str(), first_type_answer.id.as_str()]
+                .contains(&first_form_id)
+        );
+        assert!(
+            [first_recall.id.as_str(), first_type_answer.id.as_str()]
+                .contains(&second_form_id)
+        );
+        assert_eq!(
+            due_order
+                .cards
+                .iter()
+                .map(|card| card.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                first_form_id,
+                second_form_id,
+                unrelated.cards[0].id.as_str(),
+                contrast.cards[0].id.as_str(),
+            ]
+        );
+
+        library.set_mixed_practice_enabled(true).unwrap();
+
+        let mixed = library
+            .study_queue_at(contrast.cards[0].due_at)
+            .unwrap();
+        let repeated = library
+            .study_queue_at(contrast.cards[0].due_at)
+            .unwrap();
+
+        assert!(mixed.mixed_practice_enabled);
+        assert_eq!(mixed.total_cards, 5);
+        assert_eq!(mixed.next_due_at, Some(future.cards[0].due_at));
+        assert_eq!(mixed, repeated);
+        assert_eq!(
+            mixed
+                .cards
+                .iter()
+                .map(|card| card.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![
+                first_form_id,
+                contrast.cards[0].id.as_str(),
+                second_form_id,
+                unrelated.cards[0].id.as_str(),
+            ]
+        );
+    }
+
+    #[test]
     fn device_preferences_are_durable_and_stay_out_of_change_tracking() {
         let directory = tempdir().unwrap();
 
@@ -3264,6 +3414,7 @@ mod tests {
             assert_eq!(defaults.grading_mode, GradingMode::Simple);
             assert_eq!(defaults.startup_destination, StartupDestination::Study);
             assert!(!defaults.pretesting_enabled);
+            assert!(!defaults.mixed_practice_enabled);
             assert_eq!(
                 defaults.appearance,
                 AppearancePreferences {
@@ -3279,6 +3430,7 @@ mod tests {
 
             assert_eq!(preferences.grading_mode, GradingMode::Advanced);
             assert!(!preferences.pretesting_enabled);
+            assert!(!preferences.mixed_practice_enabled);
             assert_eq!(
                 preferences.startup_destination,
                 StartupDestination::Study
@@ -3297,6 +3449,10 @@ mod tests {
             let preferences = library.set_pretesting_enabled(true).unwrap();
 
             assert!(preferences.pretesting_enabled);
+
+            let preferences = library.set_mixed_practice_enabled(true).unwrap();
+
+            assert!(preferences.mixed_practice_enabled);
 
             let appearance = AppearancePreferences {
                 theme: AppearanceTheme::RosePineDawn,
@@ -3324,6 +3480,7 @@ mod tests {
 
         assert_eq!(preferences.grading_mode, GradingMode::Advanced);
         assert!(preferences.pretesting_enabled);
+        assert!(preferences.mixed_practice_enabled);
         assert_eq!(
             preferences.startup_destination,
             StartupDestination::Library

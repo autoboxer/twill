@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use fsrs::{ItemState, MemoryState, FSRS};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::data::{current_timestamp, EntityKind, WriteTransaction};
 use crate::library::media::query_media_for_concepts;
+use crate::library::mixed_practice::mix_due_cards;
 use crate::library::models::TemplateMode;
 use crate::library::retrieval_forms::{
     parse_retrieval_form_configuration, retrieval_form_configuration,
@@ -220,6 +221,13 @@ fn create_card(
 }
 
 pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<StudyQueue> {
+    let mixed_practice_enabled = connection.query_row(
+        "SELECT mixed_practice_enabled
+        FROM device_preferences
+        WHERE singleton = 1",
+        [],
+        |row| row.get(0),
+    )?;
     let total_cards = connection.query_row(
         "SELECT COUNT(*)
         FROM cards
@@ -396,6 +404,13 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             })
         })
         .collect::<LibraryResult<Vec<_>>>()?;
+    let cards = if mixed_practice_enabled {
+        let concept_tags = query_active_concept_tags(connection)?;
+
+        mix_due_cards(cards, &concept_tags)
+    } else {
+        cards
+    };
     let media = query_media_for_concepts(connection, &media_concept_ids)?;
 
     Ok(StudyQueue {
@@ -403,7 +418,36 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
         media,
         next_due_at,
         total_cards,
+        mixed_practice_enabled,
     })
+}
+
+fn query_active_concept_tags(
+    connection: &Connection,
+) -> LibraryResult<BTreeMap<String, BTreeSet<String>>> {
+    let mut statement = connection.prepare(
+        "SELECT
+            concept_tags.concept_id,
+            concept_tags.tag_id
+        FROM concept_tags
+        INNER JOIN entities AS tag_entities
+            ON tag_entities.id = concept_tags.tag_id
+        WHERE concept_tags.removed_at IS NULL
+            AND tag_entities.deleted_at IS NULL
+        ORDER BY concept_tags.concept_id, concept_tags.tag_id",
+    )?;
+    let rows = statement.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    let mut concept_tags = BTreeMap::<String, BTreeSet<String>>::new();
+
+    for row in rows {
+        let (concept_id, tag_id) = row?;
+
+        concept_tags.entry(concept_id).or_default().insert(tag_id);
+    }
+
+    Ok(concept_tags)
 }
 
 pub fn query_scheduling_settings(
