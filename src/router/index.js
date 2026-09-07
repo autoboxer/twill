@@ -33,6 +33,15 @@ const routes = [
   },
 
   {
+    path: '/library/quality',
+    name: 'card-quality',
+    component: loadCardQualityView,
+    meta: {
+      title: 'Card quality'
+    }
+  },
+
+  {
     path: '/library/:conceptId/edit',
     name: 'concept-edit',
     component: loadCreateView,
@@ -113,6 +122,10 @@ router.afterEach( ( to ) => {
 });
 
 export default router;
+
+function loadCardQualityView() {
+  return import( '../views/CardQualityView.vue' );
+}
 
 function loadConceptDetailView() {
   return import( '../views/ConceptDetailView.vue' );
