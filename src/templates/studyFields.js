@@ -149,6 +149,9 @@ function renderMark( mark, content ) {
   case 'link':
     return renderLink( mark, content );
 
+  case 'cloze':
+    return content;
+
   default:
     throw new TypeError( `Unsupported rich-content mark: ${ mark.type }` );
   }

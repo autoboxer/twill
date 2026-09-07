@@ -32,6 +32,7 @@ export default defineConfig({
             'lucide:code',
             'lucide:code-xml',
             'lucide:eye',
+            'lucide:flag',
             'lucide:folder',
             'lucide:gauge',
             'lucide:heading',

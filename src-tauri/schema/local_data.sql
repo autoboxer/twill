@@ -21,7 +21,8 @@ CREATE TABLE entities (
             'review_reversal',
             'pretest',
             'media',
-            'css_snippet'
+            'css_snippet',
+            'card_quality_concern'
         )
     ),
     created_at INTEGER NOT NULL CHECK (created_at >= 0),

@@ -136,6 +136,15 @@ function formattedDate( timestamp ) {
     <PageHeader title="Library">
       <template #actions>
         <UButton
+          :to="{ name: 'card-quality' }"
+          leading-icon="i-lucide-flag"
+          color="neutral"
+          variant="link"
+        >
+          Card quality
+        </UButton>
+
+        <UButton
           :to="{ name: 'templates' }"
           leading-icon="i-lucide-layout-template"
           color="neutral"

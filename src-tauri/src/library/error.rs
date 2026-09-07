@@ -57,6 +57,33 @@ pub enum LibraryError {
     #[error("deferred edit {message}")]
     InvalidDeferredEdit { message: String },
 
+    #[error("card quality concern {message}")]
+    InvalidCardQualityConcern { message: String },
+
+    #[error("card quality concern {0} was not found")]
+    CardQualityConcernNotFound(String),
+
+    #[error("card quality concern {0} is already closed")]
+    CardQualityConcernClosed(String),
+
+    #[error("an open concern of this kind already exists with a different note; view it in the card quality queue")]
+    CardQualityConcernConflict,
+
+    #[error("the review evidence has changed; refresh the card quality queue before dismissing")]
+    CardQualityEvidenceChanged,
+
+    #[error("card {0} does not have that active quality signal")]
+    CardQualitySignalNotActive(String),
+
+    #[error("stored card quality kind is not valid: {0}")]
+    InvalidCardQualityKind(String),
+
+    #[error("stored card quality source is not valid: {0}")]
+    InvalidCardQualitySource(String),
+
+    #[error("stored card quality status is not valid: {0}")]
+    InvalidCardQualityStatus(String),
+
     #[error("the selected image cannot be larger than {maximum_megabytes} MB")]
     ImageTooLarge { maximum_megabytes: usize },
 

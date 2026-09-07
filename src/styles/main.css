@@ -2030,7 +2030,16 @@ button {
   min-width: 0;
 }
 
-.study-edit-later {
+.study-card__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.study-edit-later,
+.study-card-issue {
   min-height: 2.75rem;
   flex: 0 0 auto;
 }

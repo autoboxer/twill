@@ -3,6 +3,7 @@ import { AnimatePresence, m } from 'motion-v';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
+import CardQualityAction from '../components/CardQualityAction.vue';
 import ContentState from '../components/ContentState.vue';
 import DeferredEditQueue from '../components/DeferredEditQueue.vue';
 import ExplainResponse from '../components/ExplainResponse.vue';
@@ -981,6 +982,10 @@ function masteryActionEnabled() {
 }
 
 function focusCurrentState() {
+  if ( document.querySelector( '[role="dialog"]' ) ) {
+    return;
+  }
+
   if ( masteryReady.value ) {
     masteryHeading.value?.focus();
     return;
@@ -1432,24 +1437,32 @@ function focusButton( button ) {
               <h2>{{ currentCard.conceptTitle }}</h2>
             </div>
 
-            <UButton
-              :leading-icon="currentConceptQueued
-                ? 'i-lucide-check'
-                : 'i-lucide-list-plus'"
-              color="neutral"
-              :variant="currentConceptQueued ? 'subtle' : 'link'"
-              size="sm"
-              class="study-edit-later"
-              :disabled="currentConceptQueued
-                || deferredLoading
-                || Boolean( deferredPendingConceptId )"
-              :loading="deferredPendingConceptId === currentCard.conceptId"
-              :aria-keyshortcuts="queueEditCommand.ariaKeyshortcuts"
-              :title="queueEditCommand.tooltip"
-              @click="queueCurrentConcept"
-            >
-              {{ currentConceptQueued ? 'Queued' : 'Edit later' }}
-            </UButton>
+            <div class="study-card__actions">
+              <CardQualityAction
+                :card="currentCard"
+                :form-name="studyCardName( currentCard )"
+                :disabled="assessmentPending || gradingModePending || pretestPending || undoPending"
+              />
+
+              <UButton
+                :leading-icon="currentConceptQueued
+                  ? 'i-lucide-check'
+                  : 'i-lucide-list-plus'"
+                color="neutral"
+                :variant="currentConceptQueued ? 'subtle' : 'link'"
+                size="sm"
+                class="study-edit-later"
+                :disabled="currentConceptQueued
+                  || deferredLoading
+                  || Boolean( deferredPendingConceptId )"
+                :loading="deferredPendingConceptId === currentCard.conceptId"
+                :aria-keyshortcuts="queueEditCommand.ariaKeyshortcuts"
+                :title="queueEditCommand.tooltip"
+                @click="queueCurrentConcept"
+              >
+                {{ currentConceptQueued ? 'Queued' : 'Edit later' }}
+              </UButton>
+            </div>
           </header>
 
           <div class="study-card__body">
