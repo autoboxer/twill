@@ -5,10 +5,13 @@ use tauri::State;
 use crate::data::LocalDataStore;
 use crate::library::{
     AuthoringDraft, AuthoringDraftLibrary, AuthoringDraftLocator, ConceptDetail,
-    ConceptLibrary, CreateConceptInput, CreateCssSnippetInput, CreateNamedItemInput,
+    CardQualityConcern, CardQualityLibrary, CardQualityQueue,
+    CloseCardQualityConcernInput, ConceptLibrary, CreateCardQualityConcernInput,
+    CreateConceptInput, CreateCssSnippetInput, CreateNamedItemInput,
     CreateTemplateInput, CssSnippet, CssSnippetCatalog, CssSnippetLibrary,
     DeferredConceptEdit, DeferredEditLibrary, DeferredEditQueue, DevicePreferences,
-    EntityIdInput, LibraryError, LibrarySnapshot, OrganizationSummary,
+    DismissCardQualitySignalInput, EntityIdInput, LibraryError, LibrarySnapshot,
+    OrganizationSummary,
     PretestRecord, QueueDeferredEditInput, RecordPretestInput, RecordReviewInput,
     RenameNamedItemInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings,
@@ -39,6 +42,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidCss { .. }
             | LibraryError::InvalidAuthoringDraft { .. }
             | LibraryError::InvalidDeferredEdit { .. }
+            | LibraryError::InvalidCardQualityConcern { .. }
             | LibraryError::ImageTooLarge { .. }
             | LibraryError::UnsupportedImage
             | LibraryError::ImageDimensionsTooLarge
@@ -59,6 +63,10 @@ impl From<LibraryError> for CommandError {
             | LibraryError::CardNotDue { .. }
             | LibraryError::PretestNotEligible(_)
             | LibraryError::ReviewNotReversible
+            | LibraryError::CardQualityConcernClosed(_)
+            | LibraryError::CardQualityConcernConflict
+            | LibraryError::CardQualityEvidenceChanged
+            | LibraryError::CardQualitySignalNotActive(_)
             | LibraryError::TemplateInUse { .. } => "conflict",
             LibraryError::ConceptNotFound(_)
             | LibraryError::OrganizationNotFound { .. }
@@ -67,7 +75,8 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidSelection { .. }
             | LibraryError::MediaNotFound(_)
             | LibraryError::CardNotFound(_)
-            | LibraryError::ReviewNotFound(_) => "notFound",
+            | LibraryError::ReviewNotFound(_)
+            | LibraryError::CardQualityConcernNotFound(_) => "notFound",
             LibraryError::Data(_)
             | LibraryError::Database(_)
             | LibraryError::Json(_)
@@ -76,6 +85,9 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidSchedulingState(_)
             | LibraryError::InvalidRetrievalFormKind(_)
             | LibraryError::InvalidRetrievalForm
+            | LibraryError::InvalidCardQualityKind(_)
+            | LibraryError::InvalidCardQualitySource(_)
+            | LibraryError::InvalidCardQualityStatus(_)
             | LibraryError::InvalidGradingMode(_)
             | LibraryError::InvalidPretestOutcome(_)
             | LibraryError::InvalidStartupDestination(_)
@@ -92,6 +104,9 @@ impl From<LibraryError> for CommandError {
             | LibraryError::InvalidSchedulingState(_)
             | LibraryError::InvalidRetrievalFormKind(_)
             | LibraryError::InvalidRetrievalForm
+            | LibraryError::InvalidCardQualityKind(_)
+            | LibraryError::InvalidCardQualitySource(_)
+            | LibraryError::InvalidCardQualityStatus(_)
             | LibraryError::InvalidGradingMode(_)
             | LibraryError::InvalidPretestOutcome(_)
             | LibraryError::InvalidStartupDestination(_)
@@ -192,6 +207,45 @@ pub(crate) fn remove_deferred_edit(
 ) -> CommandResult<()> {
     DeferredEditLibrary::new(local_data.inner())
         .remove_concept(&input.id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_card_quality_queue(
+    local_data: State<'_, LocalDataStore>,
+) -> CommandResult<CardQualityQueue> {
+    CardQualityLibrary::new(local_data.inner())
+        .queue()
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn create_card_quality_concern(
+    local_data: State<'_, LocalDataStore>,
+    input: CreateCardQualityConcernInput,
+) -> CommandResult<CardQualityConcern> {
+    CardQualityLibrary::new(local_data.inner())
+        .create_concern(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn close_card_quality_concern(
+    local_data: State<'_, LocalDataStore>,
+    input: CloseCardQualityConcernInput,
+) -> CommandResult<CardQualityConcern> {
+    CardQualityLibrary::new(local_data.inner())
+        .close_concern(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn dismiss_card_quality_signal(
+    local_data: State<'_, LocalDataStore>,
+    input: DismissCardQualitySignalInput,
+) -> CommandResult<CardQualityConcern> {
+    CardQualityLibrary::new(local_data.inner())
+        .dismiss_signal(input)
         .map_err(Into::into)
 }
 
