@@ -4,13 +4,15 @@ use rusqlite::{params, Connection, OptionalExtension};
 use uuid::Uuid;
 
 use crate::data::{current_timestamp, LocalDataStore, WriteTransaction};
+use crate::library::authoring_media::retain_session_media;
+use crate::library::media::release_unreferenced_media;
 use crate::library::{
     AuthoringDraft, AuthoringDraftKind, AuthoringDraftLocator,
     AuthoringDraftTargetStatus, LibraryError, LibraryResult,
     UpsertAuthoringDraftInput, AUTHORING_DRAFT_SCHEMA_VERSION,
 };
 
-const MAXIMUM_DRAFT_MEDIA: usize = 1_000;
+pub(super) const MAXIMUM_DRAFT_MEDIA: usize = 1_000;
 const MAXIMUM_DRAFT_PAYLOAD_BYTES: usize = 5_000_000;
 const NEW_TARGET_KEY: &str = "new";
 
@@ -60,6 +62,10 @@ impl<'store> AuthoringDraftLibrary<'store> {
                 base_change_id.as_deref(),
             )?;
             validate_media(transaction, &media_ids)?;
+
+            if let Some(session_id) = &input.media_session_id {
+                retain_session_media(transaction, session_id, &media_ids)?;
+            }
 
             let previous_media = query_draft_media(
                 transaction,
@@ -256,7 +262,7 @@ fn validate_target(
     Ok(())
 }
 
-fn validate_media(
+pub(super) fn validate_media(
     connection: &Connection,
     media_ids: &BTreeSet<String>,
 ) -> LibraryResult<()> {
@@ -297,63 +303,6 @@ fn replace_draft_media(
             "INSERT INTO authoring_draft_media (kind, target_key, media_id)
             VALUES (?1, ?2, ?3)",
             params![identity.kind.as_str(), identity.target_key, media_id],
-        )?;
-    }
-
-    Ok(())
-}
-
-fn release_unreferenced_media(
-    transaction: &WriteTransaction<'_>,
-    media_ids: &[String],
-) -> LibraryResult<()> {
-    for media_id in media_ids {
-        let retained: bool = transaction.query_row(
-            "SELECT
-                EXISTS (
-                    SELECT 1
-                    FROM authoring_draft_media
-                    WHERE media_id = ?1
-                )
-                OR EXISTS (
-                    SELECT 1
-                    FROM concept_media
-                    INNER JOIN entities AS concept_entities
-                        ON concept_entities.id = concept_media.concept_id
-                    WHERE concept_media.media_id = ?1
-                        AND concept_media.removed_at IS NULL
-                        AND concept_entities.deleted_at IS NULL
-                )",
-            [media_id],
-            |row| row.get(0),
-        )?;
-
-        if retained {
-            continue;
-        }
-
-        let media = transaction
-            .query_row(
-                "SELECT media.digest, media.file_extension
-                FROM media
-                INNER JOIN entities ON entities.id = media.entity_id
-                WHERE media.entity_id = ?1
-                    AND entities.deleted_at IS NULL",
-                [media_id],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-            )
-            .optional()?;
-        let Some((digest, extension)) = media else {
-            continue;
-        };
-
-        transaction.soft_delete_entity(media_id)?;
-        transaction.execute(
-            "INSERT INTO device_media_cleanup (digest, file_extension)
-            VALUES (?1, ?2)
-            ON CONFLICT(digest) DO UPDATE SET
-                file_extension = excluded.file_extension",
-            params![digest, extension],
         )?;
     }
 
@@ -512,6 +461,7 @@ mod tests {
         media_ids: Vec<String>,
     ) -> UpsertAuthoringDraftInput {
         UpsertAuthoringDraftInput {
+            media_session_id: None,
             kind,
             target_id: target_id.map(str::to_owned),
             schema_version: AUTHORING_DRAFT_SCHEMA_VERSION,

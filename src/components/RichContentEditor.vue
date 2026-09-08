@@ -1,10 +1,8 @@
 <script setup>
 import { computed, ref, shallowRef, watch } from 'vue';
 
-import {
-  conceptLibraryErrorMessage,
-  useConceptLibrary
-} from '../composables/useConceptLibrary';
+import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
+import { useAuthoringMedia } from '../composables/useAuthoringMedia';
 import {
   collectClozeGroups,
   createClozeGroupId,
@@ -45,7 +43,7 @@ const props = defineProps({
 
 const emit = defineEmits([ 'update:modelValue' ]);
 
-const { importImage } = useConceptLibrary();
+const authoringMedia = useAuthoringMedia();
 
 const activeCodeLanguage = ref( 'auto' );
 const clozeDialogOpen = ref( false );
@@ -502,10 +500,11 @@ async function insertImage( event ) {
   }
 
   imageImporting.value = true;
+  const mediaSessionId = authoringMedia.sessionId.value;
 
   try {
     const bytes = new Uint8Array( await file.arrayBuffer() );
-    const media = await importImage( bytes );
+    const media = await authoringMedia.importImage( bytes, mediaSessionId );
 
     currentEditor.value
       .chain()

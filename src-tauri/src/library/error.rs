@@ -54,6 +54,9 @@ pub enum LibraryError {
     #[error("authoring draft {message}")]
     InvalidAuthoringDraft { message: String },
 
+    #[error("the image editing session has ended; reopen the editor before importing")]
+    AuthoringMediaSessionClosed,
+
     #[error("deferred edit {message}")]
     InvalidDeferredEdit { message: String },
 

@@ -19,6 +19,7 @@ import OrganizationManager from '../components/OrganizationManager.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { COMMAND_IDS } from '../commands/registry';
 import { useAuthoringDraft } from '../composables/useAuthoringDraft';
+import { provideAuthoringMedia } from '../composables/useAuthoringMedia';
 import { useCommandHandler } from '../composables/useCommands';
 import { useDeferredEdits } from '../composables/useDeferredEdits';
 import {
@@ -36,6 +37,7 @@ import { markStudyConceptChanged } from '../study/resume';
 
 const route = useRoute();
 const router = useRouter();
+const authoringMedia = provideAuthoringMedia();
 const {
   clearError,
   createConcept,
@@ -224,6 +226,8 @@ onMounted( () => {
 });
 
 onBeforeUnmount( () => {
+  loadRequestSequence += 1;
+
   window.removeEventListener( 'beforeunload', warnBeforeWindowClose );
   document.removeEventListener( 'visibilitychange', flushHiddenDraft );
 
@@ -261,6 +265,12 @@ async function loadData() {
   targetUnavailable.value = false;
 
   try {
+    await authoringMedia.close();
+
+    if ( request !== loadRequestSequence ) {
+      return;
+    }
+
     const conceptRequest = requestedConceptId
       ? loadConcept( requestedConceptId )
         .then( ( value ) => ({ value }) )
@@ -308,6 +318,15 @@ async function loadData() {
       throw conceptResult.cause;
     }
 
+    const mediaSessionId = await authoringMedia.start([
+      ...( conceptResult.value?.media ?? []).map( ( media ) => media.id ),
+      ...( existingDraft?.mediaIds ?? [])
+    ]);
+
+    if ( request !== loadRequestSequence || !mediaSessionId ) {
+      return;
+    }
+
     library.value = snapshot;
     concept.value = conceptResult.value ?? null;
     templates.value = templateCatalog.templates;
@@ -318,6 +337,7 @@ async function loadData() {
     editorState.value = cloneConceptEditorState( canonicalEditorState );
 
     startDraft({
+      mediaSessionId,
       targetId: requestedConceptId || null,
       baseChangeId: existingDraft?.baseChangeId
         ?? concept.value?.lastChangeId
@@ -529,6 +549,7 @@ async function discardRecoveryDraft() {
     }
 
     startDraft({
+      mediaSessionId: authoringMedia.sessionId.value,
       targetId: conceptId.value || null,
       baseChangeId: concept.value?.lastChangeId ?? null
     });

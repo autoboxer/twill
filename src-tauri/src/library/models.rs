@@ -493,6 +493,7 @@ pub struct UpsertAuthoringDraftInput {
     pub payload: Value,
     #[serde(default)]
     pub media_ids: Vec<String>,
+    pub media_session_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
