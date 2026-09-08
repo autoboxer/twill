@@ -20,6 +20,8 @@ pub fn run() {
             let data_directory = app.path().app_data_dir()?;
             let local_data = data::LocalDataStore::open(data_directory)?;
 
+            library::AuthoringMediaLibrary::new(&local_data).release_abandoned_sessions()?;
+
             app.manage(local_data);
 
             Ok(())
@@ -65,6 +67,8 @@ pub fn run() {
             library::commands::get_authoring_draft,
             library::commands::upsert_authoring_draft,
             library::commands::delete_authoring_draft,
+            library::commands::begin_authoring_media_session,
+            library::commands::end_authoring_media_session,
             runtime::get_css_snippet_runtime_state,
             library::commands::get_templates,
             library::commands::get_template,

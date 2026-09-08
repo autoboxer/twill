@@ -4,7 +4,8 @@ use tauri::State;
 
 use crate::data::LocalDataStore;
 use crate::library::{
-    AuthoringDraft, AuthoringDraftLibrary, AuthoringDraftLocator, ConceptDetail,
+    AuthoringDraft, AuthoringDraftLibrary, AuthoringDraftLocator, AuthoringMediaLibrary,
+    ConceptDetail,
     CardQualityConcern, CardQualityLibrary, CardQualityQueue,
     CloseCardQualityConcernInput, ConceptLibrary, CreateCardQualityConcernInput,
     CreateConceptInput, CreateCssSnippetInput, CreateNamedItemInput,
@@ -60,6 +61,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::TooManyProblemCheckpoints { .. }
             | LibraryError::DuplicateProblemCheckpoint => "validation",
             LibraryError::DuplicateName { .. }
+            | LibraryError::AuthoringMediaSessionClosed
             | LibraryError::CardNotDue { .. }
             | LibraryError::PretestNotEligible(_)
             | LibraryError::ReviewNotReversible
@@ -572,6 +574,26 @@ pub(crate) fn prepare_template_preview(
 }
 
 #[tauri::command(async)]
+pub(crate) fn begin_authoring_media_session(
+    local_data: State<'_, LocalDataStore>,
+    media_ids: Vec<String>,
+) -> CommandResult<String> {
+    AuthoringMediaLibrary::new(local_data.inner())
+        .begin_session(media_ids)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn end_authoring_media_session(
+    local_data: State<'_, LocalDataStore>,
+    session_id: String,
+) -> CommandResult<()> {
+    AuthoringMediaLibrary::new(local_data.inner())
+        .end_session(&session_id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
 pub(crate) fn import_image(
     local_data: State<'_, LocalDataStore>,
     request: Request<'_>,
@@ -594,9 +616,23 @@ pub(crate) fn import_image(
         InvokeBody::Json(_) => return Err(LibraryError::UnsupportedImage.into()),
     };
 
-    ConceptLibrary::new(local_data.inner())
-        .import_image(bytes)
-        .map_err(Into::into)
+    let session_id = request
+        .headers()
+        .get("x-twill-media-session")
+        .map(|value| {
+            value.to_str().map_err(|_| LibraryError::AuthoringMediaSessionClosed)
+        })
+        .transpose()?;
+
+    match session_id {
+        Some(session_id) => crate::library::media::import_image_with_session(
+            local_data.inner(),
+            bytes,
+            Some(session_id),
+        ),
+        None => ConceptLibrary::new(local_data.inner()).import_image(bytes),
+    }
+    .map_err(Into::into)
 }
 
 #[tauri::command(async)]

@@ -49,7 +49,6 @@ export function useConceptLibrary() {
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
     getLibrary: ( includeArchived = false ) => run( 'get_library', { includeArchived }),
     getStudyQueue: () => run( 'get_study_queue' ),
-    importImage: ( bytes ) => run( 'import_image', bytes ),
     isPending,
     readMedia: ( mediaId ) => run( 'read_media', { mediaId }),
     recordPretest: ( cardId, outcome ) => run( 'record_pretest', {

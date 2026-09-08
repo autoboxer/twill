@@ -29,11 +29,16 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
     });
   }
 
-  function start({ targetId = null, baseChangeId = null }, existingDraft = null ) {
+  function start({
+    targetId = null,
+    baseChangeId = null,
+    mediaSessionId = null
+  }, existingDraft = null ) {
     clearTimer();
     pendingOperation = null;
     context = {
       baseChangeId,
+      mediaSessionId,
       targetId
     };
     draft.value = existingDraft;
@@ -51,6 +56,7 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
         targetId: context.targetId,
         schemaVersion: AUTHORING_DRAFT_SCHEMA_VERSION,
         baseChangeId: context.baseChangeId,
+        mediaSessionId: context.mediaSessionId,
         payload: structuredClone( payload ),
         mediaIds: [ ...new Set( mediaIds ) ]
       }

@@ -49,6 +49,20 @@ CREATE TABLE device_media_cleanup (
     )
 ) STRICT;
 
+CREATE TABLE authoring_media_sessions (
+    id TEXT PRIMARY KEY NOT NULL CHECK (length(id) = 36)
+) STRICT;
+
+CREATE TABLE authoring_session_media (
+    session_id TEXT NOT NULL,
+    media_id TEXT NOT NULL,
+    PRIMARY KEY (session_id, media_id),
+    FOREIGN KEY (session_id) REFERENCES authoring_media_sessions(id) ON DELETE CASCADE,
+    FOREIGN KEY (media_id) REFERENCES media(entity_id)
+) STRICT;
+
+CREATE INDEX authoring_session_media_id_idx ON authoring_session_media(media_id);
+
 CREATE INDEX authoring_draft_target_idx
     ON authoring_drafts(target_id);
 

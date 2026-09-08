@@ -20,6 +20,7 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct LocalDataStore {
     connection: Mutex<Connection>,
     data_directory: PathBuf,
+    _profile_lock: Option<fs::File>,
 }
 
 pub struct WriteTransaction<'connection> {
@@ -32,10 +33,24 @@ impl LocalDataStore {
 
         fs::create_dir_all(&data_directory)?;
 
+        // Startup recovery must not release another running instance's media
+        let profile_lock = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(data_directory.join("twill.lock"))?;
+
+        profile_lock
+            .try_lock()
+            .map_err(|error| std::io::Error::other(format!(
+                "Twill's data directory is already in use or could not be locked: {error}"
+            )))?;
+
         let database_path = data_directory.join(DATABASE_FILENAME);
         let connection = Connection::open(database_path)?;
 
-        Self::from_connection(connection, data_directory)
+        Self::from_connection(connection, data_directory, Some(profile_lock))
     }
 
     pub fn write<T>(
@@ -142,9 +157,16 @@ impl LocalDataStore {
         self.data_directory.join(MEDIA_DIRECTORY_NAME)
     }
 
+    pub(crate) fn cleanup_media_files(&self) -> DataResult<()> {
+        let connection = self.connection()?;
+
+        cleanup_pending_media_files(&connection, &self.data_directory)
+    }
+
     fn from_connection(
         mut connection: Connection,
         data_directory: PathBuf,
+        profile_lock: Option<fs::File>,
     ) -> DataResult<Self> {
         configure_connection(&connection)?;
         schema::ensure_current(&mut connection)?;
@@ -153,6 +175,7 @@ impl LocalDataStore {
         Ok(Self {
             connection: Mutex::new(connection),
             data_directory,
+            _profile_lock: profile_lock,
         })
     }
 
@@ -164,7 +187,7 @@ impl LocalDataStore {
 
     #[cfg(test)]
     fn open_in_memory() -> DataResult<Self> {
-        Self::from_connection(Connection::open_in_memory()?, PathBuf::new())
+        Self::from_connection(Connection::open_in_memory()?, PathBuf::new(), None)
     }
 }
 
@@ -184,6 +207,16 @@ fn cleanup_pending_media_files(
         .collect::<Result<Vec<_>, _>>()?;
 
     for (digest, extension) in pending {
+        let temporary_path = data_directory
+            .join(MEDIA_DIRECTORY_NAME)
+            .join(format!(".{digest}.{extension}.tmp"));
+
+        match fs::remove_file(temporary_path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => continue,
+        }
+
         let active: bool = connection.query_row(
             "SELECT EXISTS (
                 SELECT 1
@@ -443,6 +476,16 @@ mod tests {
         let reopened_store = LocalDataStore::open(&data_directory).unwrap();
 
         assert_eq!(reopened_store.schema_version().unwrap(), 1);
+    }
+
+    #[test]
+    fn a_second_store_cannot_recover_media_while_the_profile_is_in_use() {
+        let directory = tempdir().unwrap();
+        let store = LocalDataStore::open(directory.path()).unwrap();
+
+        assert!(LocalDataStore::open(directory.path()).is_err());
+        drop(store);
+        assert!(LocalDataStore::open(directory.path()).is_ok());
     }
 
     #[test]

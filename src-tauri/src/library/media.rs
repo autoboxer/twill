@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 use image::{ImageFormat, ImageReader};
 use rusqlite::{params, Connection, OptionalExtension};
 use sha2::{Digest, Sha256};
-use uuid::Uuid;
 
-use crate::data::{DataError, EntityKind, LocalDataStore};
+use crate::data::{DataError, EntityKind, LocalDataStore, WriteTransaction};
+use crate::library::authoring_media::{retain_session_media, validate_session};
 use crate::library::{LibraryError, LibraryResult, MediaSummary};
 
 const MAXIMUM_IMAGE_BYTES: usize = 20 * 1024 * 1024;
@@ -35,50 +35,93 @@ struct MediaRecord {
 }
 
 pub fn import_image(store: &LocalDataStore, bytes: &[u8]) -> LibraryResult<MediaSummary> {
+    import_image_with_session(store, bytes, None)
+}
+
+pub fn import_image_with_session(
+    store: &LocalDataStore,
+    bytes: &[u8],
+    session_id: Option<&str>,
+) -> LibraryResult<MediaSummary> {
     let metadata = validate_image(bytes)?;
     let byte_size = i64::try_from(bytes.len()).map_err(|_| LibraryError::ImageTooLarge {
         maximum_megabytes: MAXIMUM_IMAGE_MEGABYTES,
     })?;
 
-    write_media_file(
-        &store.media_directory(),
-        &metadata.digest,
-        metadata.extension,
-        bytes,
-    )?;
-
-    store.write_result(|transaction| {
-        if let Some(existing) = query_media_by_digest(transaction, &metadata.digest)? {
-            return Ok(existing.summary());
+    // Record cleanup before writing so an interrupted import remains recoverable
+    store.write_result::<_, LibraryError>(|transaction| {
+        if let Some(session_id) = session_id {
+            validate_session(transaction, session_id)?;
         }
 
-        let entity = transaction.create_entity(EntityKind::Media)?;
+        queue_media_cleanup(transaction, &metadata.digest, metadata.extension)
+    })?;
 
-        transaction.execute(
-            "INSERT INTO media (
-                entity_id,
-                digest,
-                mime_type,
-                file_extension,
-                byte_size,
-                width,
-                height,
-                last_change_id
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![
-                entity.id,
-                metadata.digest,
-                metadata.mime_type,
-                metadata.extension,
-                byte_size,
-                metadata.width,
-                metadata.height,
-                entity.last_change_id
-            ],
+    store.write_result(|transaction| {
+        if let Some(session_id) = session_id {
+            validate_session(transaction, session_id)?;
+        }
+
+        write_media_file(
+            &store.media_directory(),
+            &metadata.digest,
+            metadata.extension,
+            bytes,
         )?;
 
-        Ok(query_media(transaction, &entity.id)?.summary())
+        let media = match query_media_by_digest(transaction, &metadata.digest)? {
+            Some(existing) => existing.summary(),
+            None => insert_media(transaction, &metadata, byte_size)?,
+        };
+
+        if let Some(session_id) = session_id {
+            retain_session_media(
+                transaction,
+                session_id,
+                &BTreeSet::from([media.id.clone()]),
+            )?;
+        }
+
+        transaction.execute(
+            "DELETE FROM device_media_cleanup WHERE digest = ?1",
+            [&metadata.digest],
+        )?;
+
+        Ok(media)
     })
+}
+
+fn insert_media(
+    transaction: &WriteTransaction<'_>,
+    metadata: &ImageMetadata,
+    byte_size: i64,
+) -> LibraryResult<MediaSummary> {
+    let entity = transaction.create_entity(EntityKind::Media)?;
+
+    transaction.execute(
+        "INSERT INTO media (
+            entity_id,
+            digest,
+            mime_type,
+            file_extension,
+            byte_size,
+            width,
+            height,
+            last_change_id
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            entity.id,
+            metadata.digest,
+            metadata.mime_type,
+            metadata.extension,
+            byte_size,
+            metadata.width,
+            metadata.height,
+            entity.last_change_id
+        ],
+    )?;
+
+    Ok(query_media(transaction, &entity.id)?.summary())
 }
 
 pub fn read_media(store: &LocalDataStore, id: &str) -> LibraryResult<Vec<u8>> {
@@ -192,6 +235,62 @@ pub fn validate_media_ids(
     Ok(())
 }
 
+pub(super) fn release_unreferenced_media(
+    transaction: &WriteTransaction<'_>,
+    media_ids: &[String],
+) -> LibraryResult<()> {
+    for media_id in media_ids {
+        let retained: bool = transaction.query_row(
+            "SELECT
+                EXISTS (
+                    SELECT 1 FROM authoring_session_media WHERE media_id = ?1
+                )
+                OR EXISTS (
+                    SELECT 1 FROM authoring_draft_media WHERE media_id = ?1
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM concept_media
+                    INNER JOIN entities AS concept_entities
+                        ON concept_entities.id = concept_media.concept_id
+                    WHERE concept_media.media_id = ?1
+                        AND concept_media.removed_at IS NULL
+                        AND concept_entities.deleted_at IS NULL
+                )",
+            [media_id],
+            |row| row.get(0),
+        )?;
+
+        if retained {
+            continue;
+        }
+
+        let Some(media) = query_optional_media(transaction, media_id)? else {
+            continue;
+        };
+
+        transaction.soft_delete_entity(media_id)?;
+        queue_media_cleanup(transaction, &media.digest, &media.extension)?;
+    }
+
+    Ok(())
+}
+
+fn queue_media_cleanup(
+    transaction: &WriteTransaction<'_>,
+    digest: &str,
+    extension: &str,
+) -> LibraryResult<()> {
+    transaction.execute(
+        "INSERT INTO device_media_cleanup (digest, file_extension)
+        VALUES (?1, ?2)
+        ON CONFLICT(digest) DO UPDATE SET file_extension = excluded.file_extension",
+        params![digest, extension],
+    )?;
+
+    Ok(())
+}
+
 fn validate_image(bytes: &[u8]) -> LibraryResult<ImageMetadata> {
     if bytes.is_empty() || bytes.len() > MAXIMUM_IMAGE_BYTES {
         return Err(LibraryError::ImageTooLarge {
@@ -240,10 +339,7 @@ fn write_media_file(
         return verify_existing_file(&destination, bytes, digest);
     }
 
-    let temporary_path = directory.join(format!(
-        ".{digest}.{}.tmp",
-        Uuid::now_v7().hyphenated()
-    ));
+    let temporary_path = directory.join(format!(".{digest}.{extension}.tmp"));
     let result = write_temporary_file(&temporary_path, &destination, bytes);
 
     if result.is_err() {
@@ -393,9 +489,9 @@ mod tests {
     use image::{DynamicImage, ImageFormat};
     use tempfile::tempdir;
 
-    use super::{digest, import_image, media_path, read_media};
+    use super::{digest, import_image, import_image_with_session, media_path, read_media};
     use crate::data::{DataResult, LocalDataStore};
-    use crate::library::LibraryError;
+    use crate::library::{AuthoringMediaLibrary, LibraryError};
 
     fn png_bytes() -> Vec<u8> {
         let mut bytes = Cursor::new(Vec::new());
@@ -432,6 +528,55 @@ mod tests {
         });
 
         assert!(hard_delete.is_err());
+    }
+
+    #[test]
+    fn failed_import_transactions_leave_durable_cleanup_for_written_files() {
+        let directory = tempdir().unwrap();
+        let store = LocalDataStore::open(directory.path()).unwrap();
+        let session = AuthoringMediaLibrary::new(&store).begin_session(vec![]).unwrap();
+        let bytes = png_bytes();
+        let path = media_path(&store.media_directory(), &digest(&bytes), "png");
+
+        store.write(|transaction| {
+            transaction.execute_batch(
+                "CREATE TEMP TRIGGER reject_media BEFORE INSERT ON authoring_session_media
+                BEGIN SELECT RAISE(ABORT, 'Simulated ownership failure'); END;",
+            )?;
+
+            Ok(())
+        }).unwrap();
+
+        assert!(import_image_with_session(&store, &bytes, Some(&session)).is_err());
+        assert!(path.is_file());
+        assert!(store.changes_after(0, 100).unwrap().is_empty());
+        drop(store);
+
+        let reopened = LocalDataStore::open(directory.path()).unwrap();
+
+        assert!(!path.exists());
+        assert!(import_image(&reopened, &bytes).is_ok());
+    }
+
+    #[test]
+    fn recovery_cleans_partial_imports_without_deleting_active_duplicates() {
+        let directory = tempdir().unwrap();
+        let store = LocalDataStore::open(directory.path()).unwrap();
+        let bytes = png_bytes();
+        let media = import_image(&store, &bytes).unwrap();
+        let digest = digest(&bytes);
+        let temporary_path = store.media_directory().join(format!(".{digest}.png.tmp"));
+
+        store.write_result::<_, LibraryError>(|transaction| {
+            super::queue_media_cleanup(transaction, &digest, "png")
+        }).unwrap();
+        fs::write(&temporary_path, b"Interrupted file write").unwrap();
+        drop(store);
+
+        let reopened = LocalDataStore::open(directory.path()).unwrap();
+
+        assert!(!temporary_path.exists());
+        assert_eq!(read_media(&reopened, &media.id).unwrap(), bytes);
     }
 
     #[test]

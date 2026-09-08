@@ -10,7 +10,7 @@ use crate::library::{
 const MAXIMUM_DOCUMENT_BYTES: usize = 1_000_000;
 const MAXIMUM_CONCEPT_DOCUMENTS: usize = 4;
 const MAXIMUM_DOCUMENT_DEPTH: usize = 32;
-const MAXIMUM_DOCUMENT_NODES: usize = 10_000;
+pub(super) const MAXIMUM_DOCUMENT_NODES: usize = 10_000;
 const MAXIMUM_DOCUMENT_TEXT: usize = 500_000;
 const MAXIMUM_LATEX_LENGTH: usize = 10_000;
 const MAXIMUM_LINK_LENGTH: usize = 2_048;

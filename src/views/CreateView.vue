@@ -19,6 +19,7 @@ import OrganizationManager from '../components/OrganizationManager.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { COMMAND_IDS } from '../commands/registry';
 import { useAuthoringDraft } from '../composables/useAuthoringDraft';
+import { provideAuthoringMedia } from '../composables/useAuthoringMedia';
 import { useCommandHandler } from '../composables/useCommands';
 import { useDeferredEdits } from '../composables/useDeferredEdits';
 import {
@@ -127,6 +128,12 @@ const editorDisabled = computed( () => (
   || deferredWorkflowPending.value
   || Boolean( savedConcept.value )
 ) );
+const authoringMedia = provideAuthoringMedia({
+  canImport: () => (
+    editorResolved.value && !editorDisabled.value && !leaveDialogOpen.value
+  )
+});
+const { hasPendingImports } = authoringMedia;
 const pageTitle = computed( () => {
   if ( saveAsCopy.value ) {
     return 'Create concept copy';
@@ -210,6 +217,7 @@ const saveCommand = useCommandHandler( COMMAND_IDS.conceptSave, {
     && !deferredWorkflowPending.value
     && !recoveryOpen.value
     && !savedConcept.value
+    && !hasPendingImports.value
   ) ),
   execute: () => conceptForm.value?.submit()
 });
@@ -224,6 +232,8 @@ onMounted( () => {
 });
 
 onBeforeUnmount( () => {
+  loadRequestSequence += 1;
+
   window.removeEventListener( 'beforeunload', warnBeforeWindowClose );
   document.removeEventListener( 'visibilitychange', flushHiddenDraft );
 
@@ -261,6 +271,12 @@ async function loadData() {
   targetUnavailable.value = false;
 
   try {
+    await authoringMedia.close();
+
+    if ( request !== loadRequestSequence ) {
+      return;
+    }
+
     const conceptRequest = requestedConceptId
       ? loadConcept( requestedConceptId )
         .then( ( value ) => ({ value }) )
@@ -308,6 +324,15 @@ async function loadData() {
       throw conceptResult.cause;
     }
 
+    const mediaSessionId = await authoringMedia.start([
+      ...( conceptResult.value?.media ?? []).map( ( media ) => media.id ),
+      ...( existingDraft?.mediaIds ?? [])
+    ]);
+
+    if ( request !== loadRequestSequence || !mediaSessionId ) {
+      return;
+    }
+
     library.value = snapshot;
     concept.value = conceptResult.value ?? null;
     templates.value = templateCatalog.templates;
@@ -318,6 +343,7 @@ async function loadData() {
     editorState.value = cloneConceptEditorState( canonicalEditorState );
 
     startDraft({
+      mediaSessionId,
       targetId: requestedConceptId || null,
       baseChangeId: existingDraft?.baseChangeId
         ?? concept.value?.lastChangeId
@@ -350,7 +376,7 @@ async function refreshOrganizations() {
 }
 
 async function saveConcept( input ) {
-  if ( saveInProgress.value ) {
+  if ( saveInProgress.value || hasPendingImports.value ) {
     return;
   }
 
@@ -461,7 +487,7 @@ async function continueDeferredEditing() {
 }
 
 async function skipDeferredEdit() {
-  if ( deferredWorkflowPending.value ) {
+  if ( deferredWorkflowPending.value || hasPendingImports.value ) {
     return;
   }
 
@@ -529,6 +555,7 @@ async function discardRecoveryDraft() {
     }
 
     startDraft({
+      mediaSessionId: authoringMedia.sessionId.value,
       targetId: conceptId.value || null,
       baseChangeId: concept.value?.lastChangeId ?? null
     });
@@ -551,7 +578,7 @@ function protectNavigation() {
     return false;
   }
 
-  if ( !isModified.value && !hasPendingPersistence.value ) {
+  if ( !isModified.value && !hasPendingPersistence.value && !hasPendingImports.value ) {
     return true;
   }
 
@@ -577,6 +604,10 @@ function stayInEditor() {
 }
 
 async function leaveEditor() {
+  if ( leaveLoading.value || hasPendingImports.value ) {
+    return;
+  }
+
   leaveLoading.value = true;
   leaveError.value = '';
 
@@ -598,7 +629,7 @@ async function leaveEditor() {
 }
 
 function warnBeforeWindowClose( event ) {
-  if ( !isModified.value && !hasPendingPersistence.value ) {
+  if ( !isModified.value && !hasPendingPersistence.value && !hasPendingImports.value ) {
     return;
   }
 
@@ -642,7 +673,7 @@ function cancel() {
           color="neutral"
           variant="link"
           :loading="deferredWorkflowPending"
-          :disabled="deferredWorkflowPending"
+          :disabled="deferredWorkflowPending || ( isDeferredEdit && hasPendingImports )"
           @click="cancel"
         >
           {{ isDeferredEdit ? 'Skip' : 'Back' }}
@@ -784,6 +815,7 @@ function cancel() {
       :templates="templates"
       :error="error"
       :loading="isPending || saveInProgress"
+      :imports-pending="hasPendingImports"
       :save-command="saveCommand"
       @cancel="cancel"
       @change="conceptStateChanged"
@@ -842,7 +874,9 @@ function cancel() {
     <UModal
       v-model:open="leaveDialogOpen"
       title="Leave concept editor?"
-      description="Your unfinished changes will remain saved as a draft on this device."
+      :description="hasPendingImports
+        ? 'Wait for image imports to finish before leaving. You can stay in the editor while they import.'
+        : 'Your unfinished changes will remain saved as a draft on this device.'"
       :dismissible="!leaveLoading"
       @update:open="( open ) => { if ( !open && !leaveLoading ) stayInEditor() }"
     >
@@ -872,6 +906,7 @@ function cancel() {
           <UButton
             leading-icon="i-lucide-log-out"
             :loading="leaveLoading"
+            :disabled="hasPendingImports"
             @click="leaveEditor"
           >
             Leave and keep draft

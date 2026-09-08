@@ -1,5 +1,6 @@
 pub(crate) mod commands;
 mod authoring_drafts;
+mod authoring_media;
 mod card_quality;
 mod content;
 mod css_snippets;
@@ -16,6 +17,7 @@ mod study;
 mod templates;
 
 pub use authoring_drafts::AuthoringDraftLibrary;
+pub use authoring_media::AuthoringMediaLibrary;
 pub use card_quality::CardQualityLibrary;
 pub use css_snippets::CssSnippetLibrary;
 pub use deferred_edits::DeferredEditLibrary;
