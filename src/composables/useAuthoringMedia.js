@@ -1,17 +1,25 @@
 import { invoke } from '@tauri-apps/api/core';
-import { inject, onBeforeUnmount, provide, readonly, ref } from 'vue';
+import { computed, inject, onBeforeUnmount, provide, readonly, ref } from 'vue';
 
 const AUTHORING_MEDIA = Symbol( 'authoring-media' );
 
-export function provideAuthoringMedia() {
+export function provideAuthoringMedia({ canImport }) {
   const sessionId = ref( null );
+  const pendingImportCount = ref( 0 );
+  const pendingImports = new Set();
   let generation = 0;
+
+  const hasPendingImports = computed( () => pendingImportCount.value > 0 );
 
   async function close() {
     const previousSessionId = sessionId.value;
 
     generation += 1;
     sessionId.value = null;
+
+    for ( const finish of pendingImports ) {
+      finish();
+    }
 
     if ( previousSessionId ) {
       await endSession( previousSessionId );
@@ -46,6 +54,29 @@ export function provideAuthoringMedia() {
     return invoke( 'end_authoring_media_session', { sessionId: id });
   }
 
+  function beginImport() {
+    if ( !sessionId.value || !canImport() ) {
+      return null;
+    }
+
+    const id = sessionId.value;
+    const request = generation;
+
+    function finish() {
+      pendingImports.delete( finish );
+      pendingImportCount.value = pendingImports.size;
+    }
+
+    pendingImports.add( finish );
+    pendingImportCount.value = pendingImports.size;
+
+    return {
+      finish,
+      isCurrent: () => pendingImports.has( finish ) && request === generation,
+      sessionId: id
+    };
+  }
+
   function importImage( bytes, id ) {
     if ( !id ) {
       throw new Error( 'Reopen the editor before importing an image.' );
@@ -57,7 +88,9 @@ export function provideAuthoringMedia() {
   }
 
   const media = {
+    beginImport,
     close,
+    hasPendingImports,
     importImage,
     sessionId: readonly( sessionId ),
     start

@@ -37,7 +37,6 @@ import { markStudyConceptChanged } from '../study/resume';
 
 const route = useRoute();
 const router = useRouter();
-const authoringMedia = provideAuthoringMedia();
 const {
   clearError,
   createConcept,
@@ -129,6 +128,12 @@ const editorDisabled = computed( () => (
   || deferredWorkflowPending.value
   || Boolean( savedConcept.value )
 ) );
+const authoringMedia = provideAuthoringMedia({
+  canImport: () => (
+    editorResolved.value && !editorDisabled.value && !leaveDialogOpen.value
+  )
+});
+const { hasPendingImports } = authoringMedia;
 const pageTitle = computed( () => {
   if ( saveAsCopy.value ) {
     return 'Create concept copy';
@@ -212,6 +217,7 @@ const saveCommand = useCommandHandler( COMMAND_IDS.conceptSave, {
     && !deferredWorkflowPending.value
     && !recoveryOpen.value
     && !savedConcept.value
+    && !hasPendingImports.value
   ) ),
   execute: () => conceptForm.value?.submit()
 });
@@ -370,7 +376,7 @@ async function refreshOrganizations() {
 }
 
 async function saveConcept( input ) {
-  if ( saveInProgress.value ) {
+  if ( saveInProgress.value || hasPendingImports.value ) {
     return;
   }
 
@@ -481,7 +487,7 @@ async function continueDeferredEditing() {
 }
 
 async function skipDeferredEdit() {
-  if ( deferredWorkflowPending.value ) {
+  if ( deferredWorkflowPending.value || hasPendingImports.value ) {
     return;
   }
 
@@ -572,7 +578,7 @@ function protectNavigation() {
     return false;
   }
 
-  if ( !isModified.value && !hasPendingPersistence.value ) {
+  if ( !isModified.value && !hasPendingPersistence.value && !hasPendingImports.value ) {
     return true;
   }
 
@@ -598,6 +604,10 @@ function stayInEditor() {
 }
 
 async function leaveEditor() {
+  if ( leaveLoading.value || hasPendingImports.value ) {
+    return;
+  }
+
   leaveLoading.value = true;
   leaveError.value = '';
 
@@ -619,7 +629,7 @@ async function leaveEditor() {
 }
 
 function warnBeforeWindowClose( event ) {
-  if ( !isModified.value && !hasPendingPersistence.value ) {
+  if ( !isModified.value && !hasPendingPersistence.value && !hasPendingImports.value ) {
     return;
   }
 
@@ -663,7 +673,7 @@ function cancel() {
           color="neutral"
           variant="link"
           :loading="deferredWorkflowPending"
-          :disabled="deferredWorkflowPending"
+          :disabled="deferredWorkflowPending || ( isDeferredEdit && hasPendingImports )"
           @click="cancel"
         >
           {{ isDeferredEdit ? 'Skip' : 'Back' }}
@@ -805,6 +815,7 @@ function cancel() {
       :templates="templates"
       :error="error"
       :loading="isPending || saveInProgress"
+      :imports-pending="hasPendingImports"
       :save-command="saveCommand"
       @cancel="cancel"
       @change="conceptStateChanged"
@@ -863,7 +874,9 @@ function cancel() {
     <UModal
       v-model:open="leaveDialogOpen"
       title="Leave concept editor?"
-      description="Your unfinished changes will remain saved as a draft on this device."
+      :description="hasPendingImports
+        ? 'Wait for image imports to finish before leaving. You can stay in the editor while they import.'
+        : 'Your unfinished changes will remain saved as a draft on this device.'"
       :dismissible="!leaveLoading"
       @update:open="( open ) => { if ( !open && !leaveLoading ) stayInEditor() }"
     >
@@ -893,6 +906,7 @@ function cancel() {
           <UButton
             leading-icon="i-lucide-log-out"
             :loading="leaveLoading"
+            :disabled="hasPendingImports"
             @click="leaveEditor"
           >
             Leave and keep draft

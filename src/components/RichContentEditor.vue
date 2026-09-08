@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, shallowRef, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useAuthoringMedia } from '../composables/useAuthoringMedia';
@@ -64,11 +64,21 @@ const mathDraft = ref( '' );
 const mathMode = ref( 'inline' );
 const mathPosition = ref( null );
 const mathSubmitted = ref( false );
+let activeImport = null;
+
+onBeforeUnmount( cancelImport );
+
+function cancelImport() {
+  activeImport?.finish();
+  activeImport = null;
+  imageImporting.value = false;
+}
 
 watch( () => props.disabled, ( disabled ) => {
   currentEditor.value?.setEditable( !disabled );
 
   if ( disabled ) {
+    cancelImport();
     clozeDialogOpen.value = false;
     linkDialogOpen.value = false;
     mathDialogOpen.value = false;
@@ -478,6 +488,10 @@ function removeMath() {
 }
 
 function chooseImage( editor ) {
+  if ( props.disabled || imageImporting.value ) {
+    return;
+  }
+
   currentEditor.value = editor;
   imageError.value = '';
   fileInput.value?.click();
@@ -488,7 +502,7 @@ async function insertImage( event ) {
 
   event.target.value = '';
 
-  if ( !file || !currentEditor.value ) {
+  if ( !file || !currentEditor.value || props.disabled || imageImporting.value ) {
     return;
   }
 
@@ -499,16 +513,37 @@ async function insertImage( event ) {
     return;
   }
 
+  const editor = currentEditor.value;
+  const request = authoringMedia.beginImport();
+
+  if ( !request ) {
+    return;
+  }
+
+  activeImport = request;
   imageImporting.value = true;
-  const mediaSessionId = authoringMedia.sessionId.value;
+
+  const isCurrent = () => (
+    request.isCurrent()
+    && editor === currentEditor.value
+    && !editor.isDestroyed
+  );
 
   try {
     const bytes = new Uint8Array( await file.arrayBuffer() );
-    const media = await authoringMedia.importImage( bytes, mediaSessionId );
 
-    currentEditor.value
+    if ( !isCurrent() ) {
+      return;
+    }
+
+    const media = await authoringMedia.importImage( bytes, request.sessionId );
+
+    if ( !isCurrent() ) {
+      return;
+    }
+
+    editor
       .chain()
-      .focus()
       .insertContent({
         type: 'mediaImage',
         attrs: {
@@ -520,9 +555,18 @@ async function insertImage( event ) {
       })
       .run();
   } catch ( cause ) {
-    imageError.value = conceptLibraryErrorMessage( cause );
+    if ( isCurrent() ) {
+      imageError.value = conceptLibraryErrorMessage( cause );
+    }
   } finally {
-    imageImporting.value = false;
+    // Let document updates reach the form and draft before enabling Save or Leave
+    await nextTick();
+    request.finish();
+
+    if ( activeImport === request ) {
+      activeImport = null;
+      imageImporting.value = false;
+    }
   }
 }
 </script>
@@ -610,7 +654,7 @@ async function insertImage( event ) {
                   color="neutral"
                   variant="ghost"
                   size="sm"
-                  :disabled="disabled"
+                  :disabled="disabled || imageImporting"
                   :loading="imageImporting"
                   @click="chooseImage( editor )"
                 />
@@ -626,7 +670,7 @@ async function insertImage( event ) {
         accept="image/gif,image/jpeg,image/png,image/webp"
         class="sr-only"
         tabindex="-1"
-        :disabled="disabled"
+        :disabled="disabled || imageImporting"
         @change="insertImage"
       >
     </div>

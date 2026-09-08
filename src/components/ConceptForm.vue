@@ -80,6 +80,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  importsPending: {
+    type: Boolean,
+    default: false
+  },
   mode: {
     type: String,
     default: 'create',
@@ -484,7 +488,7 @@ function moveProblemCheckpoint( index, offset ) {
 }
 
 function submit() {
-  if ( props.disabled ) {
+  if ( props.disabled || props.importsPending ) {
     return;
   }
 
@@ -1029,6 +1033,14 @@ defineExpose({ submit });
     </section>
 
     <footer class="editor-actions">
+      <p
+        v-if="importsPending"
+        class="mr-auto self-center text-sm text-muted"
+        role="status"
+      >
+        Importing images. Save will be available when they finish.
+      </p>
+
       <UButton
         type="button"
         color="neutral"
@@ -1042,7 +1054,7 @@ defineExpose({ submit });
       <UButton
         type="submit"
         leading-icon="i-lucide-check"
-        :disabled="disabled"
+        :disabled="disabled || importsPending"
         :loading="loading"
         :aria-keyshortcuts="saveCommand.ariaKeyshortcuts"
         :title="saveCommand.tooltip"
