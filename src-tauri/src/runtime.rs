@@ -6,11 +6,11 @@ use tauri::State;
 #[cfg(desktop)]
 use tauri::{
     menu::{Menu, MenuBuilder, MenuEvent, MenuItemBuilder, SubmenuBuilder},
-    AppHandle, Manager, Runtime,
+    AppHandle, Emitter, Runtime,
 };
 
 #[cfg(desktop)]
-use crate::{data::LocalDataStore, library::CssSnippetLibrary};
+use crate::lifecycle::{request_action, NativeAction};
 
 const SAFE_MODE_ARGUMENT: &str = "--safe-mode";
 
@@ -118,7 +118,7 @@ pub(crate) fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R
 pub(crate) fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
     #[cfg(not(target_os = "macos"))]
     if event.id().as_ref() == QUIT_MENU_ID {
-        app.exit(0);
+        request_action(app, NativeAction::Quit);
         return;
     }
 
@@ -126,21 +126,8 @@ pub(crate) fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent
         return;
     }
 
-    let local_data = app.state::<LocalDataStore>();
-
-    if let Err(error) = CssSnippetLibrary::new(local_data.inner()).disable_all() {
-        eprintln!("Could not disable CSS snippets: {error}");
-        return;
-    }
-
-    let Some(window) = app.get_webview_window("main") else {
-        eprintln!("Could not reload Twill after disabling CSS snippets: window not found");
-        return;
-    };
-
-    if let Err(error) = window.reload() {
-        eprintln!("Could not reload Twill after disabling CSS snippets: {error}");
-    }
+    let _ = app.emit_to("main", "twill-css-snippets-disabled", ());
+    request_action(app, NativeAction::Reload);
 }
 
 #[cfg(test)]

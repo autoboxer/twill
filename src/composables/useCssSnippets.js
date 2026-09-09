@@ -12,6 +12,7 @@ const loading = ref( false );
 const pendingOperations = ref( 0 );
 const ready = ref( false );
 const safeMode = ref( false );
+const suspended = ref( false );
 
 let initializationPromise = null;
 let loadRequestSequence = 0;
@@ -77,11 +78,16 @@ export function useCssSnippets() {
     loadError: readonly( loadError ),
     loading: readonly( loading ),
     ready: readonly( ready ),
-    safeMode: readonly( safeMode ),
+    safeMode: computed( () => safeMode.value || suspended.value ),
     setSnippetEnabled,
     snippets: readonly( snippets ),
     updateSnippet
   };
+}
+
+export function suspendCssSnippets() {
+  suspended.value = true;
+  applyEnabledSnippets();
 }
 
 function createSnippet( name, source ) {
@@ -205,7 +211,7 @@ function ensureStyleElement() {
 }
 
 function applyEnabledSnippets() {
-  const source = safeMode.value
+  const source = safeMode.value || suspended.value
     ? ''
     : snippets.value
       .filter( ( snippet ) => snippet.enabled )

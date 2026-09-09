@@ -22,6 +22,7 @@ import { useAuthoringDraft } from '../composables/useAuthoringDraft';
 import { provideAuthoringMedia } from '../composables/useAuthoringMedia';
 import { useCommandHandler } from '../composables/useCommands';
 import { useDeferredEdits } from '../composables/useDeferredEdits';
+import { useNativeActionGuard } from '../composables/useNativeLifecycle';
 import {
   conceptLibraryErrorMessage,
   useConceptLibrary
@@ -132,6 +133,15 @@ const authoringMedia = provideAuthoringMedia({
   )
 });
 const { hasPendingImports } = authoringMedia;
+const { nativeActionPending } = useNativeActionGuard({
+  busy: computed( () => (
+    saveInProgress.value
+    || hasPendingImports.value
+    || recoveryBusy.value
+    || leaveLoading.value
+  ) ),
+  flush: flushDraft
+});
 const pageTitle = computed( () => {
   if ( saveAsCopy.value ) {
     return 'Create concept copy';
@@ -553,6 +563,10 @@ async function discardRecoveryDraft() {
 }
 
 function protectNavigation() {
+  if ( nativeActionPending.value ) {
+    return false;
+  }
+
   if ( allowNavigation || !editorResolved.value ) {
     return recoveryOpen.value ? false : true;
   }
@@ -612,6 +626,10 @@ async function leaveEditor() {
 }
 
 function warnBeforeWindowClose( event ) {
+  if ( nativeActionPending.value ) {
+    return;
+  }
+
   if ( !isModified.value && !hasPendingPersistence.value && !hasPendingImports.value ) {
     return;
   }

@@ -24,6 +24,7 @@ import { useAuthoringDraft } from '../composables/useAuthoringDraft';
 import { useCommandHandler } from '../composables/useCommands';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
+import { useNativeActionGuard } from '../composables/useNativeLifecycle';
 import {
   cloneTemplateEditorState,
   createTemplateEditorState,
@@ -84,6 +85,11 @@ let allowNavigation = false;
 let canonicalBaseChangeId = null;
 let leaveResolution = null;
 let loadRequestSequence = 0;
+
+const { nativeActionPending } = useNativeActionGuard({
+  busy: computed( () => saveInProgress.value || recoveryBusy.value || leaveLoading.value ),
+  flush: flushDraft
+});
 
 const templateId = computed( () => route.params.templateId ?? '' );
 const isEditing = computed( () => Boolean( templateId.value ) );
@@ -431,6 +437,10 @@ async function discardRecoveryDraft() {
 }
 
 function protectNavigation() {
+  if ( nativeActionPending.value ) {
+    return false;
+  }
+
   if ( allowNavigation || !editorResolved.value ) {
     return recoveryOpen.value ? false : true;
   }
@@ -486,6 +496,10 @@ async function leaveEditor() {
 }
 
 function warnBeforeWindowClose( event ) {
+  if ( nativeActionPending.value ) {
+    return;
+  }
+
   if ( !hasChanges.value && !hasPendingPersistence.value ) {
     return;
   }
