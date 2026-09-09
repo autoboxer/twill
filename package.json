@@ -22,7 +22,7 @@
     "@iconify-json/lucide": "^1.2.122",
     "@nuxt/ui": "^4.10.0",
     "@tauri-apps/api": "^2",
-    "@tiptap/core": "^3.29.2",
+    "@tiptap/core": "^3.30.5",
     "@tiptap/extension-code-block-lowlight": "^3.29.2",
     "@tiptap/extension-mathematics": "^3.29.2",
     "@tiptap/vue-3": "^3.29.2",
