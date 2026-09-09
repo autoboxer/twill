@@ -10,6 +10,10 @@ const props = defineProps({
     type: String,
     required: true
   },
+  error: {
+    type: String,
+    default: ''
+  },
   loading: {
     type: Boolean,
     default: false
@@ -38,7 +42,18 @@ const isOpen = computed({
     :title="title"
     :description="description"
     :dismissible="!loading"
+    :ui="{ wrapper: 'min-w-0', description: 'break-words' }"
   >
+    <template v-if="error" #body>
+      <UAlert
+        role="alert"
+        :description="error"
+        icon="i-lucide-circle-alert"
+        color="error"
+        variant="subtle"
+      />
+    </template>
+
     <template #footer>
       <div class="dialog-actions">
         <UButton

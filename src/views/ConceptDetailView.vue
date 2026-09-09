@@ -17,26 +17,31 @@ import { richDocumentHasContent } from '../rich-content/schema';
 const route = useRoute();
 const router = useRouter();
 const {
-  clearError,
   deleteConcept,
-  error,
-  isPending,
+  getConcept,
   setConceptArchived
 } = useConceptLibrary();
-const {
-  clearError: clearLoadError,
-  getConcept
-} = useConceptLibrary();
 
+const actionError = ref( '' );
 const concept = ref( null );
 const currentTime = ref( Date.now() );
-const deleteDialogOpen = ref( false );
+const deleteTarget = ref( null );
 const initialLoading = ref( true );
 const loadError = ref( '' );
+const pendingAction = ref( '' );
 let loadRequestSequence = 0;
 let timeUpdateTimer = null;
 
 const conceptId = computed( () => route.params.conceptId ?? '' );
+const isPending = computed( () => Boolean( pendingAction.value ) );
+const deleteDialogOpen = computed({
+  get: () => Boolean( deleteTarget.value ),
+  set: ( open ) => {
+    if ( !open ) {
+      deleteTarget.value = null;
+    }
+  }
+});
 const archiveLabel = computed( () => concept.value?.archived ? 'Restore' : 'Archive' );
 const archiveIcon = computed( () => concept.value?.archived
   ? 'i-lucide-archive-restore'
@@ -81,7 +86,7 @@ const answerFeedbackDocuments = computed( () => [
   }
 ].filter( ( item ) => richDocumentHasContent( item.document ) ) );
 
-watch( conceptId, loadConcept, { immediate: true });
+watch( () => route.fullPath, loadConcept, { immediate: true, flush: 'sync' });
 
 onMounted( () => {
   timeUpdateTimer = window.setInterval( () => {
@@ -98,10 +103,16 @@ async function loadConcept() {
   const request = ++loadRequestSequence;
   const requestedConceptId = conceptId.value;
 
-  clearError();
-  clearLoadError();
+  concept.value = null;
+  deleteTarget.value = null;
+  pendingAction.value = '';
+  actionError.value = '';
   initialLoading.value = true;
   loadError.value = '';
+
+  if ( route.name !== 'concept-detail' ) {
+    return;
+  }
 
   try {
     const loadedConcept = await getConcept( requestedConceptId );
@@ -123,25 +134,88 @@ async function loadConcept() {
 }
 
 async function toggleArchived() {
-  clearError();
+  const target = captureActionTarget();
+
+  if ( !target ) {
+    return;
+  }
+
+  const archived = !concept.value.archived;
+
+  actionError.value = '';
+  pendingAction.value = 'archive';
 
   try {
-    concept.value = await setConceptArchived( conceptId.value, !concept.value.archived );
-  } catch {
-    // Error state is handled by the composable.
+    const updatedConcept = await setConceptArchived( target.id, archived );
+
+    if ( isCurrentTarget( target ) ) {
+      concept.value = updatedConcept;
+    }
+  } catch ( cause ) {
+    if ( isCurrentTarget( target ) ) {
+      actionError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( isCurrentTarget( target ) ) {
+      pendingAction.value = '';
+    }
+  }
+}
+
+function requestDelete() {
+  const target = captureActionTarget();
+
+  if ( target ) {
+    actionError.value = '';
+    deleteTarget.value = target;
   }
 }
 
 async function confirmDelete() {
-  clearError();
+  const target = deleteTarget.value;
+
+  if ( !target || !isCurrentTarget( target ) || isPending.value ) {
+    return;
+  }
+
+  actionError.value = '';
+  pendingAction.value = 'delete';
 
   try {
-    await deleteConcept( conceptId.value );
-    deleteDialogOpen.value = false;
-    await router.replace({ name: 'library' });
-  } catch {
-    // Error state is handled by the composable.
+    await deleteConcept( target.id );
+
+    if ( isCurrentTarget( target ) ) {
+      deleteTarget.value = null;
+      await router.replace({ name: 'library' });
+    }
+  } catch ( cause ) {
+    if ( isCurrentTarget( target ) ) {
+      actionError.value = conceptLibraryErrorMessage( cause );
+    }
+  } finally {
+    if ( isCurrentTarget( target ) ) {
+      pendingAction.value = '';
+    }
   }
+}
+
+function captureActionTarget() {
+  if ( initialLoading.value || loadError.value || isPending.value
+    || route.name !== 'concept-detail' || concept.value?.id !== conceptId.value ) {
+    return null;
+  }
+
+  return {
+    id: concept.value.id,
+    title: concept.value.title,
+    request: loadRequestSequence
+  };
+}
+
+function isCurrentTarget( target ) {
+  return target.request === loadRequestSequence
+    && target.id === conceptId.value
+    && route.name === 'concept-detail';
 }
 
 function formattedDate( timestamp ) {
@@ -365,8 +439,9 @@ function schedulingStateDetails( state ) {
       class="concept-detail-layout"
     >
       <UAlert
-        v-if="error"
-        :description="error"
+        v-if="actionError && !deleteDialogOpen"
+        role="alert"
+        :description="actionError"
         icon="i-lucide-circle-alert"
         color="error"
         variant="soft"
@@ -608,7 +683,8 @@ function schedulingStateDetails( state ) {
           :leading-icon="archiveIcon"
           color="neutral"
           variant="subtle"
-          :loading="isPending"
+          :loading="pendingAction === 'archive'"
+          :disabled="isPending"
           @click="toggleArchived"
         >
           {{ archiveLabel }}
@@ -619,7 +695,7 @@ function schedulingStateDetails( state ) {
           color="error"
           variant="ghost"
           :disabled="isPending"
-          @click="deleteDialogOpen = true"
+          @click="requestDelete"
         >
           Delete
         </UButton>
@@ -629,9 +705,12 @@ function schedulingStateDetails( state ) {
     <ConfirmDialog
       v-model:open="deleteDialogOpen"
       title="Delete concept?"
-      description="This removes the concept and its retrieval forms from this device. The deletion is retained for later synchronization."
+      :description="deleteTarget
+        ? `“${ deleteTarget.title }” and its retrieval forms will be removed from this device. The deletion is retained for later synchronization.`
+        : ''"
       confirm-label="Delete concept"
-      :loading="isPending"
+      :error="actionError"
+      :loading="pendingAction === 'delete'"
       @confirm="confirmDelete"
     />
   </div>
