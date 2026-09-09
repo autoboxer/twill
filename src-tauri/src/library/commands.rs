@@ -3,6 +3,7 @@ use tauri::ipc::{InvokeBody, Request, Response};
 use tauri::State;
 
 use crate::data::LocalDataStore;
+use crate::library::authoring_finalization;
 use crate::library::{
     AuthoringDraft, AuthoringDraftLibrary, AuthoringDraftLocator, AuthoringMediaLibrary,
     ConceptDetail,
@@ -12,7 +13,7 @@ use crate::library::{
     CreateTemplateInput, CssSnippet, CssSnippetCatalog, CssSnippetLibrary,
     DeferredConceptEdit, DeferredEditLibrary, DeferredEditQueue, DevicePreferences,
     DismissCardQualitySignalInput, EntityIdInput, LibraryError, LibrarySnapshot,
-    OrganizationSummary,
+    FinalizeConceptInput, FinalizeTemplateInput, OrganizationSummary,
     PretestRecord, QueueDeferredEditInput, RecordPretestInput, RecordReviewInput,
     RenameNamedItemInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings,
@@ -36,6 +37,10 @@ pub(crate) struct CommandError {
 impl From<LibraryError> for CommandError {
     fn from(error: LibraryError) -> Self {
         let code = match &error {
+            LibraryError::AuthoringDraftChanged => "draftChanged",
+            LibraryError::AuthoringTargetChanged => "targetChanged",
+            LibraryError::AuthoringTargetMissing => "targetMissing",
+            LibraryError::DeferredEditChanged => "deferredEditChanged",
             LibraryError::EmptyValue { .. }
             | LibraryError::ValueTooLong { .. }
             | LibraryError::InvalidContent { .. }
@@ -132,6 +137,22 @@ pub(crate) fn get_library(
     ConceptLibrary::new(local_data.inner())
         .snapshot(include_archived)
         .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn finalize_concept(
+    local_data: State<'_, LocalDataStore>,
+    input: FinalizeConceptInput,
+) -> CommandResult<ConceptDetail> {
+    authoring_finalization::finalize_concept(local_data.inner(), input).map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn finalize_template(
+    local_data: State<'_, LocalDataStore>,
+    input: FinalizeTemplateInput,
+) -> CommandResult<TemplateDetail> {
+    authoring_finalization::finalize_template(local_data.inner(), input).map_err(Into::into)
 }
 
 #[tauri::command(async)]

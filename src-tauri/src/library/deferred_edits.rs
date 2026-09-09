@@ -113,7 +113,8 @@ fn query_queue(connection: &Connection) -> LibraryResult<DeferredEditQueue> {
                 WHEN concepts.last_change_id != deferred_concept_edits.base_change_id
                     THEN 'changed'
                 ELSE 'current'
-            END
+            END,
+            deferred_concept_edits.position
         FROM deferred_concept_edits
         INNER JOIN concepts
             ON concepts.entity_id = deferred_concept_edits.concept_id
@@ -129,12 +130,14 @@ fn query_queue(connection: &Connection) -> LibraryResult<DeferredEditQueue> {
                 row.get::<_, String>(2)?,
                 row.get::<_, i64>(3)?,
                 row.get::<_, String>(4)?,
+                row.get::<_, i64>(5)?,
             ))
         })?
         .map(|row| {
-            let (concept_id, concept_title, base_change_id, queued_at, target_status) = row?;
+            let (concept_id, concept_title, base_change_id, queued_at, target_status, position) = row?;
 
             Ok(DeferredConceptEdit {
+                position,
                 concept_id,
                 concept_title,
                 base_change_id,

@@ -198,261 +198,11 @@ impl<'store> ConceptLibrary<'store> {
     }
 
     pub fn create_concept(&self, input: CreateConceptInput) -> LibraryResult<ConceptDetail> {
-        let title = normalize_value(
-            input.title,
-            "Concept title",
-            MAXIMUM_CONCEPT_TITLE_LENGTH,
-        )?;
-        let deck_ids = normalize_ids(input.deck_ids, "deck")?;
-        let tag_ids = normalize_ids(input.tag_ids, "tag")?;
-        let content = validate_content(input.content)?;
-        let template_ids = normalize_template_ids(input.template_ids)?;
-        let explain = normalize_explain(input.explain)?;
-        let problem = normalize_problem(input.problem)?;
-        let type_answer = normalize_type_answer(input.type_answer)?;
-
-        if problem.is_some() && !content.prompt_has_content {
-            return Err(LibraryError::MissingProblemPrompt);
-        }
-
-        validate_retrieval_form_selection(
-            input.include_standard_recall,
-            &template_ids,
-            explain.is_some(),
-            problem.is_some(),
-            type_answer.is_some(),
-            !content.cloze_group_ids.is_empty(),
-            !content.image_occlusion_group_ids.is_empty(),
-        )?;
-
-        self.store.write_result(|transaction| {
-            validate_selections(transaction, OrganizationKind::Deck, &deck_ids)?;
-            validate_selections(transaction, OrganizationKind::Tag, &tag_ids)?;
-            validate_media_ids(transaction, &content.media_ids)?;
-            validate_template_selections(transaction, &template_ids)?;
-
-            let entity = transaction.create_entity(EntityKind::Concept)?;
-
-            transaction.execute(
-                "INSERT INTO concepts (
-                    entity_id,
-                    title,
-                    archived_at,
-                    last_change_id,
-                    content_json
-                ) VALUES (?1, ?2, NULL, ?3, ?4)",
-                params![
-                    entity.id,
-                    title,
-                    entity.last_change_id,
-                    content.serialized
-                ],
-            )?;
-
-            if input.include_standard_recall {
-                create_recall_card(transaction, &entity.id, None)?;
-            }
-
-            if let Some(settings) = &type_answer {
-                create_type_answer_card(transaction, &entity.id, settings)?;
-            }
-
-            if let Some(settings) = &explain {
-                create_explain_card(transaction, &entity.id, settings)?;
-            }
-
-            if let Some(settings) = &problem {
-                create_problem_card(transaction, &entity.id, settings)?;
-            }
-
-            for group_id in &content.cloze_group_ids {
-                create_cloze_card(transaction, &entity.id, group_id)?;
-            }
-
-            for group_id in &content.image_occlusion_group_ids {
-                create_image_occlusion_card(transaction, &entity.id, group_id)?;
-            }
-
-            for template_id in &template_ids {
-                create_recall_card(transaction, &entity.id, Some(template_id))?;
-            }
-
-            apply_assignments(
-                transaction,
-                OrganizationKind::Deck,
-                &entity,
-                &HashSet::new(),
-                &deck_ids,
-            )?;
-            apply_assignments(
-                transaction,
-                OrganizationKind::Tag,
-                &entity,
-                &HashSet::new(),
-                &tag_ids,
-            )?;
-            apply_media_assignments(
-                transaction,
-                &entity,
-                &HashSet::new(),
-                &content.media_ids,
-            )?;
-
-            query_concept(transaction, &entity.id)
-        })
+        self.store.write_result(|transaction| create_concept(transaction, input))
     }
 
     pub fn update_concept(&self, input: UpdateConceptInput) -> LibraryResult<ConceptDetail> {
-        let id = input.id.trim().to_owned();
-        let title = normalize_value(
-            input.title,
-            "Concept title",
-            MAXIMUM_CONCEPT_TITLE_LENGTH,
-        )?;
-        let deck_ids = normalize_ids(input.deck_ids, "deck")?;
-        let tag_ids = normalize_ids(input.tag_ids, "tag")?;
-        let content = validate_content(input.content)?;
-        let template_ids = normalize_template_ids(input.template_ids)?;
-        let explain = normalize_explain(input.explain)?;
-        let problem = normalize_problem(input.problem)?;
-        let type_answer = normalize_type_answer(input.type_answer)?;
-
-        if problem.is_some() && !content.prompt_has_content {
-            return Err(LibraryError::MissingProblemPrompt);
-        }
-
-        validate_retrieval_form_selection(
-            input.include_standard_recall,
-            &template_ids,
-            explain.is_some(),
-            problem.is_some(),
-            type_answer.is_some(),
-            !content.cloze_group_ids.is_empty(),
-            !content.image_occlusion_group_ids.is_empty(),
-        )?;
-
-        self.store.write_result(|transaction| {
-            let current = query_concept(transaction, &id)?;
-
-            validate_selections(transaction, OrganizationKind::Deck, &deck_ids)?;
-            validate_selections(transaction, OrganizationKind::Tag, &tag_ids)?;
-            validate_media_ids(transaction, &content.media_ids)?;
-            validate_template_selections(transaction, &template_ids)?;
-
-            let current_decks = item_ids(&current.decks);
-            let current_tags = item_ids(&current.tags);
-            let current_media = active_concept_media_ids(transaction, &id)?;
-            let current_include_standard_recall = current
-                .cards
-                .iter()
-                .any(|card| {
-                    card.retrieval_kind == RetrievalFormKind::Recall
-                        && card.template.is_none()
-                });
-            let current_type_answer = current
-                .cards
-                .iter()
-                .find_map(|card| card.type_answer.clone());
-            let current_explain = current
-                .cards
-                .iter()
-                .find_map(|card| card.explain.clone());
-            let current_problem = current
-                .cards
-                .iter()
-                .find_map(|card| card.problem.clone());
-            let current_cloze_group_ids = current
-                .cards
-                .iter()
-                .filter_map(|card| card.cloze.as_ref().map(|cloze| cloze.group_id.clone()))
-                .collect::<BTreeSet<_>>();
-            let cloze_group_ids = content
-                .cloze_group_ids
-                .iter()
-                .cloned()
-                .collect::<BTreeSet<_>>();
-            let current_image_occlusion_group_ids = current
-                .cards
-                .iter()
-                .filter_map(|card| {
-                    card.image_occlusion
-                        .as_ref()
-                        .map(|occlusion| occlusion.group_id.clone())
-                })
-                .collect::<BTreeSet<_>>();
-            let image_occlusion_group_ids = content
-                .image_occlusion_group_ids
-                .iter()
-                .cloned()
-                .collect::<BTreeSet<_>>();
-            let current_template_ids = current
-                .cards
-                .iter()
-                .filter_map(|card| card.template.as_ref().map(|template| template.id.clone()))
-                .collect::<BTreeSet<_>>();
-
-            if current.title == title
-                && current_decks == deck_ids
-                && current_tags == tag_ids
-                && current.content == content.content
-                && current_media == content.media_ids
-                && current_include_standard_recall == input.include_standard_recall
-                && current_explain == explain
-                && current_problem == problem
-                && current_type_answer == type_answer
-                && current_cloze_group_ids == cloze_group_ids
-                && current_image_occlusion_group_ids == image_occlusion_group_ids
-                && current_template_ids == template_ids
-            {
-                return Ok(current);
-            }
-
-            let entity = transaction.touch_entity(&id)?;
-
-            transaction.execute(
-                "UPDATE concepts
-                SET title = ?1,
-                    content_json = ?2,
-                    last_change_id = ?3
-                WHERE entity_id = ?4",
-                params![title, content.serialized, entity.last_change_id, id],
-            )?;
-
-            apply_assignments(
-                transaction,
-                OrganizationKind::Deck,
-                &entity,
-                &current_decks,
-                &deck_ids,
-            )?;
-            apply_assignments(
-                transaction,
-                OrganizationKind::Tag,
-                &entity,
-                &current_tags,
-                &tag_ids,
-            )?;
-            apply_media_assignments(
-                transaction,
-                &entity,
-                &current_media,
-                &content.media_ids,
-            )?;
-            apply_retrieval_forms(
-                transaction,
-                &id,
-                &current.cards,
-                input.include_standard_recall,
-                &template_ids,
-                explain.as_ref(),
-                problem.as_ref(),
-                type_answer.as_ref(),
-                &cloze_group_ids,
-                &image_occlusion_group_ids,
-            )?;
-
-            query_concept(transaction, &id)
-        })
+        self.store.write_result(|transaction| update_concept(transaction, input))
     }
 
     pub fn set_concept_archived(
@@ -650,6 +400,266 @@ impl OrganizationKind {
             Self::Tag => "tag_id",
         }
     }
+}
+
+pub(super) fn create_concept(
+    transaction: &WriteTransaction<'_>,
+    input: CreateConceptInput,
+) -> LibraryResult<ConceptDetail> {
+    let title = normalize_value(
+        input.title,
+        "Concept title",
+        MAXIMUM_CONCEPT_TITLE_LENGTH,
+    )?;
+    let deck_ids = normalize_ids(input.deck_ids, "deck")?;
+    let tag_ids = normalize_ids(input.tag_ids, "tag")?;
+    let content = validate_content(input.content)?;
+    let template_ids = normalize_template_ids(input.template_ids)?;
+    let explain = normalize_explain(input.explain)?;
+    let problem = normalize_problem(input.problem)?;
+    let type_answer = normalize_type_answer(input.type_answer)?;
+
+    if problem.is_some() && !content.prompt_has_content {
+        return Err(LibraryError::MissingProblemPrompt);
+    }
+
+    validate_retrieval_form_selection(
+        input.include_standard_recall,
+        &template_ids,
+        explain.is_some(),
+        problem.is_some(),
+        type_answer.is_some(),
+        !content.cloze_group_ids.is_empty(),
+        !content.image_occlusion_group_ids.is_empty(),
+    )?;
+
+    validate_selections(transaction, OrganizationKind::Deck, &deck_ids)?;
+    validate_selections(transaction, OrganizationKind::Tag, &tag_ids)?;
+    validate_media_ids(transaction, &content.media_ids)?;
+    validate_template_selections(transaction, &template_ids)?;
+
+    let entity = transaction.create_entity(EntityKind::Concept)?;
+
+    transaction.execute(
+        "INSERT INTO concepts (
+            entity_id,
+            title,
+            archived_at,
+            last_change_id,
+            content_json
+        ) VALUES (?1, ?2, NULL, ?3, ?4)",
+        params![
+            entity.id,
+            title,
+            entity.last_change_id,
+            content.serialized
+        ],
+    )?;
+
+    if input.include_standard_recall {
+        create_recall_card(transaction, &entity.id, None)?;
+    }
+
+    if let Some(settings) = &type_answer {
+        create_type_answer_card(transaction, &entity.id, settings)?;
+    }
+
+    if let Some(settings) = &explain {
+        create_explain_card(transaction, &entity.id, settings)?;
+    }
+
+    if let Some(settings) = &problem {
+        create_problem_card(transaction, &entity.id, settings)?;
+    }
+
+    for group_id in &content.cloze_group_ids {
+        create_cloze_card(transaction, &entity.id, group_id)?;
+    }
+
+    for group_id in &content.image_occlusion_group_ids {
+        create_image_occlusion_card(transaction, &entity.id, group_id)?;
+    }
+
+    for template_id in &template_ids {
+        create_recall_card(transaction, &entity.id, Some(template_id))?;
+    }
+
+    apply_assignments(
+        transaction,
+        OrganizationKind::Deck,
+        &entity,
+        &HashSet::new(),
+        &deck_ids,
+    )?;
+    apply_assignments(
+        transaction,
+        OrganizationKind::Tag,
+        &entity,
+        &HashSet::new(),
+        &tag_ids,
+    )?;
+    apply_media_assignments(
+        transaction,
+        &entity,
+        &HashSet::new(),
+        &content.media_ids,
+    )?;
+
+    query_concept(transaction, &entity.id)
+}
+
+pub(super) fn update_concept(
+    transaction: &WriteTransaction<'_>,
+    input: UpdateConceptInput,
+) -> LibraryResult<ConceptDetail> {
+    let id = input.id.trim().to_owned();
+    let title = normalize_value(
+        input.title,
+        "Concept title",
+        MAXIMUM_CONCEPT_TITLE_LENGTH,
+    )?;
+    let deck_ids = normalize_ids(input.deck_ids, "deck")?;
+    let tag_ids = normalize_ids(input.tag_ids, "tag")?;
+    let content = validate_content(input.content)?;
+    let template_ids = normalize_template_ids(input.template_ids)?;
+    let explain = normalize_explain(input.explain)?;
+    let problem = normalize_problem(input.problem)?;
+    let type_answer = normalize_type_answer(input.type_answer)?;
+
+    if problem.is_some() && !content.prompt_has_content {
+        return Err(LibraryError::MissingProblemPrompt);
+    }
+
+    validate_retrieval_form_selection(
+        input.include_standard_recall,
+        &template_ids,
+        explain.is_some(),
+        problem.is_some(),
+        type_answer.is_some(),
+        !content.cloze_group_ids.is_empty(),
+        !content.image_occlusion_group_ids.is_empty(),
+    )?;
+
+    let current = query_concept(transaction, &id)?;
+
+    validate_selections(transaction, OrganizationKind::Deck, &deck_ids)?;
+    validate_selections(transaction, OrganizationKind::Tag, &tag_ids)?;
+    validate_media_ids(transaction, &content.media_ids)?;
+    validate_template_selections(transaction, &template_ids)?;
+
+    let current_decks = item_ids(&current.decks);
+    let current_tags = item_ids(&current.tags);
+    let current_media = active_concept_media_ids(transaction, &id)?;
+    let current_include_standard_recall = current
+        .cards
+        .iter()
+        .any(|card| {
+            card.retrieval_kind == RetrievalFormKind::Recall
+                && card.template.is_none()
+        });
+    let current_type_answer = current
+        .cards
+        .iter()
+        .find_map(|card| card.type_answer.clone());
+    let current_explain = current
+        .cards
+        .iter()
+        .find_map(|card| card.explain.clone());
+    let current_problem = current
+        .cards
+        .iter()
+        .find_map(|card| card.problem.clone());
+    let current_cloze_group_ids = current
+        .cards
+        .iter()
+        .filter_map(|card| card.cloze.as_ref().map(|cloze| cloze.group_id.clone()))
+        .collect::<BTreeSet<_>>();
+    let cloze_group_ids = content
+        .cloze_group_ids
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let current_image_occlusion_group_ids = current
+        .cards
+        .iter()
+        .filter_map(|card| {
+            card.image_occlusion
+                .as_ref()
+                .map(|occlusion| occlusion.group_id.clone())
+        })
+        .collect::<BTreeSet<_>>();
+    let image_occlusion_group_ids = content
+        .image_occlusion_group_ids
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    let current_template_ids = current
+        .cards
+        .iter()
+        .filter_map(|card| card.template.as_ref().map(|template| template.id.clone()))
+        .collect::<BTreeSet<_>>();
+
+    if current.title == title
+        && current_decks == deck_ids
+        && current_tags == tag_ids
+        && current.content == content.content
+        && current_media == content.media_ids
+        && current_include_standard_recall == input.include_standard_recall
+        && current_explain == explain
+        && current_problem == problem
+        && current_type_answer == type_answer
+        && current_cloze_group_ids == cloze_group_ids
+        && current_image_occlusion_group_ids == image_occlusion_group_ids
+        && current_template_ids == template_ids
+    {
+        return Ok(current);
+    }
+
+    let entity = transaction.touch_entity(&id)?;
+
+    transaction.execute(
+        "UPDATE concepts
+        SET title = ?1,
+            content_json = ?2,
+            last_change_id = ?3
+        WHERE entity_id = ?4",
+        params![title, content.serialized, entity.last_change_id, id],
+    )?;
+
+    apply_assignments(
+        transaction,
+        OrganizationKind::Deck,
+        &entity,
+        &current_decks,
+        &deck_ids,
+    )?;
+    apply_assignments(
+        transaction,
+        OrganizationKind::Tag,
+        &entity,
+        &current_tags,
+        &tag_ids,
+    )?;
+    apply_media_assignments(
+        transaction,
+        &entity,
+        &current_media,
+        &content.media_ids,
+    )?;
+    apply_retrieval_forms(
+        transaction,
+        &id,
+        &current.cards,
+        input.include_standard_recall,
+        &template_ids,
+        explain.as_ref(),
+        problem.as_ref(),
+        type_answer.as_ref(),
+        &cloze_group_ids,
+        &image_occlusion_group_ids,
+    )?;
+
+    query_concept(transaction, &id)
 }
 
 fn normalize_value(

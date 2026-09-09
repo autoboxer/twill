@@ -1,19 +1,21 @@
 pub mod data;
 mod library;
+mod lifecycle;
 mod runtime;
 
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default().manage(
-        runtime::RuntimeRecoveryState::from_args(std::env::args_os()),
-    );
+    let builder = tauri::Builder::default()
+        .manage(lifecycle::NativeLifecycle::default())
+        .manage(runtime::RuntimeRecoveryState::from_args(std::env::args_os()));
 
     #[cfg(desktop)]
     let builder = builder
         .menu(runtime::build_menu)
-        .on_menu_event(runtime::handle_menu_event);
+        .on_menu_event(runtime::handle_menu_event)
+        .on_window_event(lifecycle::handle_window_event);
 
     builder
         .setup(|app| {
@@ -27,6 +29,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            lifecycle::native_lifecycle_ready,
+            lifecycle::complete_native_action,
             library::commands::get_library,
             library::commands::get_concept,
             library::commands::get_study_queue,
@@ -67,6 +71,8 @@ pub fn run() {
             library::commands::get_authoring_draft,
             library::commands::upsert_authoring_draft,
             library::commands::delete_authoring_draft,
+            library::commands::finalize_concept,
+            library::commands::finalize_template,
             library::commands::begin_authoring_media_session,
             library::commands::end_authoring_media_session,
             runtime::get_css_snippet_runtime_state,
@@ -79,6 +85,7 @@ pub fn run() {
             library::commands::import_image,
             library::commands::read_media,
         ])
-        .run(tauri::generate_context!())
-        .expect("failed to run Twill");
+        .build(tauri::generate_context!())
+        .expect("failed to build Twill")
+        .run(lifecycle::handle_run_event);
 }

@@ -9,6 +9,7 @@ CREATE TABLE authoring_drafts (
         OR (length(target_id) = 36 AND target_id = target_key)
     ),
     schema_version INTEGER NOT NULL CHECK (schema_version = 1),
+    revision TEXT NOT NULL CHECK (length(revision) = 36),
     base_change_id TEXT CHECK (
         base_change_id IS NULL
         OR length(base_change_id) = 36

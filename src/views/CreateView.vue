@@ -22,6 +22,7 @@ import { useAuthoringDraft } from '../composables/useAuthoringDraft';
 import { provideAuthoringMedia } from '../composables/useAuthoringMedia';
 import { useCommandHandler } from '../composables/useCommands';
 import { useDeferredEdits } from '../composables/useDeferredEdits';
+import { useNativeActionGuard } from '../composables/useNativeLifecycle';
 import {
   conceptLibraryErrorMessage,
   useConceptLibrary
@@ -39,11 +40,10 @@ const route = useRoute();
 const router = useRouter();
 const {
   clearError,
-  createConcept,
   error,
+  finalizeConcept,
   getLibrary,
-  isPending,
-  updateConcept
+  isPending
 } = useConceptLibrary();
 const {
   clearError: clearLoadError,
@@ -58,10 +58,10 @@ const {
   discard: discardDraft,
   draft,
   error: draftError,
+  finalize: finalizeDraft,
   flush: flushDraft,
   hasPendingPersistence,
   load: loadDraft,
-  refresh: refreshDraft,
   retry: retryDraft,
   scheduleDelete: scheduleDraftDelete,
   scheduleSave: scheduleDraftSave,
@@ -76,7 +76,6 @@ const {
 const concept = ref( null );
 const conceptForm = ref( null );
 const conflictMessage = ref( '' );
-const draftCleanupError = ref( '' );
 const deferredEditItem = ref( null );
 const deferredEditQueue = ref([]);
 const deferredWorkflowError = ref( '' );
@@ -134,6 +133,15 @@ const authoringMedia = provideAuthoringMedia({
   )
 });
 const { hasPendingImports } = authoringMedia;
+const { nativeActionPending } = useNativeActionGuard({
+  busy: computed( () => (
+    saveInProgress.value
+    || hasPendingImports.value
+    || recoveryBusy.value
+    || leaveLoading.value
+  ) ),
+  flush: flushDraft
+});
 const pageTitle = computed( () => {
   if ( saveAsCopy.value ) {
     return 'Create concept copy';
@@ -254,7 +262,6 @@ async function loadData() {
   clearLoadError();
   clearTemplateLoadError();
   conflictMessage.value = '';
-  draftCleanupError.value = '';
   deferredEditItem.value = null;
   deferredEditQueue.value = [];
   deferredWorkflowError.value = '';
@@ -390,30 +397,11 @@ async function saveConcept( input ) {
   conflictMessage.value = '';
 
   try {
-    await flushDraft();
-  } catch {
-    saveInProgress.value = false;
-    return;
-  }
-
-  try {
-    if ( savesExistingConcept.value && isModified.value ) {
-      const currentDraft = await refreshDraft();
-
-      if ( currentDraft?.targetStatus !== 'current' ) {
-        saveAsCopy.value = true;
-        canonicalStateKey = conceptEditorStateKey( createConceptEditorState() );
-        conflictMessage.value = currentDraft?.targetStatus === 'missing'
-          ? 'The saved concept was removed while you were editing. Create this draft as a new concept to preserve it.'
-          : 'The saved concept changed while you were editing. Create this draft as a new concept to preserve both versions.';
-
-        return;
-      }
-    }
-
-    const saved = savesExistingConcept.value
-      ? await updateConcept({ id: conceptId.value, ...input })
-      : await createConcept( input );
+    const saved = await finalizeDraft( ( context ) => finalizeConcept({
+      context: { ...context, saveAsCopy: saveAsCopy.value },
+      concept: input,
+      deferredEditPosition: isDeferredEdit.value ? deferredEditItem.value.position : null
+    }) );
 
     if ( isDeferredEdit.value && savesExistingConcept.value ) {
       markStudyConceptChanged( conceptId.value );
@@ -421,8 +409,20 @@ async function saveConcept( input ) {
 
     savedConcept.value = saved;
     await finishSavedConcept();
-  } catch {
-    // Error state is handled by the composable.
+  } catch ( cause ) {
+    if ( cause.code === 'targetChanged' || cause.code === 'targetMissing' ) {
+      clearError();
+
+      if ( !draft.value ) {
+        scheduleDraftSave( canonicalEditorState, conceptDraftMediaIds( canonicalEditorState ) );
+      }
+
+      saveAsCopy.value = true;
+      canonicalStateKey = conceptEditorStateKey( createConceptEditorState() );
+      conflictMessage.value = cause.code === 'targetMissing'
+        ? 'The saved concept was removed while you were editing. Create this draft as a new concept to preserve it.'
+        : 'The saved concept changed while you were editing. Create this draft as a new concept to preserve both versions.';
+    }
   } finally {
     saveInProgress.value = false;
   }
@@ -430,15 +430,6 @@ async function saveConcept( input ) {
 
 async function finishSavedConcept() {
   if ( !savedConcept.value ) {
-    return;
-  }
-
-  draftCleanupError.value = '';
-
-  try {
-    await discardDraft();
-  } catch {
-    draftCleanupError.value = 'The concept was saved, but its local draft could not be cleared.';
     return;
   }
 
@@ -462,7 +453,9 @@ async function continueDeferredEditing() {
   deferredWorkflowPending.value = true;
 
   try {
-    await removeDeferredEdit( conceptId.value );
+    if ( !savedConcept.value ) {
+      await removeDeferredEdit( conceptId.value );
+    }
 
     const queue = await getDeferredEdits();
     const nextItem = queue.items[ 0 ];
@@ -570,6 +563,10 @@ async function discardRecoveryDraft() {
 }
 
 function protectNavigation() {
+  if ( nativeActionPending.value ) {
+    return false;
+  }
+
   if ( allowNavigation || !editorResolved.value ) {
     return recoveryOpen.value ? false : true;
   }
@@ -629,6 +626,10 @@ async function leaveEditor() {
 }
 
 function warnBeforeWindowClose( event ) {
+  if ( nativeActionPending.value ) {
+    return;
+  }
+
   if ( !isModified.value && !hasPendingPersistence.value && !hasPendingImports.value ) {
     return;
   }
@@ -758,7 +759,7 @@ function cancel() {
       v-if="!initialLoading
         && !loadError
         && !deferredTargetUnavailable
-        && ( draftStatusMessage || draftError || conflictMessage || draftCleanupError )"
+        && ( draftStatusMessage || draftError || conflictMessage )"
       class="draft-persistence"
       aria-live="polite"
     >
@@ -772,8 +773,8 @@ function cancel() {
       />
 
       <UAlert
-        v-if="draftError || draftCleanupError"
-        :description="draftCleanupError || draftError"
+        v-if="draftError"
+        :description="draftError"
         title="Draft needs attention"
         icon="i-lucide-cloud-alert"
         color="error"
@@ -784,7 +785,7 @@ function cancel() {
             size="sm"
             color="error"
             variant="subtle"
-            @click="savedConcept ? finishSavedConcept() : retryDraft()"
+            @click="retryDraft"
           >
             Retry
           </UButton>

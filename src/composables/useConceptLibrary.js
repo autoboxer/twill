@@ -46,6 +46,7 @@ export function useConceptLibrary() {
     deleteDeck: ( id ) => run( 'delete_deck', { input: { id } }),
     deleteTag: ( id ) => run( 'delete_tag', { input: { id } }),
     error,
+    finalizeConcept: ( input ) => run( 'finalize_concept', { input }),
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
     getLibrary: ( includeArchived = false ) => run( 'get_library', { includeArchived }),
     getStudyQueue: () => run( 'get_study_queue' ),

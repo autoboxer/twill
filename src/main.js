@@ -13,6 +13,7 @@ import '@fontsource-variable/source-serif-4/wght-italic.css';
 import App from './App.vue';
 import { initializeAppearance } from './composables/useAppearance';
 import { initializeCssSnippets } from './composables/useCssSnippets';
+import { initializeNativeLifecycle } from './composables/useNativeLifecycle';
 import router from './router';
 import './styles/main.css';
 
@@ -23,7 +24,11 @@ const app = createApp( App );
 app.use( router );
 app.use( ui );
 
-router.isReady().then( () => {
+router.isReady().then( async () => {
+  await initializeNativeLifecycle();
   app.mount( '#app' );
   void initializeCssSnippets();
+}).catch( ( cause ) => {
+  console.error( 'Twill could not initialize window handling.', cause );
+  document.getElementById( 'app' ).textContent = 'Twill could not initialize safe window handling. Please restart the app.';
 });

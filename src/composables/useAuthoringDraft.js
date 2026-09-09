@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 
 const AUTHORING_DRAFT_SCHEMA_VERSION = 1;
 const DEFAULT_AUTOSAVE_DELAY = 600;
@@ -118,6 +118,25 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
     }
   }
 
+  async function finalize( save ) {
+    ensureStarted();
+
+    await nextTick();
+    await flush();
+
+    const saved = await save({
+      targetId: context.targetId,
+      expectedChangeId: context.baseChangeId,
+      expectedDraftRevision: draft.value?.revision ?? null
+    });
+
+    draft.value = null;
+    error.value = '';
+    status.value = 'untouched';
+
+    return saved;
+  }
+
   async function refresh() {
     ensureStarted();
 
@@ -232,6 +251,7 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
     discard,
     draft,
     error,
+    finalize,
     flush,
     hasPendingPersistence,
     load,

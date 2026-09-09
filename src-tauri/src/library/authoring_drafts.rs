@@ -8,7 +8,7 @@ use crate::library::authoring_media::retain_session_media;
 use crate::library::media::release_unreferenced_media;
 use crate::library::{
     AuthoringDraft, AuthoringDraftKind, AuthoringDraftLocator,
-    AuthoringDraftTargetStatus, LibraryError, LibraryResult,
+    AuthoringDraftTargetStatus, AuthoringSaveContext, LibraryError, LibraryResult,
     UpsertAuthoringDraftInput, AUTHORING_DRAFT_SCHEMA_VERSION,
 };
 
@@ -54,6 +54,7 @@ impl<'store> AuthoringDraftLibrary<'store> {
         let payload_json = validate_payload(input.schema_version, &input.payload)?;
         let media_ids = normalize_media_ids(input.media_ids)?;
         let timestamp = current_timestamp()?;
+        let revision = Uuid::now_v7().to_string();
 
         self.store.write_result(|transaction| {
             validate_target(
@@ -82,13 +83,15 @@ impl<'store> AuthoringDraftLibrary<'store> {
                     base_change_id,
                     payload_json,
                     created_at,
-                    updated_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)
+                    updated_at,
+                    revision
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8)
                 ON CONFLICT(kind, target_key) DO UPDATE SET
                     schema_version = excluded.schema_version,
                     base_change_id = excluded.base_change_id,
                     payload_json = excluded.payload_json,
-                    updated_at = excluded.updated_at",
+                    updated_at = excluded.updated_at,
+                    revision = excluded.revision",
                 params![
                     identity.kind.as_str(),
                     identity.target_key,
@@ -97,6 +100,7 @@ impl<'store> AuthoringDraftLibrary<'store> {
                     base_change_id,
                     payload_json,
                     timestamp,
+                    revision,
                 ],
             )?;
 
@@ -118,26 +122,70 @@ impl<'store> AuthoringDraftLibrary<'store> {
         &self,
         locator: AuthoringDraftLocator,
     ) -> LibraryResult<()> {
-        let identity = normalize_identity(locator.kind, locator.target_id)?;
-
         self.store.write_result(|transaction| {
-            let released_media = query_draft_media(
-                transaction,
-                identity.kind,
-                &identity.target_key,
-            )?
-            .into_iter()
-            .collect::<Vec<_>>();
-
-            transaction.execute(
-                "DELETE FROM authoring_drafts
-                WHERE kind = ?1 AND target_key = ?2",
-                params![identity.kind.as_str(), identity.target_key],
-            )?;
-
-            release_unreferenced_media(transaction, &released_media)
+            delete_draft(transaction, locator)
         })
     }
+}
+
+pub(super) fn validate_save_context(
+    transaction: &WriteTransaction<'_>,
+    kind: AuthoringDraftKind,
+    context: &AuthoringSaveContext,
+) -> LibraryResult<()> {
+    let identity = normalize_identity(kind, context.target_id.clone())?;
+    let base_change_id = normalize_base_change_id(
+        identity.target_id.as_deref(),
+        context.expected_change_id.clone(),
+    )?;
+    let draft = query_draft(transaction, kind, &identity.target_key)?;
+
+    let current_revision = draft.as_ref().map(|draft| &draft.revision);
+    let draft_base_changed = draft
+        .as_ref()
+        .is_some_and(|draft| draft.base_change_id != base_change_id);
+
+    if current_revision != context.expected_draft_revision.as_ref() || draft_base_changed {
+        return Err(LibraryError::AuthoringDraftChanged);
+    }
+
+    if (identity.target_id.is_none() || context.save_as_copy) && draft.is_none() {
+        return Err(LibraryError::AuthoringDraftChanged);
+    }
+
+    if context.save_as_copy {
+        return Ok(());
+    }
+
+    let target_status = query_target_status(
+        transaction,
+        kind,
+        identity.target_id.as_deref(),
+        base_change_id.as_deref(),
+    )?;
+
+    match target_status {
+        AuthoringDraftTargetStatus::Current => Ok(()),
+        AuthoringDraftTargetStatus::Changed => Err(LibraryError::AuthoringTargetChanged),
+        AuthoringDraftTargetStatus::Missing => Err(LibraryError::AuthoringTargetMissing),
+    }
+}
+
+pub(super) fn delete_draft(
+    transaction: &WriteTransaction<'_>,
+    locator: AuthoringDraftLocator,
+) -> LibraryResult<()> {
+    let identity = normalize_identity(locator.kind, locator.target_id)?;
+    let released_media = query_draft_media(transaction, identity.kind, &identity.target_key)?
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    transaction.execute(
+        "DELETE FROM authoring_drafts WHERE kind = ?1 AND target_key = ?2",
+        params![identity.kind.as_str(), identity.target_key],
+    )?;
+
+    release_unreferenced_media(transaction, &released_media)
 }
 
 fn normalize_identity(
@@ -322,7 +370,8 @@ fn query_draft(
                 base_change_id,
                 payload_json,
                 created_at,
-                updated_at
+                updated_at,
+                revision
             FROM authoring_drafts
             WHERE kind = ?1 AND target_key = ?2",
             params![kind.as_str(), target_key],
@@ -334,12 +383,13 @@ fn query_draft(
                     row.get::<_, String>(3)?,
                     row.get::<_, i64>(4)?,
                     row.get::<_, i64>(5)?,
+                    row.get::<_, String>(6)?,
                 ))
             },
         )
         .optional()?;
 
-    let Some((target_id, schema_version, base_change_id, payload_json, created_at, updated_at)) =
+    let Some((target_id, schema_version, base_change_id, payload_json, created_at, updated_at, revision)) =
         draft
     else {
         return Ok(None);
@@ -358,6 +408,7 @@ fn query_draft(
         kind,
         target_id,
         schema_version,
+        revision,
         base_change_id,
         payload: serde_json::from_str(&payload_json)?,
         media_ids,

@@ -173,6 +173,7 @@ pub enum DeferredEditTargetStatus {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeferredConceptEdit {
+    pub position: i64,
     pub concept_id: String,
     pub concept_title: String,
     pub base_change_id: String,
@@ -502,12 +503,38 @@ pub struct AuthoringDraft {
     pub kind: AuthoringDraftKind,
     pub target_id: Option<String>,
     pub schema_version: u32,
+    pub revision: String,
     pub base_change_id: Option<String>,
     pub payload: Value,
     pub media_ids: Vec<String>,
     pub created_at: i64,
     pub updated_at: i64,
     pub target_status: AuthoringDraftTargetStatus,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AuthoringSaveContext {
+    pub target_id: Option<String>,
+    pub expected_change_id: Option<String>,
+    pub expected_draft_revision: Option<String>,
+    #[serde(default)]
+    pub save_as_copy: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FinalizeConceptInput {
+    pub context: AuthoringSaveContext,
+    pub concept: CreateConceptInput,
+    pub deferred_edit_position: Option<i64>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct FinalizeTemplateInput {
+    pub context: AuthoringSaveContext,
+    pub template: CreateTemplateInput,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]

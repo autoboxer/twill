@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use ammonia::Builder;
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::data::{EntityKind, LocalDataStore};
+use crate::data::{EntityKind, LocalDataStore, WriteTransaction};
 use crate::library::{
     CreateTemplateInput, LibraryError, LibraryResult, TemplateBlock, TemplateCatalog,
     TemplateContent, TemplateDetail, TemplateSummary, UpdateTemplateInput,
@@ -106,64 +106,12 @@ impl<'store> TemplateLibrary<'store> {
             .read_result(|connection| query_template(connection, id))
     }
 
-    pub fn create_template(
-        &self,
-        input: CreateTemplateInput,
-    ) -> LibraryResult<TemplateDetail> {
-        let name = normalize_name(input.name)?;
-        let content = validate_template_content(input.content)?;
-        let serialized = serde_json::to_string(&content)?;
-
-        self.store.write_result(|transaction| {
-            ensure_unique_template_name(transaction, &name, None)?;
-
-            let entity = transaction.create_entity(EntityKind::Template)?;
-
-            transaction.execute(
-                "INSERT INTO templates (
-                    entity_id,
-                    name,
-                    content_json,
-                    last_change_id
-                ) VALUES (?1, ?2, ?3, ?4)",
-                params![entity.id, name, serialized, entity.last_change_id],
-            )?;
-
-            query_template(transaction, &entity.id)
-        })
+    pub fn create_template(&self, input: CreateTemplateInput) -> LibraryResult<TemplateDetail> {
+        self.store.write_result(|transaction| create_template(transaction, input))
     }
 
-    pub fn update_template(
-        &self,
-        input: UpdateTemplateInput,
-    ) -> LibraryResult<TemplateDetail> {
-        let id = input.id.trim().to_owned();
-        let name = normalize_name(input.name)?;
-        let content = validate_template_content(input.content)?;
-        let serialized = serde_json::to_string(&content)?;
-
-        self.store.write_result(|transaction| {
-            let current = query_template(transaction, &id)?;
-
-            if current.name == name && current.content == content {
-                return Ok(current);
-            }
-
-            ensure_unique_template_name(transaction, &name, Some(&id))?;
-
-            let entity = transaction.touch_entity(&id)?;
-
-            transaction.execute(
-                "UPDATE templates
-                SET name = ?1,
-                    content_json = ?2,
-                    last_change_id = ?3
-                WHERE entity_id = ?4",
-                params![name, serialized, entity.last_change_id, id],
-            )?;
-
-            query_template(transaction, &id)
-        })
+    pub fn update_template(&self, input: UpdateTemplateInput) -> LibraryResult<TemplateDetail> {
+        self.store.write_result(|transaction| update_template(transaction, input))
     }
 
     pub fn delete_template(&self, id: &str) -> LibraryResult<()> {
@@ -191,6 +139,62 @@ impl<'store> TemplateLibrary<'store> {
     pub fn prepare_content(content: TemplateContent) -> LibraryResult<TemplateContent> {
         validate_template_content(content)
     }
+}
+
+pub(super) fn create_template(
+    transaction: &WriteTransaction<'_>,
+    input: CreateTemplateInput,
+) -> LibraryResult<TemplateDetail> {
+    let name = normalize_name(input.name)?;
+    let content = validate_template_content(input.content)?;
+    let serialized = serde_json::to_string(&content)?;
+
+    ensure_unique_template_name(transaction, &name, None)?;
+
+    let entity = transaction.create_entity(EntityKind::Template)?;
+
+    transaction.execute(
+        "INSERT INTO templates (
+            entity_id,
+            name,
+            content_json,
+            last_change_id
+        ) VALUES (?1, ?2, ?3, ?4)",
+        params![entity.id, name, serialized, entity.last_change_id],
+    )?;
+
+    query_template(transaction, &entity.id)
+}
+
+pub(super) fn update_template(
+    transaction: &WriteTransaction<'_>,
+    input: UpdateTemplateInput,
+) -> LibraryResult<TemplateDetail> {
+    let id = input.id.trim().to_owned();
+    let name = normalize_name(input.name)?;
+    let content = validate_template_content(input.content)?;
+    let serialized = serde_json::to_string(&content)?;
+
+    let current = query_template(transaction, &id)?;
+
+    if current.name == name && current.content == content {
+        return Ok(current);
+    }
+
+    ensure_unique_template_name(transaction, &name, Some(&id))?;
+
+    let entity = transaction.touch_entity(&id)?;
+
+    transaction.execute(
+        "UPDATE templates
+        SET name = ?1,
+            content_json = ?2,
+            last_change_id = ?3
+        WHERE entity_id = ?4",
+        params![name, serialized, entity.last_change_id, id],
+    )?;
+
+    query_template(transaction, &id)
 }
 
 fn normalize_name(name: String) -> LibraryResult<String> {
