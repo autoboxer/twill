@@ -21,6 +21,7 @@ const routeTransition = {
 };
 
 const animateRouteEntrance = ref( false );
+const mainContent = ref( null );
 const router = useRouter();
 const commands = provideCommands( router );
 const { motionConfigPreference } = useAppearance();
@@ -30,6 +31,11 @@ const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
 onMounted( () => {
   animateRouteEntrance.value = true;
 });
+
+function skipToContent() {
+  mainContent.value?.focus({ preventScroll: true });
+  mainContent.value?.scrollTo({ top: 0, behavior: 'instant' });
+}
 </script>
 
 <template>
@@ -40,6 +46,7 @@ onMounted( () => {
     <a
       class="skip-link"
       href="#main-content"
+      @click.prevent="skipToContent"
     >
       Skip to content
     </a>
@@ -83,7 +90,12 @@ onMounted( () => {
 
         <AppNavigation />
 
-        <div class="app-viewport">
+        <main
+          id="main-content"
+          ref="mainContent"
+          class="app-viewport"
+          tabindex="-1"
+        >
           <RouterView v-slot="{ Component, route }">
             <span
               class="sr-only"
@@ -96,20 +108,18 @@ onMounted( () => {
               mode="wait"
               :initial="false"
             >
-              <m.main
-                id="main-content"
+              <m.div
                 :key="route.name"
                 class="route-content"
-                tabindex="-1"
                 :initial="animateRouteEntrance ? { opacity: 0, y: 6 } : false"
                 :animate="{ opacity: 1, y: 0 }"
                 :exit="{ opacity: 0, y: -4 }"
               >
                 <component :is="Component" />
-              </m.main>
+              </m.div>
             </AnimatePresence>
           </RouterView>
-        </div>
+        </main>
       </div>
 
       <CommandCenter />

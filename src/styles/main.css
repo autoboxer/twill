@@ -627,6 +627,7 @@ button {
   height: 100%;
   overflow: hidden auto;
   overscroll-behavior: contain;
+  outline: none;
 }
 
 .route-content {
@@ -634,7 +635,6 @@ button {
   min-height: 100%;
   padding: clamp(2rem, 5vw, 4.5rem);
   margin: 0 auto;
-  outline: none;
 }
 
 .page {
