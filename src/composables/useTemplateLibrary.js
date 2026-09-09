@@ -39,6 +39,7 @@ export function useTemplateLibrary() {
     createTemplate: ( input ) => run( 'create_template', { input }),
     deleteTemplate: ( id ) => run( 'delete_template', { input: { id } }),
     error,
+    finalizeTemplate: ( input ) => run( 'finalize_template', { input }),
     getTemplate: ( templateId ) => run( 'get_template', { templateId }),
     getTemplates: () => run( 'get_templates' ),
     isPending,

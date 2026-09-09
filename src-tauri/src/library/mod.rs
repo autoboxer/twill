@@ -1,5 +1,6 @@
 pub(crate) mod commands;
 mod authoring_drafts;
+mod authoring_finalization;
 mod authoring_media;
 mod card_quality;
 mod content;
@@ -24,7 +25,8 @@ pub use deferred_edits::DeferredEditLibrary;
 pub use error::{LibraryError, LibraryResult};
 pub use models::{
     AppearancePreferences, AppearanceTheme, AuthoringDraft, AuthoringDraftKind,
-    AuthoringDraftLocator, AuthoringDraftTargetStatus, CardSummary, ClozeSettings,
+    AuthoringDraftLocator, AuthoringDraftTargetStatus, AuthoringSaveContext,
+    CardSummary, ClozeSettings,
     CardQualityConcern, CardQualityDisposition, CardQualityEvidence,
     CardQualityKind, CardQualityQueue, CardQualityQueueItem, CardQualitySignal,
     CardQualitySource, CardQualityStatus, CloseCardQualityConcernInput,
@@ -33,7 +35,7 @@ pub use models::{
     CreateTemplateInput, CssSnippet,
     CssSnippetCatalog, CssSnippetContent, DevicePreferences, EntityIdInput,
     DeferredConceptEdit, DeferredEditQueue, DeferredEditTargetStatus,
-    DismissCardQualitySignalInput, GradingMode,
+    DismissCardQualitySignalInput, FinalizeConceptInput, FinalizeTemplateInput, GradingMode,
     ExplainSettings, ImageOcclusionSettings, LibrarySnapshot, MediaSummary,
     MotionPreference, NamedItem, OrganizationSummary,
     ProblemSettings, QueueDeferredEditInput, ReadingFont, ReadingTextSize,

@@ -54,6 +54,18 @@ pub enum LibraryError {
     #[error("authoring draft {message}")]
     InvalidAuthoringDraft { message: String },
 
+    #[error("the local draft changed; reopen the editor before saving")]
+    AuthoringDraftChanged,
+
+    #[error("the saved item changed while you were editing")]
+    AuthoringTargetChanged,
+
+    #[error("the saved item was removed while you were editing")]
+    AuthoringTargetMissing,
+
+    #[error("the queued edit changed; reopen queued editing before saving")]
+    DeferredEditChanged,
+
     #[error("the image editing session has ended; reopen the editor before importing")]
     AuthoringMediaSessionClosed,
 

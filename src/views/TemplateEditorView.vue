@@ -39,20 +39,19 @@ const route = useRoute();
 const router = useRouter();
 const {
   clearError,
-  createTemplate,
   error,
+  finalizeTemplate,
   getTemplate,
-  isPending,
-  updateTemplate
+  isPending
 } = useTemplateLibrary();
 const {
   discard: discardDraft,
   draft,
   error: draftError,
+  finalize: finalizeDraft,
   flush: flushDraft,
   hasPendingPersistence,
   load: loadDraft,
-  refresh: refreshDraft,
   retry: retryDraft,
   scheduleDelete: scheduleDraftDelete,
   scheduleSave: scheduleDraftSave,
@@ -65,7 +64,6 @@ const form = reactive({
   name: ''
 });
 const conflictMessage = ref( '' );
-const draftCleanupError = ref( '' );
 const editorResolved = ref( false );
 const initialLoading = ref( true );
 const leaveDialogOpen = ref( false );
@@ -224,7 +222,6 @@ async function loadTemplate() {
   allowNavigation = false;
   clearError();
   conflictMessage.value = '';
-  draftCleanupError.value = '';
   editorResolved.value = false;
   initialLoading.value = true;
   loadError.value = '';
@@ -313,41 +310,33 @@ async function saveTemplate() {
 
   saveInProgress.value = true;
 
-  try {
-    await flushDraft();
-  } catch {
-    saveInProgress.value = false;
-    return;
-  }
-
   const input = {
     name: form.name,
     content: cloneTemplateContent( form.content )
   };
 
   try {
-    if ( savesExistingTemplate.value && hasChanges.value ) {
-      const currentDraft = await refreshDraft();
-
-      if ( currentDraft?.targetStatus !== 'current' ) {
-        saveAsCopy.value = true;
-        savedSnapshot.value = templateEditorStateKey( createTemplateEditorState() );
-        conflictMessage.value = currentDraft?.targetStatus === 'missing'
-          ? 'The saved template was removed while you were editing. Create this draft as a new template to preserve it.'
-          : 'The saved template changed while you were editing. Create this draft as a new template to preserve both versions.';
-
-        return;
-      }
-    }
-
-    const saved = savesExistingTemplate.value
-      ? await updateTemplate({ id: templateId.value, ...input })
-      : await createTemplate( input );
+    const saved = await finalizeDraft( ( context ) => finalizeTemplate({
+      context: { ...context, saveAsCopy: saveAsCopy.value },
+      template: input
+    }) );
 
     savedTemplate.value = saved;
     await finishSavedTemplate();
-  } catch {
-    // Error state is handled by the composable.
+  } catch ( cause ) {
+    if ( cause.code === 'targetChanged' || cause.code === 'targetMissing' ) {
+      clearError();
+
+      if ( !draft.value ) {
+        scheduleDraftSave( cloneTemplateEditorState( form ) );
+      }
+
+      saveAsCopy.value = true;
+      savedSnapshot.value = templateEditorStateKey( createTemplateEditorState() );
+      conflictMessage.value = cause.code === 'targetMissing'
+        ? 'The saved template was removed while you were editing. Create this draft as a new template to preserve it.'
+        : 'The saved template changed while you were editing. Create this draft as a new template to preserve both versions.';
+    }
   } finally {
     saveInProgress.value = false;
   }
@@ -355,15 +344,6 @@ async function saveTemplate() {
 
 async function finishSavedTemplate() {
   if ( !savedTemplate.value ) {
-    return;
-  }
-
-  draftCleanupError.value = '';
-
-  try {
-    await discardDraft();
-  } catch {
-    draftCleanupError.value = 'The template was saved, but its local draft could not be cleared.';
     return;
   }
 
@@ -606,7 +586,7 @@ function cancel() {
     </ContentState>
 
     <div
-      v-if="!initialLoading && !loadError && ( draftStatusMessage || draftError || conflictMessage || draftCleanupError )"
+      v-if="!initialLoading && !loadError && ( draftStatusMessage || draftError || conflictMessage )"
       class="draft-persistence"
       aria-live="polite"
     >
@@ -620,8 +600,8 @@ function cancel() {
       />
 
       <UAlert
-        v-if="draftError || draftCleanupError"
-        :description="draftCleanupError || draftError"
+        v-if="draftError"
+        :description="draftError"
         title="Draft needs attention"
         icon="i-lucide-cloud-alert"
         color="error"
@@ -632,7 +612,7 @@ function cancel() {
             size="sm"
             color="error"
             variant="subtle"
-            @click="savedTemplate ? finishSavedTemplate() : retryDraft()"
+            @click="retryDraft"
           >
             Retry
           </UButton>

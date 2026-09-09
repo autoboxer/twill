@@ -67,6 +67,8 @@ pub fn run() {
             library::commands::get_authoring_draft,
             library::commands::upsert_authoring_draft,
             library::commands::delete_authoring_draft,
+            library::commands::finalize_concept,
+            library::commands::finalize_template,
             library::commands::begin_authoring_media_session,
             library::commands::end_authoring_media_session,
             runtime::get_css_snippet_runtime_state,
