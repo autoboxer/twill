@@ -11,7 +11,7 @@ use crate::data::{DataResult, EntityKind, LocalDataStore};
 use crate::library::models::{AnswerFeedback, ExplainFocus, TemplateMode};
 use crate::library::{
     AppearancePreferences, AppearanceTheme, ConceptContent, CreateConceptInput,
-    CreateTemplateInput, ExplainSettings, GradingMode, LibraryError, MotionPreference,
+    CreateTemplateInput, ExplainSettings, GradingMode, LibraryError, LibraryQuery, MotionPreference,
     PretestOutcome, ProblemSettings, ReadingFont, ReadingTextSize, RecordPretestInput,
     RecordReviewInput, RetrievalFormKind, ReverseReviewInput, ReviewRating, SchedulingState,
     StartupDestination, TemplateContent, TemplateLibrary, TypeAnswerSettings, UpdateConceptInput,
@@ -33,6 +33,75 @@ fn png_bytes() -> Vec<u8> {
         .unwrap();
 
     bytes.into_inner()
+}
+
+#[test]
+fn organization_catalog_retains_counts_and_order_without_concept_payloads() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+
+    assert_eq!(
+        serde_json::to_value(library.organizations().unwrap()).unwrap(),
+        json!({ "decks": [], "tags": [] })
+    );
+
+    let deck = library.create_deck("Zoology".to_owned()).unwrap();
+    let empty_deck = library.create_deck("Biology".to_owned()).unwrap();
+    let tag = library.create_tag("À réviser".to_owned()).unwrap();
+    let removed_deck = library.create_deck("Removed deck".to_owned()).unwrap();
+    let removed_tag = library.create_tag("Removed tag".to_owned()).unwrap();
+    let create = |title: &str| {
+        library
+            .create_concept(CreateConceptInput {
+                title: title.to_owned(),
+                deck_ids: vec![deck.id.clone()],
+                tag_ids: vec![tag.id.clone()],
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                explain: None,
+                problem: None,
+                type_answer: None,
+            })
+            .unwrap()
+    };
+
+    let active = create("Active concept");
+    let archived = create("Archived concept");
+    let deleted = create("Deleted concept");
+
+    library.set_concept_archived(&archived.id, true).unwrap();
+    library.delete_concept(&deleted.id).unwrap();
+    library.delete_deck(&removed_deck.id).unwrap();
+    library.delete_tag(&removed_tag.id).unwrap();
+
+    let catalog = library.organizations().unwrap();
+
+    assert_eq!(catalog.decks[1].active_concept_count, 1);
+    assert_eq!(catalog.tags[0].active_concept_count, 1);
+    assert_eq!(catalog.decks.len(), 2);
+    assert_eq!(catalog.decks[0].id, empty_deck.id);
+    assert_eq!(catalog.decks[0].concept_count, 0);
+    assert_eq!(catalog.decks[1].id, deck.id);
+    assert_eq!(catalog.decks[1].concept_count, 2);
+    assert_eq!(catalog.tags.len(), 1);
+    assert_eq!(catalog.tags[0].name, "À réviser");
+    assert_eq!(catalog.tags[0].concept_count, 2);
+
+    let serialized = serde_json::to_value(catalog).unwrap();
+
+    assert_eq!(serialized.as_object().unwrap().len(), 2);
+    assert!(serialized.get("concepts").is_none());
+    assert!(!serialized.to_string().contains(&active.id));
+
+    library.delete_concept(&active.id).unwrap();
+    library.delete_concept(&archived.id).unwrap();
+
+    let empty_catalog = library.organizations().unwrap();
+
+    assert_eq!(empty_catalog.decks.len(), 2);
+    assert!(empty_catalog.decks.iter().all(|item| item.concept_count == 0));
+    assert_eq!(empty_catalog.tags[0].concept_count, 0);
 }
 
 #[test]
@@ -88,11 +157,13 @@ fn concepts_can_be_created_organized_updated_archived_and_deleted() {
     assert_eq!(updated.tags[0].id, second_tag.id);
     assert_eq!(store.entity(&created.id).unwrap().unwrap().revision, 2);
 
-    let active_snapshot = library.snapshot(false).unwrap();
+    let active_snapshot = library.search(LibraryQuery::default()).unwrap();
 
     assert_eq!(active_snapshot.concepts.len(), 1);
+    let active_catalog = library.organizations().unwrap();
+
     assert_eq!(
-        active_snapshot
+        active_catalog
             .decks
             .iter()
             .find(|deck| deck.id == second_deck.id)
@@ -101,7 +172,7 @@ fn concepts_can_be_created_organized_updated_archived_and_deleted() {
         1
     );
     assert_eq!(
-        active_snapshot
+        active_catalog
             .decks
             .iter()
             .find(|deck| deck.id == first_deck.id)
@@ -110,7 +181,7 @@ fn concepts_can_be_created_organized_updated_archived_and_deleted() {
         0
     );
     assert_eq!(
-        active_snapshot
+        active_catalog
             .decks
             .iter()
             .find(|deck| deck.id == unused_deck.id)
@@ -122,9 +193,25 @@ fn concepts_can_be_created_organized_updated_archived_and_deleted() {
     let archived = library.set_concept_archived(&created.id, true).unwrap();
 
     assert!(archived.archived);
-    assert!(library.snapshot(false).unwrap().concepts.is_empty());
-    assert_eq!(library.snapshot(false).unwrap().archived_count, 1);
-    assert_eq!(library.snapshot(true).unwrap().concepts.len(), 1);
+    assert!(library
+        .search(LibraryQuery::default())
+        .unwrap()
+        .concepts
+        .is_empty());
+    assert_eq!(
+        library.search(LibraryQuery::default()).unwrap().archived_count,
+        1
+    );
+    assert_eq!(
+        library
+            .search(LibraryQuery {
+                include_archived: true,
+                ..Default::default()
+            })
+            .unwrap()
+            .concepts.len(),
+        1
+    );
 
     let restored = library.set_concept_archived(&created.id, false).unwrap();
 
@@ -133,7 +220,15 @@ fn concepts_can_be_created_organized_updated_archived_and_deleted() {
     library.delete_concept(&created.id).unwrap();
     library.delete_concept(&created.id).unwrap();
 
-    assert!(library.snapshot(true).unwrap().concepts.is_empty());
+    assert!(
+        library
+            .search(LibraryQuery {
+                include_archived: true,
+                ..Default::default()
+            })
+            .unwrap()
+            .concepts.is_empty()
+    );
     assert!(store
         .entity(&created.id)
         .unwrap()
@@ -202,12 +297,12 @@ fn organization_names_are_validated_and_deleted_items_leave_assignments_safe() {
     library.delete_tag(&tag.id).unwrap();
 
     let detail = library.concept(&concept.id).unwrap();
-    let snapshot = library.snapshot(false).unwrap();
+    let catalog = library.organizations().unwrap();
 
     assert!(detail.decks.is_empty());
     assert!(detail.tags.is_empty());
-    assert!(snapshot.decks.is_empty());
-    assert!(snapshot.tags.is_empty());
+    assert!(catalog.decks.is_empty());
+    assert!(catalog.tags.is_empty());
     assert!(store
         .entity(&deck.id)
         .unwrap()
@@ -443,7 +538,10 @@ fn associated_cards_are_visible_and_follow_card_tombstones() {
     let card_id = concept.cards[0].id.clone();
 
     assert_eq!(library.concept(&concept.id).unwrap().cards[0].id, card_id);
-    assert_eq!(library.snapshot(false).unwrap().concepts[0].card_count, 1);
+    assert_eq!(
+        library.search(LibraryQuery::default()).unwrap().concepts[0].card_count,
+        1
+    );
 
     let duplicate_card = store.write(|transaction| {
         let card = transaction.create_entity(EntityKind::Card)?;
@@ -469,7 +567,10 @@ fn associated_cards_are_visible_and_follow_card_tombstones() {
         .unwrap();
 
     assert!(library.concept(&concept.id).unwrap().cards.is_empty());
-    assert_eq!(library.snapshot(false).unwrap().concepts[0].card_count, 0);
+    assert_eq!(
+        library.search(LibraryQuery::default()).unwrap().concepts[0].card_count,
+        0
+    );
 
     let second_card = store
         .write(|transaction| {
@@ -521,7 +622,11 @@ fn retrieval_forms_are_selected_without_duplicates_and_schedule_independently() 
         missing_forms,
         Err(LibraryError::MissingRetrievalForm)
     ));
-    assert!(library.snapshot(false).unwrap().concepts.is_empty());
+    assert!(library
+        .search(LibraryQuery::default())
+        .unwrap()
+        .concepts
+        .is_empty());
 
     let mut custom_template_content = TemplateContent::default();
 
@@ -665,7 +770,11 @@ fn type_answer_settings_are_validated_and_normalized() {
             maximum: 500,
         })
     ));
-    assert!(library.snapshot(false).unwrap().concepts.is_empty());
+    assert!(library
+        .search(LibraryQuery::default())
+        .unwrap()
+        .concepts
+        .is_empty());
 
     let concept = library
         .create_concept(create_type_answer(vec![
@@ -839,7 +948,11 @@ fn explain_settings_are_validated_normalized_and_queued() {
             maximum: 280,
         })
     ));
-    assert!(library.snapshot(false).unwrap().concepts.is_empty());
+    assert!(library
+        .search(LibraryQuery::default())
+        .unwrap()
+        .concepts
+        .is_empty());
 
     let concept = library
         .create_concept(create_explain(vec![
@@ -1072,7 +1185,11 @@ fn problem_checkpoints_are_validated_normalized_and_queued() {
             maximum: 280,
         })
     ));
-    assert!(library.snapshot(false).unwrap().concepts.is_empty());
+    assert!(library
+        .search(LibraryQuery::default())
+        .unwrap()
+        .concepts
+        .is_empty());
 
     let concept = library
         .create_concept(create_problem(vec![

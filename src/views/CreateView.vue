@@ -32,6 +32,7 @@ import {
   createConceptEditorState
 } from '../drafts/conceptDraft';
 import { markStudyConceptChanged } from '../study/resume';
+import { libraryNavigationQuery } from '../library/search';
 
 const route = useRoute();
 const router = useRouter();
@@ -39,13 +40,13 @@ const {
   clearError,
   error,
   finalizeConcept,
-  getLibrary,
+  getLibraryOrganizations,
   isPending
 } = useConceptLibrary();
 const {
   clearError: clearLoadError,
   getConcept: loadConcept,
-  getLibrary: loadLibrary
+  getLibraryOrganizations: loadOrganizations
 } = useConceptLibrary();
 const {
   clearError: clearTemplateLoadError,
@@ -82,9 +83,7 @@ const editorState = ref( null );
 const initialLoading = ref( true );
 const isModified = ref( false );
 const loadError = ref( '' );
-const library = ref({
-  archivedCount: 0,
-  concepts: [],
+const organizations = ref({
   decks: [],
   tags: []
 });
@@ -280,13 +279,13 @@ async function loadData() {
       ? getDeferredEdits()
       : Promise.resolve({ items: [] });
     const [
-      snapshot,
+      organizationCatalog,
       conceptResult,
       templateCatalog,
       existingDraft,
       queuedEdits
     ] = await Promise.all([
-      loadLibrary( false ),
+      loadOrganizations(),
       conceptRequest,
       getTemplates(),
       loadDraft( requestedConceptId || null ),
@@ -327,7 +326,7 @@ async function loadData() {
       return;
     }
 
-    library.value = snapshot;
+    organizations.value = organizationCatalog;
     concept.value = conceptResult.value ?? null;
     templates.value = templateCatalog.templates;
     targetUnavailable.value = Boolean( conceptResult.cause );
@@ -363,7 +362,7 @@ async function loadData() {
 
 async function refreshOrganizations() {
   try {
-    library.value = await getLibrary( false );
+    organizations.value = await getLibraryOrganizations();
   } catch {
     // Error state is handled by the composable.
   }
@@ -431,7 +430,8 @@ async function finishSavedConcept() {
 
   await router.replace({
     name: 'concept-detail',
-    params: { conceptId: savedConcept.value.id }
+    params: { conceptId: savedConcept.value.id },
+    query: libraryNavigationQuery( route.query, savedConcept.value.id === conceptId.value )
   });
 }
 
@@ -530,7 +530,7 @@ async function discardRecoveryDraft() {
 
     if ( targetUnavailable.value ) {
       allowNavigation.value = true;
-      await router.replace({ name: 'library' });
+      await router.replace({ name: 'library', query: libraryNavigationQuery( route.query ) });
       return;
     }
 
@@ -558,12 +558,13 @@ function cancel() {
   if ( isEditing.value ) {
     router.push({
       name: 'concept-detail',
-      params: { conceptId: conceptId.value }
+      params: { conceptId: conceptId.value },
+      query: libraryNavigationQuery( route.query, true )
     });
     return;
   }
 
-  router.push({ name: 'library' });
+  router.push({ name: 'library', query: libraryNavigationQuery( route.query ) });
 }
 </script>
 
@@ -716,8 +717,8 @@ function cancel() {
       :concept="concept"
       :editor-state="editorState"
       :disabled="editorDisabled"
-      :decks="library.decks"
-      :tags="library.tags"
+      :decks="organizations.decks"
+      :tags="organizations.tags"
       :templates="templates"
       :error="error"
       :loading="isPending || saveInProgress"
@@ -731,8 +732,8 @@ function cancel() {
 
     <OrganizationManager
       v-model:open="organizationManagerOpen"
-      :decks="library.decks"
-      :tags="library.tags"
+      :decks="organizations.decks"
+      :tags="organizations.tags"
       @changed="refreshOrganizations"
     />
 

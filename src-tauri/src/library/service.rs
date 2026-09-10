@@ -10,7 +10,7 @@ use crate::library::study::{
 };
 use crate::library::{
     AppearancePreferences, ConceptDetail, DevicePreferences, GradingMode, LibraryError,
-    LibraryResult, LibrarySnapshot, MediaSummary, PretestRecord, RecordPretestInput,
+    LibraryResult, MediaSummary, PretestRecord, RecordPretestInput,
     RecordReviewInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings, StartupDestination, StudyQueue, UpdateSchedulingSettingsInput,
 };
@@ -19,12 +19,13 @@ mod assignments;
 mod cards;
 mod concepts;
 mod organizations;
+mod search;
 
 #[cfg(test)]
 mod tests;
 
 pub(super) use concepts::{create_concept, update_concept};
-use concepts::{query_concept, query_snapshot};
+use concepts::query_concept;
 
 pub struct ConceptLibrary<'store> {
     store: &'store LocalDataStore,
@@ -33,11 +34,6 @@ pub struct ConceptLibrary<'store> {
 impl<'store> ConceptLibrary<'store> {
     pub fn new(store: &'store LocalDataStore) -> Self {
         Self { store }
-    }
-
-    pub fn snapshot(&self, include_archived: bool) -> LibraryResult<LibrarySnapshot> {
-        self.store
-            .read_result(|connection| query_snapshot(connection, include_archived))
     }
 
     pub fn concept(&self, id: &str) -> LibraryResult<ConceptDetail> {

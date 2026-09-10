@@ -32,6 +32,7 @@ pub fn run() {
             lifecycle::native_lifecycle_ready,
             lifecycle::complete_native_action,
             library::commands::get_library,
+            library::commands::get_library_organizations,
             library::commands::get_concept,
             library::commands::get_study_queue,
             library::commands::record_pretest,

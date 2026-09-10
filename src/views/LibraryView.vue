@@ -1,122 +1,70 @@
 <script setup>
 import { AnimatePresence, m } from 'motion-v';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
 import ContentState from '../components/ContentState.vue';
+import LibraryPagination from '../components/LibraryPagination.vue';
 import OrganizationManager from '../components/OrganizationManager.vue';
 import PageHeader from '../components/PageHeader.vue';
-import {
-  conceptLibraryErrorMessage,
-  useConceptLibrary
-} from '../composables/useConceptLibrary';
+import { useLibrarySearch } from '../composables/useLibrarySearch';
+import { libraryCardTypeOptions, librarySortOptions, libraryStateOptions } from '../library/search';
+import { retrievalFormIcon, retrievalFormLabel } from '../retrieval-forms/catalog';
 
-const { clearError, getLibrary } = useConceptLibrary();
+const {
+  cardType,
+  clearFilters,
+  deckId,
+  hasFilters,
+  includeArchived,
+  library,
+  loadError,
+  loading,
+  navigationQuery,
+  organizations,
+  page,
+  query,
+  refresh,
+  refreshOrganizations,
+  sort,
+  state,
+  tagId,
+  update
+} = useLibrarySearch();
 
-const activeFilter = ref({ id: '', kind: 'all' });
-const includeArchived = ref( false );
-const initialLoading = ref( true );
-const library = ref({
-  archivedCount: 0,
-  concepts: [],
-  decks: [],
-  tags: []
-});
-
-const loadError = ref( '' );
 const organizationManagerOpen = ref( false );
-let loadRequestSequence = 0;
-
-const filteredConcepts = computed( () => {
-  if ( activeFilter.value.kind === 'deck' ) {
-    return library.value.concepts.filter( ( concept ) => concept.decks.some(
-      ( deck ) => deck.id === activeFilter.value.id
-    ) );
-  }
-
-  if ( activeFilter.value.kind === 'tag' ) {
-    return library.value.concepts.filter( ( concept ) => concept.tags.some(
-      ( tag ) => tag.id === activeFilter.value.id
-    ) );
-  }
-
-  return library.value.concepts;
-});
+const resultsHeading = ref( null );
 
 const activeFilterName = computed( () => {
-  if ( activeFilter.value.kind === 'all' ) {
-    return 'All concepts';
-  }
+  const names = [
+    organizations.value.decks.find( ( item ) => item.id === deckId.value )?.name,
+    organizations.value.tags.find( ( item ) => item.id === tagId.value )?.name
+  ].filter( Boolean );
 
-  const items = activeFilter.value.kind === 'deck'
-    ? library.value.decks
-    : library.value.tags;
-
-  return items.find( ( item ) => item.id === activeFilter.value.id )?.name ?? 'Concepts';
+  return names.length ? names.join( ' · ' ) : 'All concepts';
 });
 
-watch( includeArchived, () => loadLibrary(), { immediate: true });
-
 function selectFilter( kind, id = '' ) {
-  activeFilter.value = { id, kind };
+  if ( kind === 'all' ) {
+    update({ deckId: null, tagId: null });
+  } else {
+    const field = kind === 'deck' ? deckId : tagId;
+
+    field.value = field.value === id ? null : id;
+  }
 }
 
 function filterIsActive( kind, id = '' ) {
-  return activeFilter.value.kind === kind && activeFilter.value.id === id;
+  if ( kind === 'all' ) {
+    return !deckId.value && !tagId.value;
+  }
+
+  return ( kind === 'deck' ? deckId.value : tagId.value ) === id;
 }
 
-function ensureFilterExists() {
-  if ( activeFilter.value.kind === 'deck' ) {
-    const exists = library.value.decks.some( ( deck ) => deck.id === activeFilter.value.id );
-
-    if ( !exists ) {
-      selectFilter( 'all' );
-    }
-  }
-
-  if ( activeFilter.value.kind === 'tag' ) {
-    const exists = library.value.tags.some( ( tag ) => tag.id === activeFilter.value.id );
-
-    if ( !exists ) {
-      selectFilter( 'all' );
-    }
-  }
-}
-
-async function loadLibrary( showLoading = true ) {
-  const request = ++loadRequestSequence;
-  const requestedIncludeArchived = includeArchived.value;
-
-  clearError();
-  loadError.value = '';
-
-  if ( showLoading ) {
-    initialLoading.value = true;
-  }
-
-  try {
-    const snapshot = await getLibrary( requestedIncludeArchived );
-
-    if ( request !== loadRequestSequence ) {
-      return;
-    }
-
-    library.value = snapshot;
-    ensureFilterExists();
-  } catch ( cause ) {
-    if ( request === loadRequestSequence ) {
-      loadError.value = conceptLibraryErrorMessage( cause );
-    }
-  } finally {
-    if ( request === loadRequestSequence ) {
-      initialLoading.value = false;
-    }
-  }
-}
-
-function visibleConceptCount( kind, id ) {
-  return library.value.concepts.filter( ( concept ) => concept[ kind ].some(
-    ( item ) => item.id === id
-  ) ).length;
+function changePage( nextPage ) {
+  page.value = nextPage;
+  resultsHeading.value?.focus({ preventScroll: true });
+  resultsHeading.value?.scrollIntoView({ block: 'start' });
 }
 
 function formattedDate( timestamp ) {
@@ -163,7 +111,7 @@ function formattedDate( timestamp ) {
         </UButton>
 
         <UButton
-          to="/create"
+          :to="{ name: 'create', query: navigationQuery }"
           leading-icon="i-lucide-plus"
         >
           New concept
@@ -171,61 +119,7 @@ function formattedDate( timestamp ) {
       </template>
     </PageHeader>
 
-    <ContentState
-      v-if="initialLoading"
-      kind="loading"
-      title="Loading library"
-    />
-
-    <ContentState
-      v-else-if="loadError"
-      kind="error"
-      title="Library could not be loaded"
-      :description="loadError"
-    >
-      <template #actions>
-        <UButton
-          leading-icon="i-lucide-refresh-cw"
-          @click="loadLibrary"
-        >
-          Retry
-        </UButton>
-      </template>
-    </ContentState>
-
-    <ContentState
-      v-else-if="!library.concepts.length"
-      :title="library.archivedCount && !includeArchived
-        ? 'No active concepts'
-        : 'No concepts yet'"
-      :description="library.archivedCount && !includeArchived
-        ? 'Archived concepts are hidden from the current view.'
-        : 'Create a concept to begin building the library.'"
-    >
-      <template #actions>
-        <UButton
-          v-if="library.archivedCount && !includeArchived"
-          leading-icon="i-lucide-archive"
-          color="neutral"
-          variant="subtle"
-          @click="includeArchived = true"
-        >
-          Show archived
-        </UButton>
-
-        <UButton
-          to="/create"
-          leading-icon="i-lucide-plus"
-        >
-          New concept
-        </UButton>
-      </template>
-    </ContentState>
-
-    <div
-      v-else
-      class="library-layout"
-    >
+    <div class="library-layout">
       <aside
         class="library-filters"
         aria-label="Library filters"
@@ -235,51 +129,54 @@ function formattedDate( timestamp ) {
             type="button"
             class="library-filter"
             :class="{ 'library-filter--active': filterIsActive( 'all' ) }"
+            :aria-pressed="filterIsActive( 'all' )"
             @click="selectFilter( 'all' )"
           >
             <UIcon name="i-lucide-layers-3" />
             <span>All concepts</span>
-            <small>{{ library.concepts.length }}</small>
+            <small>{{ library.conceptCount }}</small>
           </button>
         </div>
 
         <div
-          v-if="library.decks.length"
+          v-if="organizations.decks.length"
           class="library-filter-group"
         >
           <h2>Decks</h2>
 
           <button
-            v-for="deck in library.decks"
+            v-for="deck in organizations.decks"
             :key="deck.id"
             type="button"
             class="library-filter"
             :class="{ 'library-filter--active': filterIsActive( 'deck', deck.id ) }"
+            :aria-pressed="filterIsActive( 'deck', deck.id )"
             @click="selectFilter( 'deck', deck.id )"
           >
             <UIcon name="i-lucide-folder" />
             <span>{{ deck.name }}</span>
-            <small>{{ visibleConceptCount( 'decks', deck.id ) }}</small>
+            <small>{{ includeArchived ? deck.conceptCount : deck.activeConceptCount }}</small>
           </button>
         </div>
 
         <div
-          v-if="library.tags.length"
+          v-if="organizations.tags.length"
           class="library-filter-group"
         >
           <h2>Tags</h2>
 
           <button
-            v-for="tag in library.tags"
+            v-for="tag in organizations.tags"
             :key="tag.id"
             type="button"
             class="library-filter"
             :class="{ 'library-filter--active': filterIsActive( 'tag', tag.id ) }"
+            :aria-pressed="filterIsActive( 'tag', tag.id )"
             @click="selectFilter( 'tag', tag.id )"
           >
             <UIcon name="i-lucide-tag" />
             <span>{{ tag.name }}</span>
-            <small>{{ visibleConceptCount( 'tags', tag.id ) }}</small>
+            <small>{{ includeArchived ? tag.conceptCount : tag.activeConceptCount }}</small>
           </button>
         </div>
 
@@ -292,29 +189,134 @@ function formattedDate( timestamp ) {
         </label>
       </aside>
 
-      <section class="library-results">
-        <div class="library-results__heading">
+      <section
+        class="library-results"
+        :aria-busy="loading"
+      >
+        <div class="library-search">
+          <label for="library-query">Search library</label>
+
+          <UInput
+            id="library-query"
+            v-model="query"
+            type="search"
+            leading-icon="i-lucide-search"
+            placeholder="Search titles and content"
+            :maxlength="250"
+            aria-describedby="library-search-help"
+          />
+
+          <p id="library-search-help">Use words or word prefixes. All terms must match.</p>
+        </div>
+
+        <div class="library-search-options">
+          <div>
+            <label for="library-card-type">Card type</label>
+            <USelect
+              id="library-card-type"
+              v-model="cardType"
+              :items="libraryCardTypeOptions"
+              variant="subtle"
+            />
+          </div>
+
+          <div>
+            <label for="library-state">Learning state</label>
+            <USelect
+              id="library-state"
+              v-model="state"
+              :items="libraryStateOptions"
+              variant="subtle"
+            />
+          </div>
+
+          <div>
+            <label for="library-sort">Sort by</label>
+            <USelect
+              id="library-sort"
+              v-model="sort"
+              :items="librarySortOptions"
+              variant="subtle"
+            />
+          </div>
+
+          <UButton
+            v-if="hasFilters"
+            color="neutral"
+            variant="link"
+            @click="clearFilters"
+          >
+            Clear filters
+          </UButton>
+        </div>
+
+        <div
+          ref="resultsHeading"
+          class="library-results__heading"
+          tabindex="-1"
+        >
           <div>
             <h2>{{ activeFilterName }}</h2>
-            <p>
-              {{ filteredConcepts.length }}
-              {{ filteredConcepts.length === 1 ? 'concept' : 'concepts' }}
+            <p aria-live="polite">
+              {{ loading ? 'Searching…' : library.totalCount }}
+              {{ loading ? '' : library.totalCount === 1 ? 'concept' : 'concepts' }}
             </p>
           </div>
+
+          <LibraryPagination
+            :library="library"
+            :loading="loading"
+            @change="changePage"
+          />
         </div>
 
         <ContentState
-          v-if="!filteredConcepts.length"
-          title="No concepts in this view"
-          description="Choose another deck or tag, or clear the current filter."
+          v-if="loading"
+          kind="loading"
+          title="Loading library"
+        />
+
+        <ContentState
+          v-else-if="loadError"
+          kind="error"
+          title="Library could not be loaded"
+          :description="loadError"
         >
           <template #actions>
             <UButton
+              leading-icon="i-lucide-refresh-cw"
+              @click="refresh"
+            >
+              Retry
+            </UButton>
+          </template>
+        </ContentState>
+
+        <ContentState
+          v-else-if="!library.concepts.length"
+          :title="hasFilters
+            ? 'No matching concepts'
+            : library.archivedCount && !includeArchived ? 'No active concepts' : 'No concepts yet'"
+          :description="hasFilters
+            ? 'Try different words or clear the current filters.'
+            : 'Create a concept or show archived concepts.'"
+        >
+          <template #actions>
+            <UButton
+              v-if="!hasFilters && library.archivedCount && !includeArchived"
               color="neutral"
               variant="subtle"
-              @click="selectFilter( 'all' )"
+              @click="includeArchived = true"
             >
-              Clear filter
+              Show archived
+            </UButton>
+
+            <UButton
+              v-else-if="!hasFilters"
+              :to="{ name: 'create', query: navigationQuery }"
+              leading-icon="i-lucide-plus"
+            >
+              New concept
             </UButton>
           </template>
         </ContentState>
@@ -325,7 +327,7 @@ function formattedDate( timestamp ) {
         >
           <AnimatePresence :initial="false">
             <m.article
-              v-for="( concept, index ) in filteredConcepts"
+              v-for="( concept, index ) in library.concepts"
               :key="concept.id"
               class="concept-card"
               data-twill-concept-card
@@ -338,7 +340,8 @@ function formattedDate( timestamp ) {
               <RouterLink
                 :to="{
                   name: 'concept-detail',
-                  params: { conceptId: concept.id }
+                  params: { conceptId: concept.id },
+                  query: { ...navigationQuery, card: concept.matchingForm?.id }
                 }"
                 class="concept-card__link"
               >
@@ -354,6 +357,21 @@ function formattedDate( timestamp ) {
                       size="sm"
                     />
                   </div>
+
+                  <p
+                    v-if="concept.excerpt"
+                    class="concept-card__excerpt"
+                  >
+                    {{ concept.excerpt }}
+                  </p>
+
+                  <p
+                    v-if="concept.matchingForm"
+                    class="concept-card__match"
+                  >
+                    <UIcon :name="retrievalFormIcon( concept.matchingForm )" />
+                    <span>View {{ retrievalFormLabel( concept.matchingForm ) }}</span>
+                  </p>
 
                   <div
                     v-if="concept.decks.length || concept.tags.length"
@@ -397,14 +415,21 @@ function formattedDate( timestamp ) {
             </m.article>
           </AnimatePresence>
         </div>
+
+        <LibraryPagination
+          v-if="!loading && !loadError && library.concepts.length"
+          class="library-pagination--bottom"
+          :library="library"
+          @change="changePage"
+        />
       </section>
     </div>
 
     <OrganizationManager
       v-model:open="organizationManagerOpen"
-      :decks="library.decks"
-      :tags="library.tags"
-      @changed="loadLibrary( false )"
+      :decks="organizations.decks"
+      :tags="organizations.tags"
+      @changed="refreshOrganizations"
     />
   </div>
 </template>

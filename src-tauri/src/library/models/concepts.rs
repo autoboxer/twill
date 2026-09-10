@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use super::{CardSummary, ExplainSettings, ProblemSettings, TypeAnswerSettings};
+use super::{CardSummary, ExplainSettings, ProblemSettings, RetrievalFormKind, TypeAnswerSettings};
 
 pub const RICH_CONTENT_SCHEMA_VERSION: u32 = 1;
 
@@ -18,6 +18,7 @@ pub struct OrganizationSummary {
     pub id: String,
     pub name: String,
     pub concept_count: i64,
+    pub active_concept_count: i64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -31,6 +32,47 @@ pub struct ConceptSummary {
     pub decks: Vec<NamedItem>,
     pub tags: Vec<NamedItem>,
     pub card_count: i64,
+    pub excerpt: Option<String>,
+    pub matching_form: Option<LibraryCardMatch>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryCardMatch {
+    pub id: String,
+    pub retrieval_kind: RetrievalFormKind,
+    pub template: Option<NamedItem>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LibraryCardState {
+    New,
+    Learning,
+    Review,
+    Relearning,
+    Due,
+}
+
+impl LibraryCardState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::New => "new",
+            Self::Learning => "learning",
+            Self::Review => "review",
+            Self::Relearning => "relearning",
+            Self::Due => "due",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LibrarySort {
+    #[default]
+    Relevance,
+    Title,
+    Updated,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -98,11 +140,33 @@ pub struct ConceptDetail {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LibrarySnapshot {
+pub struct LibraryPage {
     pub concepts: Vec<ConceptSummary>,
+    pub archived_count: i64,
+    pub concept_count: i64,
+    pub total_count: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct LibraryQuery {
+    pub query: String,
+    pub include_archived: bool,
+    pub deck_id: Option<String>,
+    pub tag_id: Option<String>,
+    pub card_type: Option<RetrievalFormKind>,
+    pub state: Option<LibraryCardState>,
+    pub sort: LibrarySort,
+    pub page: u32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryOrganizations {
     pub decks: Vec<OrganizationSummary>,
     pub tags: Vec<OrganizationSummary>,
-    pub archived_count: i64,
 }
 
 #[derive(Clone, Debug, Deserialize)]

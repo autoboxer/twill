@@ -12,6 +12,7 @@ import {
   useConceptLibrary
 } from '../composables/useConceptLibrary';
 import { collectImageOcclusionGroups } from '../image-occlusion/documents';
+import { libraryNavigationQuery } from '../library/search';
 import { richDocumentHasContent } from '../rich-content/schema';
 import { retrievalFormIcon, retrievalFormLabel } from '../retrieval-forms/catalog';
 
@@ -34,6 +35,12 @@ let loadRequestSequence = 0;
 let timeUpdateTimer = null;
 
 const conceptId = computed( () => route.params.conceptId ?? '' );
+const libraryQuery = computed( () => libraryNavigationQuery( route.query ) );
+const detailQuery = computed( () => libraryNavigationQuery( route.query, true ) );
+const selectedCardId = computed( () => detailQuery.value.card ?? '' );
+const selectedCardMissing = computed( () => selectedCardId.value
+  && concept.value && !concept.value.cards.some( ( card ) => card.id === selectedCardId.value )
+);
 const isPending = computed( () => Boolean( pendingAction.value ) );
 const deleteDialogOpen = computed({
   get: () => Boolean( deleteTarget.value ),
@@ -88,6 +95,18 @@ const answerFeedbackDocuments = computed( () => [
 ].filter( ( item ) => richDocumentHasContent( item.document ) ) );
 
 watch( () => route.fullPath, loadConcept, { immediate: true, flush: 'sync' });
+
+watch([ initialLoading, selectedCardId, () => concept.value?.id ], () => {
+  if ( initialLoading.value || !selectedCardId.value || selectedCardMissing.value
+    || route.name !== 'concept-detail' ) {
+    return;
+  }
+
+  const element = document.getElementById( `retrieval-form-${ selectedCardId.value }` );
+
+  element?.focus({ preventScroll: true });
+  element?.scrollIntoView({ block: 'center' });
+}, { flush: 'post' });
 
 onMounted( () => {
   timeUpdateTimer = window.setInterval( () => {
@@ -187,7 +206,7 @@ async function confirmDelete() {
 
     if ( isCurrentTarget( target ) ) {
       deleteTarget.value = null;
-      await router.replace({ name: 'library' });
+      await router.replace({ name: 'library', query: libraryQuery.value });
     }
   } catch ( cause ) {
     if ( isCurrentTarget( target ) ) {
@@ -348,7 +367,7 @@ function schedulingStateDetails( state ) {
     <PageHeader :title="concept?.title ?? 'Concept'">
       <template #actions>
         <UButton
-          :to="{ name: 'library' }"
+          :to="{ name: 'library', query: libraryQuery }"
           leading-icon="i-lucide-arrow-left"
           color="neutral"
           variant="link"
@@ -360,7 +379,8 @@ function schedulingStateDetails( state ) {
           v-if="concept"
           :to="{
             name: 'concept-edit',
-            params: { conceptId: concept.id }
+            params: { conceptId: concept.id },
+            query: detailQuery
           }"
           leading-icon="i-lucide-pencil"
           color="neutral"
@@ -392,7 +412,7 @@ function schedulingStateDetails( state ) {
         </UButton>
 
         <UButton
-          :to="{ name: 'library' }"
+          :to="{ name: 'library', query: libraryQuery }"
           color="neutral"
           variant="link"
         >
@@ -520,13 +540,24 @@ function schedulingStateDetails( state ) {
           </div>
         </div>
 
+        <p
+          v-if="selectedCardMissing"
+          class="retrieval-forms__empty"
+          role="status"
+        >
+          The selected retrieval form is no longer available.
+        </p>
+
         <ol
           v-if="concept.cards.length"
           class="retrieval-form-list"
         >
           <li
             v-for="card in concept.cards"
+            :id="`retrieval-form-${ card.id }`"
             :key="card.id"
+            :class="{ 'retrieval-form-list__selected': card.id === selectedCardId }"
+            tabindex="-1"
           >
             <span
               class="retrieval-form-list__icon"
