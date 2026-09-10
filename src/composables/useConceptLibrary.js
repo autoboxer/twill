@@ -49,6 +49,7 @@ export function useConceptLibrary() {
     finalizeConcept: ( input ) => run( 'finalize_concept', { input }),
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
     getLibrary: ( includeArchived = false ) => run( 'get_library', { includeArchived }),
+    getLibraryOrganizations: () => run( 'get_library_organizations' ),
     getStudyQueue: () => run( 'get_study_queue' ),
     isPending,
     readMedia: ( mediaId ) => run( 'read_media', { mediaId }),

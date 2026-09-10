@@ -36,7 +36,7 @@ pub use models::{
     CssSnippetCatalog, CssSnippetContent, DevicePreferences, EntityIdInput,
     DeferredConceptEdit, DeferredEditQueue, DeferredEditTargetStatus,
     DismissCardQualitySignalInput, FinalizeConceptInput, FinalizeTemplateInput, GradingMode,
-    ExplainSettings, ImageOcclusionSettings, LibrarySnapshot, MediaSummary,
+    ExplainSettings, ImageOcclusionSettings, LibraryOrganizations, LibrarySnapshot, MediaSummary,
     MotionPreference, NamedItem, OrganizationSummary,
     ProblemSettings, QueueDeferredEditInput, ReadingFont, ReadingTextSize,
     PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput,

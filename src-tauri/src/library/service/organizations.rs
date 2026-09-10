@@ -4,7 +4,7 @@ use rusqlite::{params, Connection};
 
 use super::{normalize_value, ConceptLibrary};
 use crate::data::EntityKind;
-use crate::library::{LibraryError, LibraryResult, OrganizationSummary};
+use crate::library::{LibraryError, LibraryOrganizations, LibraryResult, OrganizationSummary};
 
 const MAXIMUM_ORGANIZATION_NAME_LENGTH: usize = 80;
 
@@ -59,6 +59,15 @@ impl OrganizationKind {
 }
 
 impl ConceptLibrary<'_> {
+    pub fn organizations(&self) -> LibraryResult<LibraryOrganizations> {
+        self.store.read_result(|connection| {
+            Ok(LibraryOrganizations {
+                decks: query_organizations(connection, OrganizationKind::Deck)?,
+                tags: query_organizations(connection, OrganizationKind::Tag)?,
+            })
+        })
+    }
+
     pub fn create_deck(&self, name: String) -> LibraryResult<OrganizationSummary> {
         self.create_organization(OrganizationKind::Deck, name)
     }

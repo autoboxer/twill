@@ -12,7 +12,7 @@ use crate::library::{
     CreateConceptInput, CreateCssSnippetInput, CreateNamedItemInput,
     CreateTemplateInput, CssSnippet, CssSnippetCatalog, CssSnippetLibrary,
     DeferredConceptEdit, DeferredEditLibrary, DeferredEditQueue, DevicePreferences,
-    DismissCardQualitySignalInput, EntityIdInput, LibraryError, LibrarySnapshot,
+    DismissCardQualitySignalInput, EntityIdInput, LibraryError, LibraryOrganizations, LibrarySnapshot,
     FinalizeConceptInput, FinalizeTemplateInput, OrganizationSummary,
     PretestRecord, QueueDeferredEditInput, RecordPretestInput, RecordReviewInput,
     RenameNamedItemInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
@@ -136,6 +136,15 @@ pub(crate) fn get_library(
 ) -> CommandResult<LibrarySnapshot> {
     ConceptLibrary::new(local_data.inner())
         .snapshot(include_archived)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_library_organizations(
+    local_data: State<'_, LocalDataStore>,
+) -> CommandResult<LibraryOrganizations> {
+    ConceptLibrary::new(local_data.inner())
+        .organizations()
         .map_err(Into::into)
 }
 

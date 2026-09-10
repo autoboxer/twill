@@ -36,6 +36,76 @@ fn png_bytes() -> Vec<u8> {
 }
 
 #[test]
+fn organization_catalog_retains_counts_and_order_without_concept_payloads() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+
+    assert_eq!(
+        serde_json::to_value(library.organizations().unwrap()).unwrap(),
+        json!({ "decks": [], "tags": [] })
+    );
+
+    let deck = library.create_deck("Zoology".to_owned()).unwrap();
+    let empty_deck = library.create_deck("Biology".to_owned()).unwrap();
+    let tag = library.create_tag("À réviser".to_owned()).unwrap();
+    let removed_deck = library.create_deck("Removed deck".to_owned()).unwrap();
+    let removed_tag = library.create_tag("Removed tag".to_owned()).unwrap();
+    let create = |title: &str| {
+        library
+            .create_concept(CreateConceptInput {
+                title: title.to_owned(),
+                deck_ids: vec![deck.id.clone()],
+                tag_ids: vec![tag.id.clone()],
+                content: Default::default(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                explain: None,
+                problem: None,
+                type_answer: None,
+            })
+            .unwrap()
+    };
+
+    let active = create("Active concept");
+    let archived = create("Archived concept");
+    let deleted = create("Deleted concept");
+
+    library.set_concept_archived(&archived.id, true).unwrap();
+    library.delete_concept(&deleted.id).unwrap();
+    library.delete_deck(&removed_deck.id).unwrap();
+    library.delete_tag(&removed_tag.id).unwrap();
+
+    let catalog = library.organizations().unwrap();
+    let snapshot = library.snapshot(true).unwrap();
+
+    assert_eq!(catalog.decks, snapshot.decks);
+    assert_eq!(catalog.tags, snapshot.tags);
+    assert_eq!(catalog.decks.len(), 2);
+    assert_eq!(catalog.decks[0].id, empty_deck.id);
+    assert_eq!(catalog.decks[0].concept_count, 0);
+    assert_eq!(catalog.decks[1].id, deck.id);
+    assert_eq!(catalog.decks[1].concept_count, 2);
+    assert_eq!(catalog.tags.len(), 1);
+    assert_eq!(catalog.tags[0].name, "À réviser");
+    assert_eq!(catalog.tags[0].concept_count, 2);
+
+    let serialized = serde_json::to_value(catalog).unwrap();
+
+    assert_eq!(serialized.as_object().unwrap().len(), 2);
+    assert!(serialized.get("concepts").is_none());
+    assert!(!serialized.to_string().contains(&active.id));
+
+    library.delete_concept(&active.id).unwrap();
+    library.delete_concept(&archived.id).unwrap();
+
+    let empty_catalog = library.organizations().unwrap();
+
+    assert_eq!(empty_catalog.decks.len(), 2);
+    assert!(empty_catalog.decks.iter().all(|item| item.concept_count == 0));
+    assert_eq!(empty_catalog.tags[0].concept_count, 0);
+}
+
+#[test]
 fn concepts_can_be_created_organized_updated_archived_and_deleted() {
     let (_directory, store) = test_store();
     let library = ConceptLibrary::new(&store);

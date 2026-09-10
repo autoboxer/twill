@@ -105,6 +105,13 @@ pub struct LibrarySnapshot {
     pub archived_count: i64,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryOrganizations {
+    pub decks: Vec<OrganizationSummary>,
+    pub tags: Vec<OrganizationSummary>,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateConceptInput {
