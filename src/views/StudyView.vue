@@ -20,6 +20,7 @@ import { useStudySession } from '../composables/useStudySession';
 import { useStudyFocus } from '../composables/useStudyFocus';
 import { useStudyDeferredEdits } from '../composables/useStudyDeferredEdits';
 import { gradingModeItems, gradingOptionsByMode } from '../study/grading';
+import { retrievalFormLabel as studyCardName } from '../retrieval-forms/catalog';
 
 const commands = useCommands();
 const session = useStudySession({
@@ -358,29 +359,6 @@ function registerGradingCommand( commandId, mode, rating ) {
   });
 }
 
-function studyCardName( card ) {
-  if ( card.retrievalKind === 'cloze' ) {
-    return 'Cloze';
-  }
-
-  if ( card.retrievalKind === 'typeAnswer' ) {
-    return 'Type answer';
-  }
-
-  if ( card.retrievalKind === 'explain' ) {
-    return 'Explain';
-  }
-
-  if ( card.retrievalKind === 'problem' ) {
-    return 'Problem';
-  }
-
-  if ( card.retrievalKind === 'imageOcclusion' ) {
-    return 'Image occlusion';
-  }
-
-  return card.template?.name ?? 'Standard recall';
-}
 </script>
 
 <template>

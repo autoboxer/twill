@@ -8,14 +8,11 @@ use crate::data::{current_timestamp, EntityKind, WriteTransaction};
 use crate::library::media::query_media_for_concepts;
 use crate::library::mixed_practice::mix_due_cards;
 use crate::library::models::TemplateMode;
-use crate::library::retrieval_forms::{
-    parse_retrieval_form_configuration, retrieval_form_configuration,
-};
+use crate::library::retrieval_forms::parse_retrieval_form_configuration;
 use crate::library::{
-    ClozeSettings, ExplainSettings, ImageOcclusionSettings, LibraryError,
-    LibraryResult, ProblemSettings, RetrievalFormKind, ReviewOutcome,
+    LibraryError, LibraryResult, RetrievalFormKind, ReviewOutcome,
     ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
-    StudyCard, StudyQueue, StudyTemplate, TypeAnswerSettings,
+    StudyCard, StudyQueue, StudyTemplate,
     UpdateSchedulingSettingsInput,
 };
 
@@ -45,179 +42,6 @@ struct SchedulerConfiguration {
     desired_retention: f64,
     maximum_interval_days: i64,
     scheduler: FSRS,
-}
-
-pub fn create_recall_card(
-    transaction: &WriteTransaction<'_>,
-    concept_id: &str,
-    template_id: Option<&str>,
-) -> LibraryResult<()> {
-    create_card(
-        transaction,
-        concept_id,
-        RetrievalFormKind::Recall,
-        template_id,
-        None,
-        None,
-        None,
-        None,
-        None,
-    )
-}
-
-pub fn create_type_answer_card(
-    transaction: &WriteTransaction<'_>,
-    concept_id: &str,
-    settings: &TypeAnswerSettings,
-) -> LibraryResult<()> {
-    create_card(
-        transaction,
-        concept_id,
-        RetrievalFormKind::TypeAnswer,
-        None,
-        Some(settings),
-        None,
-        None,
-        None,
-        None,
-    )
-}
-
-pub fn create_explain_card(
-    transaction: &WriteTransaction<'_>,
-    concept_id: &str,
-    settings: &ExplainSettings,
-) -> LibraryResult<()> {
-    create_card(
-        transaction,
-        concept_id,
-        RetrievalFormKind::Explain,
-        None,
-        None,
-        Some(settings),
-        None,
-        None,
-        None,
-    )
-}
-
-pub fn create_problem_card(
-    transaction: &WriteTransaction<'_>,
-    concept_id: &str,
-    settings: &ProblemSettings,
-) -> LibraryResult<()> {
-    create_card(
-        transaction,
-        concept_id,
-        RetrievalFormKind::Problem,
-        None,
-        None,
-        None,
-        Some(settings),
-        None,
-        None,
-    )
-}
-
-pub fn create_cloze_card(
-    transaction: &WriteTransaction<'_>,
-    concept_id: &str,
-    group_id: &str,
-) -> LibraryResult<()> {
-    let settings = ClozeSettings {
-        group_id: group_id.to_owned(),
-    };
-
-    create_card(
-        transaction,
-        concept_id,
-        RetrievalFormKind::Cloze,
-        None,
-        None,
-        None,
-        None,
-        Some(&settings),
-        None,
-    )
-}
-
-pub fn create_image_occlusion_card(
-    transaction: &WriteTransaction<'_>,
-    concept_id: &str,
-    group_id: &str,
-) -> LibraryResult<()> {
-    let settings = ImageOcclusionSettings {
-        group_id: group_id.to_owned(),
-    };
-
-    create_card(
-        transaction,
-        concept_id,
-        RetrievalFormKind::ImageOcclusion,
-        None,
-        None,
-        None,
-        None,
-        None,
-        Some(&settings),
-    )
-}
-
-fn create_card(
-    transaction: &WriteTransaction<'_>,
-    concept_id: &str,
-    retrieval_kind: RetrievalFormKind,
-    template_id: Option<&str>,
-    type_answer: Option<&TypeAnswerSettings>,
-    explain: Option<&ExplainSettings>,
-    problem: Option<&ProblemSettings>,
-    cloze: Option<&ClozeSettings>,
-    image_occlusion: Option<&ImageOcclusionSettings>,
-) -> LibraryResult<()> {
-    let configuration = retrieval_form_configuration(
-        retrieval_kind,
-        type_answer,
-        explain,
-        problem,
-        cloze,
-        image_occlusion,
-    )?;
-    let entity = transaction.create_entity(EntityKind::Card)?;
-
-    transaction.execute(
-        "INSERT INTO cards (
-            entity_id,
-            concept_id,
-            retrieval_kind,
-            configuration_json,
-            template_id,
-            last_change_id
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![
-            entity.id,
-            concept_id,
-            retrieval_kind.as_str(),
-            configuration,
-            template_id,
-            entity.last_change_id
-        ],
-    )?;
-    transaction.execute(
-        "INSERT INTO card_scheduling (
-            card_id,
-            state,
-            due_at,
-            stability,
-            difficulty,
-            last_reviewed_at,
-            last_review_id,
-            review_count,
-            lapse_count
-        ) VALUES (?1, 'new', ?2, NULL, NULL, NULL, NULL, 0, 0)",
-        params![entity.id, entity.created_at],
-    )?;
-
-    Ok(())
 }
 
 pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<StudyQueue> {
@@ -392,11 +216,11 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
                 concept_title,
                 content: serde_json::from_str(&content)?,
                 retrieval_kind,
-                explain: parsed.explain,
-                problem: parsed.problem,
-                cloze: parsed.cloze,
-                image_occlusion: parsed.image_occlusion,
-                type_answer: parsed.type_answer,
+                explain: parsed.explain().cloned(),
+                problem: parsed.problem().cloned(),
+                cloze: parsed.cloze().cloned(),
+                image_occlusion: parsed.image_occlusion().cloned(),
+                type_answer: parsed.type_answer().cloned(),
                 template,
                 scheduling_state: SchedulingState::try_from(state.as_str())?,
                 due_at,
