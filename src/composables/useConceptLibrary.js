@@ -48,7 +48,7 @@ export function useConceptLibrary() {
     error,
     finalizeConcept: ( input ) => run( 'finalize_concept', { input }),
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
-    getLibrary: ( includeArchived = false ) => run( 'get_library', { includeArchived }),
+    getLibrary: ( input = {}) => run( 'get_library', { input }),
     getLibraryOrganizations: () => run( 'get_library_organizations' ),
     getStudyQueue: () => run( 'get_study_queue' ),
     isPending,

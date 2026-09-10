@@ -18,6 +18,7 @@ pub struct OrganizationSummary {
     pub id: String,
     pub name: String,
     pub concept_count: i64,
+    pub active_concept_count: i64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -98,11 +99,23 @@ pub struct ConceptDetail {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct LibrarySnapshot {
+pub struct LibraryPage {
     pub concepts: Vec<ConceptSummary>,
-    pub decks: Vec<OrganizationSummary>,
-    pub tags: Vec<OrganizationSummary>,
     pub archived_count: i64,
+    pub concept_count: i64,
+    pub total_count: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct LibraryQuery {
+    pub query: String,
+    pub include_archived: bool,
+    pub deck_id: Option<String>,
+    pub tag_id: Option<String>,
+    pub page: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

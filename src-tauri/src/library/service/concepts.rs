@@ -3,15 +3,14 @@ use std::collections::{BTreeSet, HashSet};
 use rusqlite::{params, Connection, OptionalExtension};
 
 use super::assignments::{
-    apply_assignments, apply_media_assignments, attach_assignments, query_concept_assignments,
+    apply_assignments, apply_media_assignments, query_concept_assignments,
 };
 use super::cards::{
     active_card_ids, apply_retrieval_forms, create_card, normalize_template_ids, query_cards,
     validate_retrieval_form_selection, validate_template_selections,
 };
-use super::organizations::{
-    normalize_ids, query_organizations, validate_selections, OrganizationKind,
-};
+use super::organizations::{normalize_ids, validate_selections, OrganizationKind};
+use super::search::index_concept;
 use super::{normalize_value, ConceptLibrary};
 use crate::data::{EntityKind, WriteTransaction};
 use crate::library::content::validate_content;
@@ -20,8 +19,8 @@ use crate::library::retrieval_forms::{
     normalize_explain, normalize_problem, normalize_type_answer, RetrievalFormConfiguration,
 };
 use crate::library::{
-    ClozeSettings, ConceptDetail, ConceptSummary, CreateConceptInput, ImageOcclusionSettings,
-    LibraryError, LibraryResult, LibrarySnapshot, NamedItem, RetrievalFormKind, UpdateConceptInput,
+    ClozeSettings, ConceptDetail, CreateConceptInput, ImageOcclusionSettings, LibraryError,
+    LibraryResult, NamedItem, RetrievalFormKind, UpdateConceptInput,
 };
 
 const MAXIMUM_CONCEPT_TITLE_LENGTH: usize = 200;
@@ -209,7 +208,11 @@ pub(in crate::library) fn create_concept(
     )?;
     apply_media_assignments(transaction, &entity, &HashSet::new(), &content.media_ids)?;
 
-    query_concept(transaction, &entity.id)
+    let concept = query_concept(transaction, &entity.id)?;
+
+    index_concept(transaction, &concept)?;
+
+    Ok(concept)
 }
 
 pub(in crate::library) fn update_concept(
@@ -345,74 +348,15 @@ pub(in crate::library) fn update_concept(
         &image_occlusion_group_ids,
     )?;
 
-    query_concept(transaction, &id)
+    let concept = query_concept(transaction, &id)?;
+
+    index_concept(transaction, &concept)?;
+
+    Ok(concept)
 }
 
 fn item_ids(items: &[NamedItem]) -> HashSet<String> {
     items.iter().map(|item| item.id.clone()).collect()
-}
-
-pub(super) fn query_snapshot(
-    connection: &Connection,
-    include_archived: bool,
-) -> LibraryResult<LibrarySnapshot> {
-    let mut statement = connection.prepare(
-        "SELECT
-            concepts.entity_id,
-            concepts.title,
-            entities.created_at,
-            entities.updated_at,
-            concepts.archived_at,
-            (
-                SELECT COUNT(*)
-                FROM cards
-                INNER JOIN entities AS card_entities
-                    ON card_entities.id = cards.entity_id
-                WHERE cards.concept_id = concepts.entity_id
-                    AND card_entities.deleted_at IS NULL
-            )
-        FROM concepts
-        INNER JOIN entities ON entities.id = concepts.entity_id
-        WHERE entities.deleted_at IS NULL
-            AND (?1 OR concepts.archived_at IS NULL)
-        ORDER BY
-            concepts.archived_at IS NOT NULL,
-            concepts.title COLLATE NOCASE,
-            concepts.entity_id",
-    )?;
-    let concepts = statement.query_map([include_archived], |row| {
-        Ok(ConceptSummary {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            created_at: row.get(2)?,
-            updated_at: row.get(3)?,
-            archived: row.get::<_, Option<i64>>(4)?.is_some(),
-            decks: Vec::new(),
-            tags: Vec::new(),
-            card_count: row.get(5)?,
-        })
-    })?;
-    let mut concepts: Vec<_> = concepts.collect::<Result<_, _>>()?;
-
-    attach_assignments(connection, &mut concepts, OrganizationKind::Deck)?;
-    attach_assignments(connection, &mut concepts, OrganizationKind::Tag)?;
-
-    let archived_count = connection.query_row(
-        "SELECT COUNT(*)
-        FROM concepts
-        INNER JOIN entities ON entities.id = concepts.entity_id
-        WHERE entities.deleted_at IS NULL
-            AND concepts.archived_at IS NOT NULL",
-        [],
-        |row| row.get(0),
-    )?;
-
-    Ok(LibrarySnapshot {
-        concepts,
-        decks: query_organizations(connection, OrganizationKind::Deck)?,
-        tags: query_organizations(connection, OrganizationKind::Tag)?,
-        archived_count,
-    })
 }
 
 pub(super) fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDetail> {

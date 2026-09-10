@@ -23,7 +23,7 @@ pub use card_quality::{
 };
 pub use concepts::{
     ConceptContent, ConceptDetail, ConceptSummary, CreateConceptInput, CreateNamedItemInput,
-    LibraryOrganizations, LibrarySnapshot, MediaSummary, NamedItem, OrganizationSummary,
+    LibraryOrganizations, LibraryPage, LibraryQuery, MediaSummary, NamedItem, OrganizationSummary,
     RenameNamedItemInput, SetConceptArchivedInput, UpdateConceptInput, RICH_CONTENT_SCHEMA_VERSION,
 };
 pub use css_snippets::{

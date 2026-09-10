@@ -1,46 +1,27 @@
 <script setup>
 import { AnimatePresence, m } from 'motion-v';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 
 import ContentState from '../components/ContentState.vue';
 import OrganizationManager from '../components/OrganizationManager.vue';
 import PageHeader from '../components/PageHeader.vue';
-import {
-  conceptLibraryErrorMessage,
-  useConceptLibrary
-} from '../composables/useConceptLibrary';
+import { useLibrarySearch } from '../composables/useLibrarySearch';
 
-const { clearError, getLibrary } = useConceptLibrary();
+const {
+  activeFilter,
+  clearFilters,
+  includeArchived,
+  library,
+  loadError,
+  loading,
+  organizations,
+  page,
+  query,
+  refresh,
+  refreshOrganizations
+} = useLibrarySearch();
 
-const activeFilter = ref({ id: '', kind: 'all' });
-const includeArchived = ref( false );
-const initialLoading = ref( true );
-const library = ref({
-  archivedCount: 0,
-  concepts: [],
-  decks: [],
-  tags: []
-});
-
-const loadError = ref( '' );
 const organizationManagerOpen = ref( false );
-let loadRequestSequence = 0;
-
-const filteredConcepts = computed( () => {
-  if ( activeFilter.value.kind === 'deck' ) {
-    return library.value.concepts.filter( ( concept ) => concept.decks.some(
-      ( deck ) => deck.id === activeFilter.value.id
-    ) );
-  }
-
-  if ( activeFilter.value.kind === 'tag' ) {
-    return library.value.concepts.filter( ( concept ) => concept.tags.some(
-      ( tag ) => tag.id === activeFilter.value.id
-    ) );
-  }
-
-  return library.value.concepts;
-});
 
 const activeFilterName = computed( () => {
   if ( activeFilter.value.kind === 'all' ) {
@@ -48,13 +29,11 @@ const activeFilterName = computed( () => {
   }
 
   const items = activeFilter.value.kind === 'deck'
-    ? library.value.decks
-    : library.value.tags;
+    ? organizations.value.decks
+    : organizations.value.tags;
 
   return items.find( ( item ) => item.id === activeFilter.value.id )?.name ?? 'Concepts';
 });
-
-watch( includeArchived, () => loadLibrary(), { immediate: true });
 
 function selectFilter( kind, id = '' ) {
   activeFilter.value = { id, kind };
@@ -62,61 +41,6 @@ function selectFilter( kind, id = '' ) {
 
 function filterIsActive( kind, id = '' ) {
   return activeFilter.value.kind === kind && activeFilter.value.id === id;
-}
-
-function ensureFilterExists() {
-  if ( activeFilter.value.kind === 'deck' ) {
-    const exists = library.value.decks.some( ( deck ) => deck.id === activeFilter.value.id );
-
-    if ( !exists ) {
-      selectFilter( 'all' );
-    }
-  }
-
-  if ( activeFilter.value.kind === 'tag' ) {
-    const exists = library.value.tags.some( ( tag ) => tag.id === activeFilter.value.id );
-
-    if ( !exists ) {
-      selectFilter( 'all' );
-    }
-  }
-}
-
-async function loadLibrary( showLoading = true ) {
-  const request = ++loadRequestSequence;
-  const requestedIncludeArchived = includeArchived.value;
-
-  clearError();
-  loadError.value = '';
-
-  if ( showLoading ) {
-    initialLoading.value = true;
-  }
-
-  try {
-    const snapshot = await getLibrary( requestedIncludeArchived );
-
-    if ( request !== loadRequestSequence ) {
-      return;
-    }
-
-    library.value = snapshot;
-    ensureFilterExists();
-  } catch ( cause ) {
-    if ( request === loadRequestSequence ) {
-      loadError.value = conceptLibraryErrorMessage( cause );
-    }
-  } finally {
-    if ( request === loadRequestSequence ) {
-      initialLoading.value = false;
-    }
-  }
-}
-
-function visibleConceptCount( kind, id ) {
-  return library.value.concepts.filter( ( concept ) => concept[ kind ].some(
-    ( item ) => item.id === id
-  ) ).length;
 }
 
 function formattedDate( timestamp ) {
@@ -171,61 +95,7 @@ function formattedDate( timestamp ) {
       </template>
     </PageHeader>
 
-    <ContentState
-      v-if="initialLoading"
-      kind="loading"
-      title="Loading library"
-    />
-
-    <ContentState
-      v-else-if="loadError"
-      kind="error"
-      title="Library could not be loaded"
-      :description="loadError"
-    >
-      <template #actions>
-        <UButton
-          leading-icon="i-lucide-refresh-cw"
-          @click="loadLibrary"
-        >
-          Retry
-        </UButton>
-      </template>
-    </ContentState>
-
-    <ContentState
-      v-else-if="!library.concepts.length"
-      :title="library.archivedCount && !includeArchived
-        ? 'No active concepts'
-        : 'No concepts yet'"
-      :description="library.archivedCount && !includeArchived
-        ? 'Archived concepts are hidden from the current view.'
-        : 'Create a concept to begin building the library.'"
-    >
-      <template #actions>
-        <UButton
-          v-if="library.archivedCount && !includeArchived"
-          leading-icon="i-lucide-archive"
-          color="neutral"
-          variant="subtle"
-          @click="includeArchived = true"
-        >
-          Show archived
-        </UButton>
-
-        <UButton
-          to="/create"
-          leading-icon="i-lucide-plus"
-        >
-          New concept
-        </UButton>
-      </template>
-    </ContentState>
-
-    <div
-      v-else
-      class="library-layout"
-    >
+    <div class="library-layout">
       <aside
         class="library-filters"
         aria-label="Library filters"
@@ -239,18 +109,18 @@ function formattedDate( timestamp ) {
           >
             <UIcon name="i-lucide-layers-3" />
             <span>All concepts</span>
-            <small>{{ library.concepts.length }}</small>
+            <small>{{ library.conceptCount }}</small>
           </button>
         </div>
 
         <div
-          v-if="library.decks.length"
+          v-if="organizations.decks.length"
           class="library-filter-group"
         >
           <h2>Decks</h2>
 
           <button
-            v-for="deck in library.decks"
+            v-for="deck in organizations.decks"
             :key="deck.id"
             type="button"
             class="library-filter"
@@ -259,18 +129,18 @@ function formattedDate( timestamp ) {
           >
             <UIcon name="i-lucide-folder" />
             <span>{{ deck.name }}</span>
-            <small>{{ visibleConceptCount( 'decks', deck.id ) }}</small>
+            <small>{{ includeArchived ? deck.conceptCount : deck.activeConceptCount }}</small>
           </button>
         </div>
 
         <div
-          v-if="library.tags.length"
+          v-if="organizations.tags.length"
           class="library-filter-group"
         >
           <h2>Tags</h2>
 
           <button
-            v-for="tag in library.tags"
+            v-for="tag in organizations.tags"
             :key="tag.id"
             type="button"
             class="library-filter"
@@ -279,7 +149,7 @@ function formattedDate( timestamp ) {
           >
             <UIcon name="i-lucide-tag" />
             <span>{{ tag.name }}</span>
-            <small>{{ visibleConceptCount( 'tags', tag.id ) }}</small>
+            <small>{{ includeArchived ? tag.conceptCount : tag.activeConceptCount }}</small>
           </button>
         </div>
 
@@ -292,29 +162,120 @@ function formattedDate( timestamp ) {
         </label>
       </aside>
 
-      <section class="library-results">
+      <section
+        class="library-results"
+        :aria-busy="loading"
+      >
+        <div class="library-search">
+          <label for="library-query">Search library</label>
+
+          <UInput
+            id="library-query"
+            v-model="query"
+            type="search"
+            leading-icon="i-lucide-search"
+            placeholder="Search titles and content"
+            :maxlength="250"
+            aria-describedby="library-search-help"
+          />
+
+          <p id="library-search-help">Use words or word prefixes. All terms must match.</p>
+        </div>
+
         <div class="library-results__heading">
           <div>
             <h2>{{ activeFilterName }}</h2>
-            <p>
-              {{ filteredConcepts.length }}
-              {{ filteredConcepts.length === 1 ? 'concept' : 'concepts' }}
+            <p aria-live="polite">
+              {{ loading ? 'Searching…' : library.totalCount }}
+              {{ loading ? '' : library.totalCount === 1 ? 'concept' : 'concepts' }}
             </p>
           </div>
+
+          <nav
+            v-if="library.totalCount > library.pageSize"
+            class="library-pagination"
+            aria-label="Library pages"
+          >
+            <UButton
+              leading-icon="i-lucide-chevron-left"
+              color="neutral"
+              variant="subtle"
+              :disabled="loading || library.page <= 1"
+              @click="page = library.page - 1"
+            >
+              Previous
+            </UButton>
+
+            <span>Page {{ library.page }} of {{ Math.ceil( library.totalCount / library.pageSize ) }}</span>
+
+            <UButton
+              trailing-icon="i-lucide-chevron-right"
+              color="neutral"
+              variant="subtle"
+              :disabled="loading || library.page * library.pageSize >= library.totalCount"
+              @click="page = library.page + 1"
+            >
+              Next
+            </UButton>
+          </nav>
         </div>
 
         <ContentState
-          v-if="!filteredConcepts.length"
-          title="No concepts in this view"
-          description="Choose another deck or tag, or clear the current filter."
+          v-if="loading"
+          kind="loading"
+          title="Loading library"
+        />
+
+        <ContentState
+          v-else-if="loadError"
+          kind="error"
+          title="Library could not be loaded"
+          :description="loadError"
         >
           <template #actions>
             <UButton
+              leading-icon="i-lucide-refresh-cw"
+              @click="refresh"
+            >
+              Retry
+            </UButton>
+          </template>
+        </ContentState>
+
+        <ContentState
+          v-else-if="!library.concepts.length"
+          :title="query.trim() || activeFilter.kind !== 'all'
+            ? 'No matching concepts'
+            : library.archivedCount && !includeArchived ? 'No active concepts' : 'No concepts yet'"
+          :description="query.trim() || activeFilter.kind !== 'all'
+            ? 'Try different words or clear the current filters.'
+            : 'Create a concept or show archived concepts.'"
+        >
+          <template #actions>
+            <UButton
+              v-if="query || activeFilter.kind !== 'all'"
               color="neutral"
               variant="subtle"
-              @click="selectFilter( 'all' )"
+              @click="clearFilters"
             >
-              Clear filter
+              Clear filters
+            </UButton>
+
+            <UButton
+              v-else-if="library.archivedCount && !includeArchived"
+              color="neutral"
+              variant="subtle"
+              @click="includeArchived = true"
+            >
+              Show archived
+            </UButton>
+
+            <UButton
+              v-else
+              to="/create"
+              leading-icon="i-lucide-plus"
+            >
+              New concept
             </UButton>
           </template>
         </ContentState>
@@ -325,7 +286,7 @@ function formattedDate( timestamp ) {
         >
           <AnimatePresence :initial="false">
             <m.article
-              v-for="( concept, index ) in filteredConcepts"
+              v-for="( concept, index ) in library.concepts"
               :key="concept.id"
               class="concept-card"
               data-twill-concept-card
@@ -402,9 +363,9 @@ function formattedDate( timestamp ) {
 
     <OrganizationManager
       v-model:open="organizationManagerOpen"
-      :decks="library.decks"
-      :tags="library.tags"
-      @changed="loadLibrary( false )"
+      :decks="organizations.decks"
+      :tags="organizations.tags"
+      @changed="refreshOrganizations"
     />
   </div>
 </template>

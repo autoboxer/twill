@@ -1,5 +1,7 @@
 CREATE TABLE concepts (
-    entity_id TEXT PRIMARY KEY NOT NULL,
+    -- Keep the local search row identity stable during database compaction
+    rowid INTEGER PRIMARY KEY,
+    entity_id TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL CHECK (
         length(trim(title)) BETWEEN 1 AND 200
     ),
@@ -14,6 +16,25 @@ CREATE TABLE concepts (
     FOREIGN KEY (entity_id) REFERENCES entities(id),
     FOREIGN KEY (last_change_id) REFERENCES change_log(id)
 ) STRICT;
+
+CREATE INDEX concepts_browse_idx
+    ON concepts(archived_at IS NOT NULL, title COLLATE NOCASE, entity_id);
+
+CREATE VIRTUAL TABLE concept_search USING fts5(
+    title,
+    body,
+    tokenize = 'unicode61 remove_diacritics 2',
+    prefix = '2 3 4'
+);
+
+CREATE TRIGGER remove_deleted_concept_search
+AFTER UPDATE OF deleted_at ON entities
+FOR EACH ROW
+WHEN NEW.kind = 'concept' AND NEW.deleted_at IS NOT NULL
+BEGIN
+    DELETE FROM concept_search
+    WHERE rowid = (SELECT rowid FROM concepts WHERE entity_id = NEW.id);
+END;
 
 CREATE TABLE decks (
     entity_id TEXT PRIMARY KEY NOT NULL,
@@ -138,6 +159,7 @@ CREATE TRIGGER validate_concept_update
 BEFORE UPDATE ON concepts
 FOR EACH ROW
 WHEN NEW.entity_id != OLD.entity_id
+    OR NEW.rowid != OLD.rowid
     OR NEW.last_change_id = OLD.last_change_id
     OR NOT EXISTS (
         SELECT 1

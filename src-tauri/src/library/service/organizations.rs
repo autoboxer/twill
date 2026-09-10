@@ -198,6 +198,15 @@ pub(super) fn query_organizations(
                         AND concept_entities.deleted_at IS NULL
                     THEN 1
                 END
+            ),
+            COUNT(
+                CASE
+                    WHEN memberships.concept_id IS NOT NULL
+                        AND memberships.removed_at IS NULL
+                        AND concept_entities.deleted_at IS NULL
+                        AND concepts.archived_at IS NULL
+                    THEN 1
+                END
             )
         FROM {} AS items
         INNER JOIN entities AS item_entities
@@ -206,6 +215,7 @@ pub(super) fn query_organizations(
             ON memberships.{} = items.entity_id
         LEFT JOIN entities AS concept_entities
             ON concept_entities.id = memberships.concept_id
+        LEFT JOIN concepts ON concepts.entity_id = memberships.concept_id
         WHERE item_entities.deleted_at IS NULL
         GROUP BY items.entity_id, items.name
         ORDER BY items.name COLLATE NOCASE, items.entity_id",
@@ -219,6 +229,7 @@ pub(super) fn query_organizations(
             id: row.get(0)?,
             name: row.get(1)?,
             concept_count: row.get(2)?,
+            active_concept_count: row.get(3)?,
         })
     })?;
 

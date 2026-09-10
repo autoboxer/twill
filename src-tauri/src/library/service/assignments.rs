@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, params_from_iter, Connection};
 
 use super::organizations::OrganizationKind;
 use crate::data::{EntityMetadata, WriteTransaction};
@@ -11,6 +11,10 @@ pub(super) fn attach_assignments(
     concepts: &mut [ConceptSummary],
     kind: OrganizationKind,
 ) -> LibraryResult<()> {
+    if concepts.is_empty() {
+        return Ok(());
+    }
+
     let concept_indexes: HashMap<_, _> = concepts
         .iter()
         .enumerate()
@@ -28,21 +32,26 @@ pub(super) fn attach_assignments(
             ON item_entities.id = items.entity_id
         WHERE memberships.removed_at IS NULL
             AND item_entities.deleted_at IS NULL
+            AND memberships.concept_id IN ({})
         ORDER BY items.name COLLATE NOCASE, items.entity_id",
         kind.membership_table(),
         kind.table(),
-        kind.membership_column()
+        kind.membership_column(),
+        vec!["?"; concepts.len()].join(", ")
     );
     let mut statement = connection.prepare(&sql)?;
-    let assignments = statement.query_map([], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            NamedItem {
-                id: row.get(1)?,
-                name: row.get(2)?,
-            },
-        ))
-    })?;
+    let assignments = statement.query_map(
+        params_from_iter(concepts.iter().map(|concept| &concept.id)),
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                NamedItem {
+                    id: row.get(1)?,
+                    name: row.get(2)?,
+                },
+            ))
+        },
+    )?;
 
     for assignment in assignments {
         let (concept_id, item) = assignment?;
