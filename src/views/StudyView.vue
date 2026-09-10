@@ -1,7 +1,6 @@
 <script setup>
 import { AnimatePresence, m } from 'motion-v';
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed } from 'vue';
 
 import CardQualityAction from '../components/CardQualityAction.vue';
 import ContentState from '../components/ContentState.vue';
@@ -14,54 +13,45 @@ import StudyCardContent from '../components/StudyCardContent.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
 import { COMMAND_IDS } from '../commands/registry';
 import {
-  conceptLibraryErrorMessage,
-  useConceptLibrary
-} from '../composables/useConceptLibrary';
-import {
   useCommandHandler,
   useCommands
 } from '../composables/useCommands';
-import { useDevicePreferences } from '../composables/useDevicePreferences';
-import { useDeferredEdits } from '../composables/useDeferredEdits';
-import { useRecallSession } from '../composables/useRecallSession';
-import {
-  preserveStudySession,
-  takeStudySession
-} from '../study/resume';
-import { richDocumentHasContent } from '../rich-content/schema';
-import { normalizeTypeAnswer } from '../type-answer/comparison';
+import { useStudySession } from '../composables/useStudySession';
+import { useStudyFocus } from '../composables/useStudyFocus';
+import { useStudyDeferredEdits } from '../composables/useStudyDeferredEdits';
+import { gradingModeItems, gradingOptionsByMode } from '../study/grading';
 
+const commands = useCommands();
+const session = useStudySession({
+  onStateChanged: () => focusCurrentState(),
+  onAnswerRevealed: () => focusAnswer(),
+  onFeedbackContinued: () => focusFirstGradingAction()
+});
 const {
-  clearError,
-  getStudyQueue,
-  recordPretest,
-  recordReview,
-  reverseReview
-} = useConceptLibrary();
-const {
-  getDevicePreferences,
-  setGradingMode
-} = useDevicePreferences();
-const {
-  getDeferredEdits,
-  queueDeferredEdit,
-  removeDeferredEdit
-} = useDeferredEdits();
-const {
+  answerFeedbackPending,
   answerRevealed,
-  assess,
-  assessMastery,
-  begin,
-  beginPretestTeaching,
+  assessmentError,
+  assessmentPending,
+  beginMasteryRound,
+  canRevealAnswer,
+  canUndoLastGrade,
   completedCount,
-  completePretestTeaching,
+  continueToGrading,
   correctionPending,
-  createSnapshot,
+  currentAnswerFeedback,
   currentCard,
+  explainSettings,
+  finishCurrentPretest,
+  gradingMode,
+  gradingModeError,
+  gradingModeLocked,
+  gradingModePending,
   hasCards,
+  initialLoading,
   isComplete,
-  lastAssessment,
-  lastAssessmentCanBeRestored,
+  loadError,
+  loadStudyQueue,
+  masteryActionEnabled,
   masteryActive,
   masteryCompletedCount,
   masteryMissedCount,
@@ -69,192 +59,71 @@ const {
   masteryRecalledCount,
   masteryStarted,
   masteryTotal,
+  mixedPracticeEnabled,
+  nextDueAt,
+  pendingAssessment,
+  pendingPretestOutcome,
+  position,
   pretestActive,
   pretestAttemptedCount,
+  pretestPending,
   pretestSkippedCount,
   pretestTeachingActive,
   pretestTotal,
-  position,
+  problemSettings,
   ratingCounts,
-  revealAnswer,
-  restoreLastAssessment,
-  restoreSnapshot,
-  skipPretest,
-  startMastery,
-  totalCards
-} = useRecallSession();
-const commands = useCommands();
-const router = useRouter();
-
-const assessmentError = ref( '' );
-const assessmentPending = ref( false );
-const answerFeedback = ref( null );
-const answerFeedbackReviewed = ref( false );
-const completionHeading = ref( null );
-const deferredEdits = ref([]);
-const deferredError = ref( '' );
-const deferredLoading = ref( true );
-const deferredPendingConceptId = ref( '' );
-const deferredStartPending = ref( false );
-const gradingMode = ref( 'simple' );
-const gradingModeError = ref( '' );
-const gradingModePending = ref( false );
-const gradingActions = ref( null );
-const initialLoading = ref( true );
-const loadError = ref( '' );
-const masteryHeading = ref( null );
-const mixedPracticeEnabled = ref( false );
-const nextDueAt = ref( null );
-const pendingAssessment = ref( '' );
-const pendingPretestOutcome = ref( '' );
-const pretestPending = ref( false );
-const problemResponse = ref( null );
-const recoveryError = ref( '' );
-const explainResponse = ref( null );
-const revealButton = ref( null );
-const sessionGradingMode = ref( 'simple' );
-const sessionChangedConceptIds = ref( new Set() );
-const sessionResumeNotice = ref( '' );
-const studyContent = ref( null );
-const studyMedia = ref([]);
-const studyResponse = ref( '' );
-const totalAvailableCards = ref( 0 );
-const typeAnswerResponse = ref( null );
-const undoPending = ref( false );
-let loadRequestSequence = 0;
-let deferredRequestSequence = 0;
-let viewActive = true;
-const pausedResponses = new Map();
+  recordAssessment,
+  recordMasteryAssessment,
+  recoveryError,
+  sessionGradingMode,
+  sessionResumeNotice,
+  showAnswer,
+  skipCurrentPretest,
+  studyMedia,
+  studyResponse,
+  totalAvailableCards,
+  totalCards,
+  typeAnswerSettings,
+  undoLastGrade,
+  undoPending,
+  updateGradingMode
+} = session;
+const {
+  answerFeedback,
+  completionHeading,
+  gradingActions,
+  masteryHeading,
+  problemResponse,
+  explainResponse,
+  revealButton,
+  studyContent,
+  typeAnswerResponse,
+  focusCurrentState,
+  focusGradingAfterFeedback,
+  focusAnswer,
+  focusFirstGradingAction
+} = useStudyFocus( session );
+const {
+  deferredEdits,
+  deferredError,
+  deferredLoading,
+  deferredPendingConceptId,
+  deferredStartPending,
+  currentConceptQueued,
+  canQueueCurrentConcept,
+  queueCurrentConcept,
+  removeQueuedConcept,
+  startDeferredEditing
+} = useStudyDeferredEdits( session );
 
 const cardTransition = {
   duration: 0.22,
   ease: [ 0.22, 1, 0.36, 1 ]
 };
 
-const gradingModeItems = [
-  { label: 'Simple', value: 'simple' },
-  { label: 'Advanced', value: 'advanced' }
-];
-
-const gradingOptionsByMode = {
-  simple: [
-    {
-      color: 'error',
-      commandId: COMMAND_IDS.studyGradeSimpleForgot,
-      icon: 'i-lucide-rotate-ccw',
-      rating: 'again',
-      variant: 'soft'
-    },
-
-    {
-      color: 'primary',
-      commandId: COMMAND_IDS.studyGradeSimpleRemembered,
-      icon: 'i-lucide-check',
-      rating: 'good',
-      variant: 'solid'
-    }
-  ],
-  advanced: [
-    {
-      color: 'error',
-      commandId: COMMAND_IDS.studyGradeAdvancedAgain,
-      icon: 'i-lucide-rotate-ccw',
-      rating: 'again',
-      variant: 'soft'
-    },
-
-    {
-      color: 'warning',
-      commandId: COMMAND_IDS.studyGradeAdvancedHard,
-      icon: 'i-lucide-gauge',
-      rating: 'hard',
-      variant: 'soft'
-    },
-
-    {
-      color: 'primary',
-      commandId: COMMAND_IDS.studyGradeAdvancedGood,
-      icon: 'i-lucide-check',
-      rating: 'good',
-      variant: 'soft'
-    },
-
-    {
-      color: 'success',
-      commandId: COMMAND_IDS.studyGradeAdvancedEasy,
-      icon: 'i-lucide-sparkles',
-      rating: 'easy',
-      variant: 'soft'
-    }
-  ]
-};
-
-const gradingModeLocked = computed( () => {
-  return (
-    completedCount.value > 0
-    || correctionPending.value
-  ) && !isComplete.value;
-});
-
-const canUndoLastGrade = computed( () => (
-  lastAssessmentCanBeRestored.value
-  && !sessionChangedConceptIds.value.has( lastAssessment.value?.conceptId )
-  && !correctionPending.value
-  && !masteryStarted.value
-  && !assessmentPending.value
-  && !gradingModePending.value
-  && !pretestPending.value
-  && !undoPending.value
-) );
-
-const queuedConceptIds = computed( () => new Set(
-  deferredEdits.value.map( ( item ) => item.conceptId )
-) );
-
-const currentConceptQueued = computed( () => (
-  queuedConceptIds.value.has( currentCard.value?.conceptId )
-) );
-
-const canQueueCurrentConcept = computed( () => (
-  Boolean( currentCard.value )
-  && !currentConceptQueued.value
-  && !deferredLoading.value
-  && !deferredPendingConceptId.value
-  && !deferredStartPending.value
-  && !pretestPending.value
-) );
-
 const gradingOptions = computed( () => {
   return gradingOptionsForMode( gradingMode.value );
 });
-
-const typeAnswerSettings = computed( () => {
-  if ( currentCard.value?.retrievalKind !== 'typeAnswer' ) {
-    return null;
-  }
-
-  return currentCard.value.typeAnswer;
-});
-
-const explainSettings = computed( () => {
-  if ( currentCard.value?.retrievalKind !== 'explain' ) {
-    return null;
-  }
-
-  return currentCard.value.explain;
-});
-
-const problemSettings = computed( () => {
-  if ( currentCard.value?.retrievalKind !== 'problem' ) {
-    return null;
-  }
-
-  return currentCard.value.problem;
-});
-
-const canRevealAnswer = computed( () => (
-  !typeAnswerSettings.value || Boolean( normalizeTypeAnswer( studyResponse.value ) )
-) );
 
 const completedReviewCount = computed( () => (
   Object.values( ratingCounts.value ).reduce( ( total, count ) => total + count, 0 )
@@ -271,25 +140,6 @@ const completionDescription = computed( () => {
 
   return 'Reviews saved locally.';
 });
-
-const currentAnswerFeedback = computed( () => {
-  const feedback = currentCard.value?.content.feedback;
-
-  if (
-    !richDocumentHasContent( feedback?.explanation )
-    && !richDocumentHasContent( feedback?.commonMistakes )
-  ) {
-    return null;
-  }
-
-  return feedback;
-});
-
-const answerFeedbackPending = computed( () => (
-  answerRevealed.value
-  && Boolean( currentAnswerFeedback.value )
-  && !answerFeedbackReviewed.value
-) );
 
 const masteryOptions = computed( () => [
   {
@@ -414,29 +264,6 @@ const nextReviewDescription = computed( () => {
   return `Next review: ${ formattedTime }`;
 });
 
-onMounted( async () => {
-  const resumableSession = takeStudySession();
-
-  if ( resumableSession ) {
-    restoreStudySession( resumableSession );
-    initialLoading.value = false;
-    sessionResumeNotice.value = resumableSession.changedConceptIds?.length
-      ? 'Your completed session was restored. Edited concepts will use their new content next time; their earlier grades cannot be undone here.'
-      : 'Your study session was restored.';
-    await nextTick();
-    focusCurrentState();
-  } else {
-    void loadStudyQueue();
-  }
-
-  void loadDeferredEditQueue();
-});
-
-onBeforeUnmount( () => {
-  viewActive = false;
-  loadRequestSequence += 1;
-});
-
 const revealCommand = useCommandHandler( COMMAND_IDS.studyReveal, {
   enabled: computed( () => (
     Boolean( currentCard.value )
@@ -502,447 +329,6 @@ useCommandHandler( COMMAND_IDS.studyMasteryRecalled, {
   execute: () => recordMasteryAssessment( true )
 });
 
-async function loadStudyQueue() {
-  if ( gradingModePending.value ) {
-    return;
-  }
-
-  const request = ++loadRequestSequence;
-
-  clearError();
-  gradingModeError.value = '';
-  loadError.value = '';
-  sessionResumeNotice.value = '';
-  initialLoading.value = true;
-
-  try {
-    const [ queue, preferences ] = await Promise.all([
-      getStudyQueue(),
-      getDevicePreferences()
-    ]);
-
-    if ( request !== loadRequestSequence ) {
-      return;
-    }
-
-    studyMedia.value = queue.media;
-    mixedPracticeEnabled.value = Boolean( queue.mixedPracticeEnabled );
-    begin( queue.cards, {
-      pretestingEnabled: preferences.pretestingEnabled
-    });
-    pausedResponses.clear();
-    sessionChangedConceptIds.value = new Set();
-    studyResponse.value = '';
-    answerFeedbackReviewed.value = false;
-    gradingMode.value = preferences.gradingMode;
-    nextDueAt.value = queue.nextDueAt;
-    sessionGradingMode.value = preferences.gradingMode;
-    totalAvailableCards.value = queue.totalCards;
-  } catch ( cause ) {
-    if ( request === loadRequestSequence ) {
-      loadError.value = conceptLibraryErrorMessage( cause );
-    }
-  } finally {
-    if ( request === loadRequestSequence ) {
-      initialLoading.value = false;
-    }
-  }
-}
-
-async function loadDeferredEditQueue() {
-  const request = ++deferredRequestSequence;
-
-  deferredError.value = '';
-  deferredLoading.value = true;
-
-  try {
-    const queue = await getDeferredEdits();
-
-    if ( request === deferredRequestSequence && viewActive ) {
-      deferredEdits.value = queue.items;
-    }
-  } catch ( cause ) {
-    if ( request === deferredRequestSequence && viewActive ) {
-      deferredError.value = conceptLibraryErrorMessage( cause );
-    }
-  } finally {
-    if ( request === deferredRequestSequence && viewActive ) {
-      deferredLoading.value = false;
-    }
-  }
-}
-
-async function queueCurrentConcept() {
-  const card = currentCard.value;
-
-  if ( !card || !canQueueCurrentConcept.value ) {
-    return;
-  }
-
-  deferredError.value = '';
-  deferredPendingConceptId.value = card.conceptId;
-
-  try {
-    await queueDeferredEdit( card.conceptId, card.conceptLastChangeId );
-    await loadDeferredEditQueue();
-  } catch ( cause ) {
-    if ( viewActive ) {
-      deferredError.value = conceptLibraryErrorMessage( cause );
-    }
-  } finally {
-    if ( viewActive ) {
-      deferredPendingConceptId.value = '';
-    }
-  }
-}
-
-async function removeQueuedConcept( conceptId ) {
-  if ( deferredPendingConceptId.value || deferredStartPending.value ) {
-    return;
-  }
-
-  deferredError.value = '';
-  deferredPendingConceptId.value = conceptId;
-
-  try {
-    await removeDeferredEdit( conceptId );
-    await loadDeferredEditQueue();
-  } catch ( cause ) {
-    if ( viewActive ) {
-      deferredError.value = conceptLibraryErrorMessage( cause );
-    }
-  } finally {
-    if ( viewActive ) {
-      deferredPendingConceptId.value = '';
-    }
-  }
-}
-
-async function startDeferredEditing() {
-  const firstItem = deferredEdits.value[ 0 ];
-
-  if (
-    deferredStartPending.value
-    || deferredPendingConceptId.value
-    || firstItem?.targetStatus !== 'current'
-  ) {
-    return;
-  }
-
-  deferredStartPending.value = true;
-  deferredError.value = '';
-
-  if ( hasCards.value ) {
-    preserveStudySession( createStudySessionSnapshot() );
-  }
-
-  try {
-    await router.push({
-      name: 'concept-edit',
-      params: { conceptId: firstItem.conceptId },
-      query: { deferred: '1' }
-    });
-  } catch ( cause ) {
-    if ( viewActive ) {
-      deferredError.value = cause.message || 'Queued editing could not be started.';
-    }
-  } finally {
-    if ( viewActive ) {
-      deferredStartPending.value = false;
-    }
-  }
-}
-
-async function showAnswer() {
-  if (
-    !canRevealAnswer.value
-    || assessmentPending.value
-    || gradingModePending.value
-    || pretestPending.value
-    || undoPending.value
-  ) {
-    return;
-  }
-
-  if ( pretestActive.value ) {
-    await recordCurrentPretest( 'attempted' );
-    return;
-  }
-
-  answerFeedbackReviewed.value = false;
-  revealAnswer();
-  await nextTick();
-
-  if ( answerFeedbackPending.value ) {
-    answerFeedback.value?.focus();
-  } else if ( typeAnswerSettings.value ) {
-    typeAnswerResponse.value?.focus();
-  } else if ( explainSettings.value ) {
-    explainResponse.value?.focus();
-  } else if ( problemSettings.value ) {
-    problemResponse.value?.focus();
-  } else {
-    studyContent.value?.focus();
-  }
-}
-
-async function skipCurrentPretest() {
-  if ( !pretestActive.value || pretestPending.value ) {
-    return;
-  }
-
-  await recordCurrentPretest( 'skipped' );
-}
-
-async function recordCurrentPretest( requestedOutcome ) {
-  const card = currentCard.value;
-
-  if (
-    !card
-    || !pretestActive.value
-    || pretestPending.value
-    || ![ 'attempted', 'skipped' ].includes( requestedOutcome )
-  ) {
-    return;
-  }
-
-  const response = studyResponse.value;
-
-  assessmentError.value = '';
-  pretestPending.value = true;
-  pendingPretestOutcome.value = requestedOutcome;
-
-  try {
-    const pretest = await recordPretest( card.id, requestedOutcome );
-
-    if ( !viewActive || currentCard.value?.id !== card.id ) {
-      return;
-    }
-
-    answerFeedbackReviewed.value = false;
-
-    if ( pretest.outcome === 'attempted' ) {
-      beginPretestTeaching({
-        pretestId: pretest.pretestId,
-        response
-      });
-    } else {
-      skipPretest({ pretestId: pretest.pretestId });
-    }
-
-    await nextTick();
-    focusCurrentState();
-  } catch ( cause ) {
-    if ( viewActive ) {
-      assessmentError.value = conceptLibraryErrorMessage( cause );
-    }
-  } finally {
-    if ( viewActive ) {
-      pendingPretestOutcome.value = '';
-      pretestPending.value = false;
-    }
-  }
-}
-
-async function finishCurrentPretest() {
-  if ( !pretestTeachingActive.value || answerFeedbackPending.value ) {
-    return;
-  }
-
-  if ( !completePretestTeaching() ) {
-    return;
-  }
-
-  answerFeedbackReviewed.value = false;
-  studyResponse.value = takePausedResponse( currentCard.value?.id );
-  await nextTick();
-  focusCurrentState();
-}
-
-async function recordAssessment( rating ) {
-  const visibleRating = gradingOptions.value.some( ( option ) => {
-    return option.rating === rating;
-  });
-
-  if (
-    !visibleRating
-    || assessmentPending.value
-    || gradingModePending.value
-    || pretestPending.value
-    || undoPending.value
-    || answerFeedbackPending.value
-    || pretestTeachingActive.value
-    || !answerRevealed.value
-    || !currentCard.value
-  ) {
-    return;
-  }
-
-  const cardId = currentCard.value.id;
-  const response = studyResponse.value;
-
-  assessmentError.value = '';
-  recoveryError.value = '';
-  assessmentPending.value = true;
-  pendingAssessment.value = rating;
-
-  if ( completedCount.value === 0 ) {
-    sessionGradingMode.value = gradingMode.value;
-  }
-
-  try {
-    const review = await recordReview( cardId, rating );
-
-    if ( !viewActive || currentCard.value?.id !== cardId ) {
-      return;
-    }
-
-    assess({
-      rating,
-      response,
-      reviewId: review.reviewId
-    });
-    answerFeedbackReviewed.value = false;
-    studyResponse.value = takePausedResponse( currentCard.value?.id );
-    await nextTick();
-
-    focusCurrentState();
-  } catch ( cause ) {
-    if ( viewActive ) {
-      assessmentError.value = conceptLibraryErrorMessage( cause );
-    }
-  } finally {
-    if ( viewActive ) {
-      assessmentPending.value = false;
-      pendingAssessment.value = '';
-    }
-  }
-}
-
-async function beginMasteryRound() {
-  if ( !startMastery() ) {
-    return;
-  }
-
-  answerFeedbackReviewed.value = false;
-  studyResponse.value = '';
-  await nextTick();
-  focusCurrentState();
-}
-
-async function recordMasteryAssessment( recalled ) {
-  if ( !masteryActionEnabled() ) {
-    return;
-  }
-
-  const response = studyResponse.value;
-  const outcome = recalled ? 'recalled' : 'missed';
-
-  assessmentPending.value = true;
-  pendingAssessment.value = outcome;
-
-  try {
-    if ( !assessMastery({ recalled, response }) ) {
-      return;
-    }
-
-    answerFeedbackReviewed.value = false;
-    studyResponse.value = '';
-    await nextTick();
-    focusCurrentState();
-  } finally {
-    if ( viewActive ) {
-      assessmentPending.value = false;
-      pendingAssessment.value = '';
-    }
-  }
-}
-
-async function undoLastGrade() {
-  const assessment = lastAssessment.value;
-
-  if ( !assessment || !canUndoLastGrade.value ) {
-    return;
-  }
-
-  const visibleCard = currentCard.value;
-
-  if ( visibleCard ) {
-    pausedResponses.set( visibleCard.id, studyResponse.value );
-  }
-
-  assessmentError.value = '';
-  recoveryError.value = '';
-  undoPending.value = true;
-
-  try {
-    await reverseReview( assessment.reviewId );
-
-    if (
-      !viewActive
-      || lastAssessment.value?.reviewId !== assessment.reviewId
-    ) {
-      return;
-    }
-
-    const restored = restoreLastAssessment( assessment.reviewId );
-
-    if ( !restored ) {
-      return;
-    }
-
-    studyResponse.value = restored.response ?? '';
-    answerFeedbackReviewed.value = true;
-  } catch ( cause ) {
-    if ( viewActive ) {
-      recoveryError.value = conceptLibraryErrorMessage( cause );
-    }
-  } finally {
-    if ( viewActive ) {
-      undoPending.value = false;
-    }
-  }
-}
-
-async function updateGradingMode( nextMode ) {
-  if (
-    gradingModePending.value
-    || assessmentPending.value
-    || pretestPending.value
-    || undoPending.value
-    || gradingModeLocked.value
-    || !gradingOptionsByMode[ nextMode ]
-    || nextMode === gradingMode.value
-  ) {
-    return;
-  }
-
-  gradingModeError.value = '';
-  gradingModePending.value = true;
-
-  try {
-    const preferences = await setGradingMode( nextMode );
-
-    if ( !viewActive ) {
-      return;
-    }
-
-    gradingMode.value = preferences.gradingMode;
-
-    if ( completedCount.value === 0 ) {
-      sessionGradingMode.value = preferences.gradingMode;
-    }
-  } catch ( cause ) {
-    if ( viewActive ) {
-      gradingModeError.value = conceptLibraryErrorMessage( cause );
-    }
-  } finally {
-    if ( viewActive ) {
-      gradingModePending.value = false;
-    }
-  }
-}
-
 function gradingOptionsForMode( mode ) {
   return gradingOptionsByMode[ mode ].map( ( option ) => {
     const command = commands.command( option.commandId );
@@ -972,156 +358,6 @@ function registerGradingCommand( commandId, mode, rating ) {
   });
 }
 
-function masteryActionEnabled() {
-  return masteryActive.value
-    && answerRevealed.value
-    && !answerFeedbackPending.value
-    && !assessmentPending.value
-    && !gradingModePending.value
-    && !undoPending.value;
-}
-
-function focusCurrentState() {
-  if ( document.querySelector( '[role="dialog"]' ) ) {
-    return;
-  }
-
-  if ( masteryReady.value ) {
-    masteryHeading.value?.focus();
-    return;
-  }
-
-  if ( isComplete.value ) {
-    completionHeading.value?.focus();
-    return;
-  }
-
-  if ( !currentCard.value ) {
-    return;
-  }
-
-  if ( answerRevealed.value ) {
-    if ( answerFeedbackPending.value ) {
-      answerFeedback.value?.focus();
-      return;
-    }
-
-    if ( pretestTeachingActive.value ) {
-      focusRevealedAnswer();
-      return;
-    }
-
-    if ( correctionPending.value ) {
-      focusRevealedAnswer();
-      return;
-    }
-
-    focusFirstGradingAction();
-    return;
-  }
-
-  if ( typeAnswerSettings.value ) {
-    typeAnswerResponse.value?.focus();
-  } else if ( explainSettings.value ) {
-    explainResponse.value?.focus();
-  } else if ( problemSettings.value ) {
-    problemResponse.value?.focus();
-  } else {
-    focusButton( revealButton.value );
-  }
-}
-
-async function continueToGrading() {
-  if ( !answerFeedbackPending.value ) {
-    return;
-  }
-
-  answerFeedbackReviewed.value = true;
-
-  if ( pretestTeachingActive.value ) {
-    await finishCurrentPretest();
-    return;
-  }
-
-  await nextTick();
-  focusFirstGradingAction();
-}
-
-function focusFirstGradingAction() {
-  const element = gradingActions.value?.$el ?? gradingActions.value;
-
-  element?.querySelector( 'button:not(:disabled)' )?.focus();
-}
-
-function focusGradingAfterFeedback() {
-  if (
-    answerFeedbackReviewed.value
-    && currentAnswerFeedback.value
-    && !correctionPending.value
-    && !pretestTeachingActive.value
-  ) {
-    focusFirstGradingAction();
-  }
-}
-
-function focusRevealedAnswer() {
-  if ( typeAnswerSettings.value ) {
-    typeAnswerResponse.value?.focus();
-  } else if ( explainSettings.value ) {
-    explainResponse.value?.focus();
-  } else if ( problemSettings.value ) {
-    problemResponse.value?.focus();
-  } else {
-    studyContent.value?.focus();
-  }
-}
-
-function takePausedResponse( cardId ) {
-  if ( !cardId ) {
-    return '';
-  }
-
-  const response = pausedResponses.get( cardId ) ?? '';
-
-  pausedResponses.delete( cardId );
-
-  return response;
-}
-
-function createStudySessionSnapshot() {
-  return {
-    changedConceptIds: [ ...sessionChangedConceptIds.value ],
-    gradingMode: gradingMode.value,
-    mixedPracticeEnabled: mixedPracticeEnabled.value,
-    nextDueAt: nextDueAt.value,
-    pausedResponses: [ ...pausedResponses.entries() ],
-    recall: createSnapshot(),
-    answerFeedbackReviewed: answerFeedbackReviewed.value,
-    sessionGradingMode: sessionGradingMode.value,
-    studyMedia: [ ...studyMedia.value ],
-    totalAvailableCards: totalAvailableCards.value,
-    response: studyResponse.value
-  };
-}
-
-function restoreStudySession( session ) {
-  restoreSnapshot( session.recall );
-  answerFeedbackReviewed.value = Boolean( session.answerFeedbackReviewed );
-  gradingMode.value = session.gradingMode;
-  mixedPracticeEnabled.value = Boolean( session.mixedPracticeEnabled );
-  nextDueAt.value = session.nextDueAt;
-  sessionGradingMode.value = session.sessionGradingMode;
-  sessionChangedConceptIds.value = new Set( session.changedConceptIds ?? []);
-  studyMedia.value = [ ...session.studyMedia ];
-  totalAvailableCards.value = session.totalAvailableCards;
-  studyResponse.value = session.response ?? '';
-  pausedResponses.clear();
-
-  for ( const [ cardId, response ] of session.pausedResponses ) {
-    pausedResponses.set( cardId, response );
-  }
-}
-
 function studyCardName( card ) {
   if ( card.retrievalKind === 'cloze' ) {
     return 'Cloze';
@@ -1144,12 +380,6 @@ function studyCardName( card ) {
   }
 
   return card.template?.name ?? 'Standard recall';
-}
-
-function focusButton( button ) {
-  const element = button?.$el ?? button;
-
-  element?.focus();
 }
 </script>
 

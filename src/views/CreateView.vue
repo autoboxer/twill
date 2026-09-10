@@ -2,13 +2,10 @@
 import {
   computed,
   onBeforeUnmount,
-  onMounted,
   ref,
   watch
 } from 'vue';
 import {
-  onBeforeRouteLeave,
-  onBeforeRouteUpdate,
   useRoute,
   useRouter
 } from 'vue-router';
@@ -22,7 +19,7 @@ import { useAuthoringDraft } from '../composables/useAuthoringDraft';
 import { provideAuthoringMedia } from '../composables/useAuthoringMedia';
 import { useCommandHandler } from '../composables/useCommands';
 import { useDeferredEdits } from '../composables/useDeferredEdits';
-import { useNativeActionGuard } from '../composables/useNativeLifecycle';
+import { useAuthoringNavigation } from '../composables/useAuthoringNavigation';
 import {
   conceptLibraryErrorMessage,
   useConceptLibrary
@@ -84,9 +81,6 @@ const editorResolved = ref( false );
 const editorState = ref( null );
 const initialLoading = ref( true );
 const isModified = ref( false );
-const leaveDialogOpen = ref( false );
-const leaveError = ref( '' );
-const leaveLoading = ref( false );
 const loadError = ref( '' );
 const library = ref({
   archivedCount: 0,
@@ -104,10 +98,8 @@ const saveInProgress = ref( false );
 const savedConcept = ref( null );
 const targetUnavailable = ref( false );
 const templates = ref([]);
-let allowNavigation = false;
 let canonicalEditorState = createConceptEditorState();
 let canonicalStateKey = conceptEditorStateKey( canonicalEditorState );
-let leaveResolution = null;
 let loadRequestSequence = 0;
 
 const conceptId = computed( () => route.params.conceptId ?? '' );
@@ -133,15 +125,24 @@ const authoringMedia = provideAuthoringMedia({
   )
 });
 const { hasPendingImports } = authoringMedia;
-const { nativeActionPending } = useNativeActionGuard({
-  busy: computed( () => (
-    saveInProgress.value
-    || hasPendingImports.value
-    || recoveryBusy.value
-    || leaveLoading.value
-  ) ),
-  flush: flushDraft
+const {
+  allowNavigation,
+  leaveDialogOpen,
+  leaveEditor,
+  leaveError,
+  leaveLoading,
+  stayInEditor
+} = useAuthoringNavigation({
+  editorResolved,
+  flushDraft,
+  hasPendingImports,
+  hasPendingPersistence,
+  isModified,
+  recoveryBusy,
+  recoveryOpen,
+  saveInProgress
 });
+
 const pageTitle = computed( () => {
   if ( saveAsCopy.value ) {
     return 'Create concept copy';
@@ -231,23 +232,9 @@ const saveCommand = useCommandHandler( COMMAND_IDS.conceptSave, {
 });
 
 watch( conceptId, loadData, { immediate: true });
-onBeforeRouteLeave( protectNavigation );
-onBeforeRouteUpdate( protectNavigation );
-
-onMounted( () => {
-  window.addEventListener( 'beforeunload', warnBeforeWindowClose );
-  document.addEventListener( 'visibilitychange', flushHiddenDraft );
-});
 
 onBeforeUnmount( () => {
   loadRequestSequence += 1;
-
-  window.removeEventListener( 'beforeunload', warnBeforeWindowClose );
-  document.removeEventListener( 'visibilitychange', flushHiddenDraft );
-
-  if ( leaveResolution ) {
-    leaveResolution( false );
-  }
 });
 
 async function loadData() {
@@ -257,7 +244,7 @@ async function loadData() {
     requestedConceptId && route.query.deferred === '1'
   );
 
-  allowNavigation = false;
+  allowNavigation.value = false;
   clearError();
   clearLoadError();
   clearTemplateLoadError();
@@ -317,7 +304,7 @@ async function loadData() {
       ) ) ?? null;
 
       if ( !deferredEditItem.value ) {
-        allowNavigation = true;
+        allowNavigation.value = true;
         await router.replace({ name: 'study' });
         return;
       }
@@ -440,7 +427,7 @@ async function finishSavedConcept() {
     return;
   }
 
-  allowNavigation = true;
+  allowNavigation.value = true;
 
   await router.replace({
     name: 'concept-detail',
@@ -460,7 +447,7 @@ async function continueDeferredEditing() {
     const queue = await getDeferredEdits();
     const nextItem = queue.items[ 0 ];
 
-    allowNavigation = true;
+    allowNavigation.value = true;
 
     if ( nextItem?.targetStatus === 'current' ) {
       await router.replace({
@@ -472,7 +459,7 @@ async function continueDeferredEditing() {
       await router.replace({ name: 'study' });
     }
   } catch ( cause ) {
-    allowNavigation = false;
+    allowNavigation.value = false;
     deferredWorkflowError.value = conceptLibraryErrorMessage( cause );
   } finally {
     deferredWorkflowPending.value = false;
@@ -542,7 +529,7 @@ async function discardRecoveryDraft() {
     await discardDraft();
 
     if ( targetUnavailable.value ) {
-      allowNavigation = true;
+      allowNavigation.value = true;
       await router.replace({ name: 'library' });
       return;
     }
@@ -559,88 +546,6 @@ async function discardRecoveryDraft() {
     recoveryError.value = cause.message || 'The draft could not be discarded.';
   } finally {
     recoveryBusy.value = false;
-  }
-}
-
-function protectNavigation() {
-  if ( nativeActionPending.value ) {
-    return false;
-  }
-
-  if ( allowNavigation || !editorResolved.value ) {
-    return recoveryOpen.value ? false : true;
-  }
-
-  if ( saveInProgress.value ) {
-    return false;
-  }
-
-  if ( !isModified.value && !hasPendingPersistence.value && !hasPendingImports.value ) {
-    return true;
-  }
-
-  if ( leaveResolution ) {
-    leaveResolution( false );
-  }
-
-  leaveError.value = '';
-  leaveDialogOpen.value = true;
-
-  return new Promise( ( resolve ) => {
-    leaveResolution = resolve;
-  });
-}
-
-function stayInEditor() {
-  leaveDialogOpen.value = false;
-
-  if ( leaveResolution ) {
-    leaveResolution( false );
-    leaveResolution = null;
-  }
-}
-
-async function leaveEditor() {
-  if ( leaveLoading.value || hasPendingImports.value ) {
-    return;
-  }
-
-  leaveLoading.value = true;
-  leaveError.value = '';
-
-  try {
-    await flushDraft();
-  } catch {
-    leaveError.value = 'The latest changes could not be saved. Retry or stay in the editor.';
-    leaveLoading.value = false;
-    return;
-  }
-
-  leaveLoading.value = false;
-  leaveDialogOpen.value = false;
-
-  if ( leaveResolution ) {
-    leaveResolution( true );
-    leaveResolution = null;
-  }
-}
-
-function warnBeforeWindowClose( event ) {
-  if ( nativeActionPending.value ) {
-    return;
-  }
-
-  if ( !isModified.value && !hasPendingPersistence.value && !hasPendingImports.value ) {
-    return;
-  }
-
-  event.preventDefault();
-  event.returnValue = '';
-}
-
-function flushHiddenDraft() {
-  if ( document.visibilityState === 'hidden' && isModified.value ) {
-    void flushDraft().catch( () => undefined );
   }
 }
 

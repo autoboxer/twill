@@ -2,14 +2,11 @@
 import {
   computed,
   onBeforeUnmount,
-  onMounted,
   reactive,
   ref,
   watch
 } from 'vue';
 import {
-  onBeforeRouteLeave,
-  onBeforeRouteUpdate,
   useRoute,
   useRouter
 } from 'vue-router';
@@ -24,7 +21,7 @@ import { useAuthoringDraft } from '../composables/useAuthoringDraft';
 import { useCommandHandler } from '../composables/useCommands';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
-import { useNativeActionGuard } from '../composables/useNativeLifecycle';
+import { useAuthoringNavigation } from '../composables/useAuthoringNavigation';
 import {
   cloneTemplateEditorState,
   createTemplateEditorState,
@@ -67,9 +64,6 @@ const form = reactive({
 const conflictMessage = ref( '' );
 const editorResolved = ref( false );
 const initialLoading = ref( true );
-const leaveDialogOpen = ref( false );
-const leaveError = ref( '' );
-const leaveLoading = ref( false );
 const loadError = ref( '' );
 const recoveryBusy = ref( false );
 const recoveryDraft = ref( null );
@@ -81,15 +75,8 @@ const saveInProgress = ref( false );
 const savedTemplate = ref( null );
 const savedSnapshot = ref( '' );
 const targetUnavailable = ref( false );
-let allowNavigation = false;
 let canonicalBaseChangeId = null;
-let leaveResolution = null;
 let loadRequestSequence = 0;
-
-const { nativeActionPending } = useNativeActionGuard({
-  busy: computed( () => saveInProgress.value || recoveryBusy.value || leaveLoading.value ),
-  flush: flushDraft
-});
 
 const templateId = computed( () => route.params.templateId ?? '' );
 const isEditing = computed( () => Boolean( templateId.value ) );
@@ -188,6 +175,23 @@ const formValid = computed( () => {
 const hasChanges = computed( () => {
   return templateEditorStateKey( form ) !== savedSnapshot.value;
 });
+const {
+  allowNavigation,
+  leaveDialogOpen,
+  leaveEditor,
+  leaveError,
+  leaveLoading,
+  stayInEditor
+} = useAuthoringNavigation({
+  editorResolved,
+  flushDraft,
+  hasPendingPersistence,
+  isModified: hasChanges,
+  recoveryBusy,
+  recoveryOpen,
+  saveInProgress
+});
+
 const saveCommand = useCommandHandler( COMMAND_IDS.templateSave, {
   enabled: computed( () => (
     !initialLoading.value
@@ -203,29 +207,16 @@ const saveCommand = useCommandHandler( COMMAND_IDS.templateSave, {
 
 watch( templateId, loadTemplate, { immediate: true });
 watch( form, templateStateChanged, { deep: true });
-onBeforeRouteLeave( protectNavigation );
-onBeforeRouteUpdate( protectNavigation );
-
-onMounted( () => {
-  window.addEventListener( 'beforeunload', warnBeforeWindowClose );
-  document.addEventListener( 'visibilitychange', flushHiddenDraft );
-});
 
 onBeforeUnmount( () => {
   loadRequestSequence += 1;
-  window.removeEventListener( 'beforeunload', warnBeforeWindowClose );
-  document.removeEventListener( 'visibilitychange', flushHiddenDraft );
-
-  if ( leaveResolution ) {
-    leaveResolution( false );
-  }
 });
 
 async function loadTemplate() {
   const request = ++loadRequestSequence;
   const requestedTemplateId = templateId.value;
 
-  allowNavigation = false;
+  allowNavigation.value = false;
   clearError();
   conflictMessage.value = '';
   editorResolved.value = false;
@@ -360,7 +351,7 @@ async function finishSavedTemplate() {
   savedTemplate.value = null;
 
   if ( changedIdentity ) {
-    allowNavigation = true;
+    allowNavigation.value = true;
 
     await router.replace({
       name: 'template-edit',
@@ -418,7 +409,7 @@ async function discardRecoveryDraft() {
     await discardDraft();
 
     if ( targetUnavailable.value ) {
-      allowNavigation = true;
+      allowNavigation.value = true;
       await router.replace({ name: 'templates' });
       return;
     }
@@ -433,84 +424,6 @@ async function discardRecoveryDraft() {
     recoveryError.value = cause.message || 'The draft could not be discarded.';
   } finally {
     recoveryBusy.value = false;
-  }
-}
-
-function protectNavigation() {
-  if ( nativeActionPending.value ) {
-    return false;
-  }
-
-  if ( allowNavigation || !editorResolved.value ) {
-    return recoveryOpen.value ? false : true;
-  }
-
-  if ( saveInProgress.value ) {
-    return false;
-  }
-
-  if ( !hasChanges.value && !hasPendingPersistence.value ) {
-    return true;
-  }
-
-  if ( leaveResolution ) {
-    leaveResolution( false );
-  }
-
-  leaveError.value = '';
-  leaveDialogOpen.value = true;
-
-  return new Promise( ( resolve ) => {
-    leaveResolution = resolve;
-  });
-}
-
-function stayInEditor() {
-  leaveDialogOpen.value = false;
-
-  if ( leaveResolution ) {
-    leaveResolution( false );
-    leaveResolution = null;
-  }
-}
-
-async function leaveEditor() {
-  leaveLoading.value = true;
-  leaveError.value = '';
-
-  try {
-    await flushDraft();
-  } catch {
-    leaveError.value = 'The latest changes could not be saved. Retry or stay in the editor.';
-    leaveLoading.value = false;
-    return;
-  }
-
-  leaveLoading.value = false;
-  leaveDialogOpen.value = false;
-
-  if ( leaveResolution ) {
-    leaveResolution( true );
-    leaveResolution = null;
-  }
-}
-
-function warnBeforeWindowClose( event ) {
-  if ( nativeActionPending.value ) {
-    return;
-  }
-
-  if ( !hasChanges.value && !hasPendingPersistence.value ) {
-    return;
-  }
-
-  event.preventDefault();
-  event.returnValue = '';
-}
-
-function flushHiddenDraft() {
-  if ( document.visibilityState === 'hidden' && hasChanges.value ) {
-    void flushDraft().catch( () => undefined );
   }
 }
 
