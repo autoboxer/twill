@@ -1,13 +1,14 @@
-import { onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
+import { parseLibraryQuery, serializeLibraryQuery } from '../library/search';
 import { conceptLibraryErrorMessage, useConceptLibrary } from './useConceptLibrary';
 
 export function useLibrarySearch() {
+  const route = useRoute();
+  const router = useRouter();
   const { getLibrary, getLibraryOrganizations } = useConceptLibrary();
-  const query = ref( '' );
-  const activeFilter = ref({ id: '', kind: 'all' });
-  const includeArchived = ref( false );
-  const page = ref( 1 );
+  const input = ref( parseLibraryQuery( route.query ) );
   const loading = ref( true );
   const loadError = ref( '' );
   const organizations = ref({ decks: [], tags: [] });
@@ -19,9 +20,74 @@ export function useLibrarySearch() {
     page: 1,
     pageSize: 50
   });
+  const navigationQuery = computed( () => serializeLibraryQuery( input.value ) );
+  const hasFilters = computed( () => Boolean(
+    input.value.query.trim() || input.value.deckId || input.value.tagId
+    || input.value.cardType !== 'all' || input.value.state !== 'all'
+    || input.value.includeArchived
+  ) );
+  const pendingLocations = new Map();
+  let locationSequence = 0;
   let catalogLoaded = false;
   let requestSequence = 0;
   let searchTimer;
+  let disposed = false;
+
+  function field( name ) {
+    return computed({
+      get: () => input.value[ name ],
+      set: ( value ) => update({ [ name ]: value })
+    });
+  }
+
+  function update( changes ) {
+    const previousQuery = input.value.query;
+
+    input.value = { ...input.value, page: 1, ...changes };
+    scheduleSearch( input.value.query !== previousQuery ? 180 : 0 );
+    void writeLocation();
+  }
+
+  async function writeLocation() {
+    const query = navigationQuery.value;
+    const write = ++locationSequence;
+
+    pendingLocations.set( write, JSON.stringify( query ) );
+
+    try {
+      await router.replace({ name: 'library', query });
+    } catch ( cause ) {
+      if ( !disposed && write === locationSequence ) {
+        loadError.value = cause.message || 'Search location could not be updated.';
+      }
+    } finally {
+      pendingLocations.delete( write );
+
+      if ( !pendingLocations.size ) {
+        readLocation();
+      }
+    }
+  }
+
+  function readLocation() {
+    if ( disposed || route.name !== 'library' ) {
+      requestSequence += 1;
+      clearTimeout( searchTimer );
+      return;
+    }
+
+    const next = parseLibraryQuery( route.query );
+    const key = JSON.stringify( serializeLibraryQuery( next ) );
+
+    // Older URL writes must not replace newer input while navigation is settling
+    if ( key === JSON.stringify( navigationQuery.value )
+      || [ ...pendingLocations.values() ].includes( key ) ) {
+      return;
+    }
+
+    input.value = next;
+    scheduleSearch();
+  }
 
   function scheduleSearch( delay = 0 ) {
     const request = ++requestSequence;
@@ -33,19 +99,16 @@ export function useLibrarySearch() {
   }
 
   async function load( request ) {
-    const input = {
-      query: query.value,
-      includeArchived: includeArchived.value,
-      deckId: activeFilter.value.kind === 'deck' ? activeFilter.value.id : null,
-      tagId: activeFilter.value.kind === 'tag' ? activeFilter.value.id : null,
-      page: page.value
+    const searchInput = {
+      ...input.value,
+      cardType: input.value.cardType === 'all' ? null : input.value.cardType,
+      state: input.value.state === 'all' ? null : input.value.state
     };
-    const needsCatalog = !catalogLoaded;
 
     try {
       const [ result, catalog ] = await Promise.all([
-        getLibrary( input ),
-        needsCatalog ? getLibraryOrganizations() : null
+        getLibrary( searchInput ),
+        !catalogLoaded ? getLibraryOrganizations() : null
       ]);
 
       if ( request !== requestSequence ) {
@@ -57,17 +120,26 @@ export function useLibrarySearch() {
         catalogLoaded = true;
       }
 
-      const choices = activeFilter.value.kind === 'deck'
-        ? organizations.value.decks
-        : organizations.value.tags;
+      const missing = {};
 
-      if ( activeFilter.value.kind !== 'all'
-        && !choices.some( ( item ) => item.id === activeFilter.value.id ) ) {
-        activeFilter.value = { id: '', kind: 'all' };
+      for ( const [ field, choices ] of [[ 'deckId', 'decks' ], [ 'tagId', 'tags' ]]) {
+        if ( input.value[ field ]
+          && !organizations.value[ choices ].some( ( item ) => item.id === input.value[ field ]) ) {
+          missing[ field ] = null;
+        }
+      }
+
+      if ( Object.keys( missing ).length ) {
+        update( missing );
         return;
       }
 
       library.value = result;
+
+      if ( input.value.page !== result.page ) {
+        input.value = { ...input.value, page: result.page };
+        void writeLocation();
+      }
     } catch ( cause ) {
       if ( request === requestSequence ) {
         loadError.value = conceptLibraryErrorMessage( cause );
@@ -85,18 +157,13 @@ export function useLibrarySearch() {
   }
 
   function clearFilters() {
-    query.value = '';
-    activeFilter.value = { id: '', kind: 'all' };
+    update({ ...parseLibraryQuery({}), sort: input.value.sort });
   }
 
-  watch([ query, includeArchived, activeFilter ], ( values, previous ) => {
-    page.value = 1;
-    scheduleSearch( values[ 0 ] !== previous[ 0 ] ? 180 : 0 );
-  }, { flush: 'sync' });
-
-  watch( page, () => scheduleSearch(), { flush: 'sync' });
+  watch( () => route.fullPath, readLocation, { flush: 'sync' });
 
   onBeforeUnmount( () => {
+    disposed = true;
     requestSequence += 1;
     clearTimeout( searchTimer );
   });
@@ -104,16 +171,23 @@ export function useLibrarySearch() {
   scheduleSearch();
 
   return {
-    activeFilter,
+    cardType: field( 'cardType' ),
     clearFilters,
-    includeArchived,
+    deckId: field( 'deckId' ),
+    hasFilters,
+    includeArchived: field( 'includeArchived' ),
     library,
     loadError,
     loading,
+    navigationQuery,
     organizations,
-    page,
-    query,
+    page: field( 'page' ),
+    query: field( 'query' ),
     refresh: () => scheduleSearch(),
-    refreshOrganizations
+    refreshOrganizations,
+    sort: field( 'sort' ),
+    state: field( 'state' ),
+    tagId: field( 'tagId' ),
+    update
   };
 }

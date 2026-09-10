@@ -37,7 +37,7 @@ pub use models::{
     DeferredConceptEdit, DeferredEditQueue, DeferredEditTargetStatus,
     DismissCardQualitySignalInput, FinalizeConceptInput, FinalizeTemplateInput, GradingMode,
     ExplainSettings, ImageOcclusionSettings, LibraryOrganizations, LibraryPage, LibraryQuery,
-    MediaSummary,
+    LibraryCardMatch, LibraryCardState, LibrarySort, MediaSummary,
     MotionPreference, NamedItem, OrganizationSummary,
     ProblemSettings, QueueDeferredEditInput, ReadingFont, ReadingTextSize,
     PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput,

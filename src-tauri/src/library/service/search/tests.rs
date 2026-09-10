@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 
 use super::*;
 use crate::data::{DataResult, LocalDataStore};
-use crate::library::{CreateConceptInput, UpdateConceptInput};
+use crate::library::{CreateConceptInput, RecordReviewInput, ReviewRating, UpdateConceptInput};
 
 fn input(title: &str) -> CreateConceptInput {
     serde_json::from_value(json!({ "title": title })).unwrap()
@@ -197,6 +197,8 @@ fn browsing_and_search_are_bounded_stable_and_filter_before_pagination() {
         create.content.answer = document("sharedword");
         if index >= 50 {
             create.deck_ids.push(deck.id.clone());
+            create.type_answer =
+                Some(serde_json::from_value(json!({ "acceptedAnswers": ["sharedword"] })).unwrap());
         }
         if index >= 100 {
             create.tag_ids.push(tag.id.clone());
@@ -250,6 +252,8 @@ fn browsing_and_search_are_bounded_stable_and_filter_before_pagination() {
             query: "sharedword".into(),
             deck_id: Some(deck.id.clone()),
             tag_id: Some(tag.id.clone()),
+            card_type: Some(RetrievalFormKind::TypeAnswer),
+            state: Some(LibraryCardState::New),
             ..Default::default()
         })
         .unwrap();
@@ -258,6 +262,18 @@ fn browsing_and_search_are_bounded_stable_and_filter_before_pagination() {
         .concepts
         .iter()
         .all(|concept| concept.decks[0].id == deck.id && concept.tags[0].id == tag.id));
+    let filtered_page = library
+        .search(LibraryQuery {
+            card_type: Some(RetrievalFormKind::TypeAnswer),
+            state: Some(LibraryCardState::New),
+            page: 2,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(
+        (filtered_page.total_count, filtered_page.concepts.len()),
+        (55, 5)
+    );
     for concept in &last.concepts {
         library.delete_concept(&concept.id).unwrap();
     }
@@ -308,4 +324,201 @@ fn title_matches_receive_more_weight_than_body_matches() {
     library.create_concept(body_match).unwrap();
     let title_match = library.create_concept(input("Mitochondria")).unwrap();
     assert_eq!(search(&library, "mito").concepts[0].id, title_match.id);
+}
+
+#[test]
+fn card_filters_match_one_active_form_and_due_excludes_archived_and_future_cards() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = LocalDataStore::open(directory.path()).unwrap();
+    let library = ConceptLibrary::new(&store);
+    let mut create = input("Mixed forms");
+    create.type_answer =
+        Some(serde_json::from_value(json!({ "acceptedAnswers": ["textneedle"] })).unwrap());
+    let concept = library.create_concept(create).unwrap();
+    let recall = concept
+        .cards
+        .iter()
+        .find(|card| card.retrieval_kind == RetrievalFormKind::Recall)
+        .unwrap();
+    let typed = concept
+        .cards
+        .iter()
+        .find(|card| card.retrieval_kind == RetrievalFormKind::TypeAnswer)
+        .unwrap();
+
+    library
+        .record_review_at(
+            RecordReviewInput {
+                card_id: recall.id.clone(),
+                rating: ReviewRating::Good,
+            },
+            recall.due_at,
+        )
+        .unwrap();
+
+    let query = LibraryQuery {
+        card_type: Some(RetrievalFormKind::TypeAnswer),
+        state: Some(LibraryCardState::Review),
+        ..Default::default()
+    };
+    assert_eq!(library.search(query.clone()).unwrap().total_count, 0);
+    assert_eq!(
+        library
+            .search(LibraryQuery {
+                state: Some(LibraryCardState::Due),
+                card_type: Some(RetrievalFormKind::Recall),
+                ..query.clone()
+            })
+            .unwrap()
+            .total_count,
+        0
+    );
+
+    let typed_result = library
+        .search(LibraryQuery {
+            state: Some(LibraryCardState::New),
+            ..query.clone()
+        })
+        .unwrap();
+    assert_eq!(
+        typed_result.concepts[0].matching_form.as_ref().unwrap().id,
+        typed.id
+    );
+
+    // Text remains concept-wide even when a different form satisfies the card predicates
+    let due = library
+        .search(LibraryQuery {
+            query: "textneedle".into(),
+            card_type: Some(RetrievalFormKind::Recall),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(
+        due.concepts[0].matching_form.as_ref().unwrap().id,
+        recall.id
+    );
+    assert!(due.concepts[0]
+        .excerpt
+        .as_ref()
+        .unwrap()
+        .contains("textneedle"));
+    assert!(search(&library, "").concepts[0].matching_form.is_none());
+
+    let due_query = LibraryQuery {
+        state: Some(LibraryCardState::Due),
+        include_archived: true,
+        ..Default::default()
+    };
+    assert_eq!(library.search(due_query.clone()).unwrap().total_count, 1);
+    library.set_concept_archived(&concept.id, true).unwrap();
+    assert_eq!(library.search(due_query.clone()).unwrap().total_count, 0);
+    library.set_concept_archived(&concept.id, false).unwrap();
+
+    let mut due_at = typed.due_at;
+
+    for (state, rating) in [
+        (LibraryCardState::Learning, ReviewRating::Again),
+        (LibraryCardState::Review, ReviewRating::Good),
+        (LibraryCardState::Relearning, ReviewRating::Again),
+    ] {
+        due_at = library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: typed.id.clone(),
+                    rating,
+                },
+                due_at,
+            )
+            .unwrap()
+            .due_at;
+        assert_eq!(
+            library
+                .search(LibraryQuery {
+                    state: Some(state),
+                    ..query.clone()
+                })
+                .unwrap()
+                .total_count,
+            1
+        );
+    }
+
+    library.set_concept_archived(&concept.id, true).unwrap();
+    assert_eq!(library.search(due_query.clone()).unwrap().total_count, 0);
+    assert_eq!(
+        library
+            .search(LibraryQuery {
+                include_archived: true,
+                card_type: Some(RetrievalFormKind::Recall),
+                ..Default::default()
+            })
+            .unwrap()
+            .total_count,
+        1
+    );
+
+    library.set_concept_archived(&concept.id, false).unwrap();
+    library
+        .update_concept(
+            serde_json::from_value(json!({
+                "id": concept.id, "title": concept.title, "includeStandardRecall": false,
+                "typeAnswer": { "acceptedAnswers": ["textneedle"] }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(library.search(due_query).unwrap().total_count, 0);
+    assert_eq!(
+        library
+            .search(LibraryQuery {
+                card_type: Some(RetrievalFormKind::Recall),
+                ..Default::default()
+            })
+            .unwrap()
+            .total_count,
+        0
+    );
+}
+
+#[test]
+fn sorting_and_excerpts_are_deterministic_and_bounded() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = LocalDataStore::open(directory.path()).unwrap();
+    let library = ConceptLibrary::new(&store);
+    let mut create = input("A body match");
+    create.content.answer = document(&format!("{} <needle>", "界".repeat(1000)));
+    let body = library.create_concept(create).unwrap();
+    let title = library.create_concept(input("Needle")).unwrap();
+    store
+        .write_result(|transaction| -> DataResult<()> {
+            transaction.touch_entity(&body.id)?;
+            transaction.execute(
+                "UPDATE entities SET updated_at = updated_at + 10000, revision = revision + 1 WHERE id = ?1",
+                [&body.id],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    for sort in [LibrarySort::Title, LibrarySort::Updated] {
+        let result = library
+            .search(LibraryQuery {
+                query: "needle".into(),
+                sort,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(result.concepts[0].id, body.id);
+        assert_eq!(result.concepts[1].id, title.id);
+    }
+
+    let excerpt = search(&library, "界").concepts[0].excerpt.clone().unwrap();
+    assert_eq!(excerpt.chars().count(), MAXIMUM_EXCERPT_LENGTH + 1);
+    assert!(excerpt.ends_with('…'));
+    assert!(search(&library, "")
+        .concepts
+        .iter()
+        .all(|concept| concept.excerpt.is_none()));
+    assert!(serde_json::from_value::<LibraryQuery>(json!({ "state": "unknown" })).is_err());
+    assert!(serde_json::from_value::<LibraryQuery>(json!({ "sort": "updated_at DESC" })).is_err());
 }

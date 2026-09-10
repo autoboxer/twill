@@ -3,44 +3,68 @@ import { AnimatePresence, m } from 'motion-v';
 import { computed, ref } from 'vue';
 
 import ContentState from '../components/ContentState.vue';
+import LibraryPagination from '../components/LibraryPagination.vue';
 import OrganizationManager from '../components/OrganizationManager.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { useLibrarySearch } from '../composables/useLibrarySearch';
+import { libraryCardTypeOptions, librarySortOptions, libraryStateOptions } from '../library/search';
+import { retrievalFormIcon, retrievalFormLabel } from '../retrieval-forms/catalog';
 
 const {
-  activeFilter,
+  cardType,
   clearFilters,
+  deckId,
+  hasFilters,
   includeArchived,
   library,
   loadError,
   loading,
+  navigationQuery,
   organizations,
   page,
   query,
   refresh,
-  refreshOrganizations
+  refreshOrganizations,
+  sort,
+  state,
+  tagId,
+  update
 } = useLibrarySearch();
 
 const organizationManagerOpen = ref( false );
+const resultsHeading = ref( null );
 
 const activeFilterName = computed( () => {
-  if ( activeFilter.value.kind === 'all' ) {
-    return 'All concepts';
-  }
+  const names = [
+    organizations.value.decks.find( ( item ) => item.id === deckId.value )?.name,
+    organizations.value.tags.find( ( item ) => item.id === tagId.value )?.name
+  ].filter( Boolean );
 
-  const items = activeFilter.value.kind === 'deck'
-    ? organizations.value.decks
-    : organizations.value.tags;
-
-  return items.find( ( item ) => item.id === activeFilter.value.id )?.name ?? 'Concepts';
+  return names.length ? names.join( ' · ' ) : 'All concepts';
 });
 
 function selectFilter( kind, id = '' ) {
-  activeFilter.value = { id, kind };
+  if ( kind === 'all' ) {
+    update({ deckId: null, tagId: null });
+  } else {
+    const field = kind === 'deck' ? deckId : tagId;
+
+    field.value = field.value === id ? null : id;
+  }
 }
 
 function filterIsActive( kind, id = '' ) {
-  return activeFilter.value.kind === kind && activeFilter.value.id === id;
+  if ( kind === 'all' ) {
+    return !deckId.value && !tagId.value;
+  }
+
+  return ( kind === 'deck' ? deckId.value : tagId.value ) === id;
+}
+
+function changePage( nextPage ) {
+  page.value = nextPage;
+  resultsHeading.value?.focus({ preventScroll: true });
+  resultsHeading.value?.scrollIntoView({ block: 'start' });
 }
 
 function formattedDate( timestamp ) {
@@ -87,7 +111,7 @@ function formattedDate( timestamp ) {
         </UButton>
 
         <UButton
-          to="/create"
+          :to="{ name: 'create', query: navigationQuery }"
           leading-icon="i-lucide-plus"
         >
           New concept
@@ -105,6 +129,7 @@ function formattedDate( timestamp ) {
             type="button"
             class="library-filter"
             :class="{ 'library-filter--active': filterIsActive( 'all' ) }"
+            :aria-pressed="filterIsActive( 'all' )"
             @click="selectFilter( 'all' )"
           >
             <UIcon name="i-lucide-layers-3" />
@@ -125,6 +150,7 @@ function formattedDate( timestamp ) {
             type="button"
             class="library-filter"
             :class="{ 'library-filter--active': filterIsActive( 'deck', deck.id ) }"
+            :aria-pressed="filterIsActive( 'deck', deck.id )"
             @click="selectFilter( 'deck', deck.id )"
           >
             <UIcon name="i-lucide-folder" />
@@ -145,6 +171,7 @@ function formattedDate( timestamp ) {
             type="button"
             class="library-filter"
             :class="{ 'library-filter--active': filterIsActive( 'tag', tag.id ) }"
+            :aria-pressed="filterIsActive( 'tag', tag.id )"
             @click="selectFilter( 'tag', tag.id )"
           >
             <UIcon name="i-lucide-tag" />
@@ -182,7 +209,52 @@ function formattedDate( timestamp ) {
           <p id="library-search-help">Use words or word prefixes. All terms must match.</p>
         </div>
 
-        <div class="library-results__heading">
+        <div class="library-search-options">
+          <div>
+            <label for="library-card-type">Card type</label>
+            <USelect
+              id="library-card-type"
+              v-model="cardType"
+              :items="libraryCardTypeOptions"
+              variant="subtle"
+            />
+          </div>
+
+          <div>
+            <label for="library-state">Learning state</label>
+            <USelect
+              id="library-state"
+              v-model="state"
+              :items="libraryStateOptions"
+              variant="subtle"
+            />
+          </div>
+
+          <div>
+            <label for="library-sort">Sort by</label>
+            <USelect
+              id="library-sort"
+              v-model="sort"
+              :items="librarySortOptions"
+              variant="subtle"
+            />
+          </div>
+
+          <UButton
+            v-if="hasFilters"
+            color="neutral"
+            variant="link"
+            @click="clearFilters"
+          >
+            Clear filters
+          </UButton>
+        </div>
+
+        <div
+          ref="resultsHeading"
+          class="library-results__heading"
+          tabindex="-1"
+        >
           <div>
             <h2>{{ activeFilterName }}</h2>
             <p aria-live="polite">
@@ -191,33 +263,11 @@ function formattedDate( timestamp ) {
             </p>
           </div>
 
-          <nav
-            v-if="library.totalCount > library.pageSize"
-            class="library-pagination"
-            aria-label="Library pages"
-          >
-            <UButton
-              leading-icon="i-lucide-chevron-left"
-              color="neutral"
-              variant="subtle"
-              :disabled="loading || library.page <= 1"
-              @click="page = library.page - 1"
-            >
-              Previous
-            </UButton>
-
-            <span>Page {{ library.page }} of {{ Math.ceil( library.totalCount / library.pageSize ) }}</span>
-
-            <UButton
-              trailing-icon="i-lucide-chevron-right"
-              color="neutral"
-              variant="subtle"
-              :disabled="loading || library.page * library.pageSize >= library.totalCount"
-              @click="page = library.page + 1"
-            >
-              Next
-            </UButton>
-          </nav>
+          <LibraryPagination
+            :library="library"
+            :loading="loading"
+            @change="changePage"
+          />
         </div>
 
         <ContentState
@@ -244,25 +294,16 @@ function formattedDate( timestamp ) {
 
         <ContentState
           v-else-if="!library.concepts.length"
-          :title="query.trim() || activeFilter.kind !== 'all'
+          :title="hasFilters
             ? 'No matching concepts'
             : library.archivedCount && !includeArchived ? 'No active concepts' : 'No concepts yet'"
-          :description="query.trim() || activeFilter.kind !== 'all'
+          :description="hasFilters
             ? 'Try different words or clear the current filters.'
             : 'Create a concept or show archived concepts.'"
         >
           <template #actions>
             <UButton
-              v-if="query || activeFilter.kind !== 'all'"
-              color="neutral"
-              variant="subtle"
-              @click="clearFilters"
-            >
-              Clear filters
-            </UButton>
-
-            <UButton
-              v-else-if="library.archivedCount && !includeArchived"
+              v-if="!hasFilters && library.archivedCount && !includeArchived"
               color="neutral"
               variant="subtle"
               @click="includeArchived = true"
@@ -271,8 +312,8 @@ function formattedDate( timestamp ) {
             </UButton>
 
             <UButton
-              v-else
-              to="/create"
+              v-else-if="!hasFilters"
+              :to="{ name: 'create', query: navigationQuery }"
               leading-icon="i-lucide-plus"
             >
               New concept
@@ -299,7 +340,8 @@ function formattedDate( timestamp ) {
               <RouterLink
                 :to="{
                   name: 'concept-detail',
-                  params: { conceptId: concept.id }
+                  params: { conceptId: concept.id },
+                  query: { ...navigationQuery, card: concept.matchingForm?.id }
                 }"
                 class="concept-card__link"
               >
@@ -315,6 +357,21 @@ function formattedDate( timestamp ) {
                       size="sm"
                     />
                   </div>
+
+                  <p
+                    v-if="concept.excerpt"
+                    class="concept-card__excerpt"
+                  >
+                    {{ concept.excerpt }}
+                  </p>
+
+                  <p
+                    v-if="concept.matchingForm"
+                    class="concept-card__match"
+                  >
+                    <UIcon :name="retrievalFormIcon( concept.matchingForm )" />
+                    <span>View {{ retrievalFormLabel( concept.matchingForm ) }}</span>
+                  </p>
 
                   <div
                     v-if="concept.decks.length || concept.tags.length"
@@ -358,6 +415,13 @@ function formattedDate( timestamp ) {
             </m.article>
           </AnimatePresence>
         </div>
+
+        <LibraryPagination
+          v-if="!loading && !loadError && library.concepts.length"
+          class="library-pagination--bottom"
+          :library="library"
+          @change="changePage"
+        />
       </section>
     </div>
 

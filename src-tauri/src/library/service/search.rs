@@ -4,13 +4,15 @@ use serde_json::Value;
 use super::assignments::attach_assignments;
 use super::organizations::OrganizationKind;
 use super::ConceptLibrary;
-use crate::data::WriteTransaction;
+use crate::data::{current_timestamp, WriteTransaction};
 use crate::library::{
-    ConceptDetail, ConceptSummary, LibraryError, LibraryPage, LibraryQuery, LibraryResult,
+    ConceptDetail, ConceptSummary, LibraryCardMatch, LibraryCardState, LibraryError, LibraryPage,
+    LibraryQuery, LibraryResult, LibrarySort, NamedItem, RetrievalFormKind,
 };
 
 const PAGE_SIZE: i64 = 50;
 const MAXIMUM_QUERY_LENGTH: usize = 250;
+const MAXIMUM_EXCERPT_LENGTH: usize = 280;
 
 impl ConceptLibrary<'_> {
     pub fn search(&self, input: LibraryQuery) -> LibraryResult<LibraryPage> {
@@ -42,6 +44,24 @@ fn query_page(
     expression: &str,
 ) -> LibraryResult<LibraryPage> {
     let searching = !expression.is_empty();
+    let now = current_timestamp()?;
+    let card_type = input.card_type.map(RetrievalFormKind::as_str);
+    let state = input.state.map(LibraryCardState::as_str);
+    let matching_card = "matching_card.entity_id = (
+            SELECT cards.entity_id FROM cards
+            INNER JOIN entities AS card_entities ON card_entities.id = cards.entity_id
+            INNER JOIN card_scheduling ON card_scheduling.card_id = cards.entity_id
+            WHERE cards.concept_id = concepts.entity_id
+                AND (?5 IS NOT NULL OR ?6 IS NOT NULL)
+                AND card_entities.deleted_at IS NULL
+                AND (?5 IS NULL OR cards.retrieval_kind = ?5)
+                AND (?6 IS NULL OR card_scheduling.state = ?6 OR (
+                    ?6 = 'due' AND card_scheduling.due_at <= ?7
+                    AND concepts.archived_at IS NULL
+                ))
+            ORDER BY card_entities.created_at, cards.entity_id
+            LIMIT 1
+        )";
     let search_join = if searching {
         "INNER JOIN concept_search ON concept_search.rowid = concepts.rowid"
     } else {
@@ -56,6 +76,8 @@ fn query_page(
         "FROM concepts
         INNER JOIN entities ON entities.id = concepts.entity_id
         {search_join}
+        LEFT JOIN cards AS matching_card ON {matching_card}
+        LEFT JOIN templates ON templates.entity_id = matching_card.template_id
         WHERE entities.deleted_at IS NULL
             AND (?1 OR concepts.archived_at IS NULL)
             AND (?2 IS NULL OR EXISTS (
@@ -74,13 +96,17 @@ fn query_page(
                     AND concept_tags.removed_at IS NULL
                     AND tags.deleted_at IS NULL
             ))
-            {search_condition}"
+            {search_condition}
+            AND ((?5 IS NULL AND ?6 IS NULL) OR matching_card.entity_id IS NOT NULL)"
     );
     let filters = params![
         input.include_archived,
         input.deck_id,
         input.tag_id,
-        expression
+        expression,
+        card_type,
+        state,
+        now
     ];
     let total_count: i64 =
         connection.query_row(&format!("SELECT COUNT(*) {from}"), filters, |row| {
@@ -88,10 +114,15 @@ fn query_page(
         })?;
     let last_page = ((total_count - 1).max(0) / PAGE_SIZE) + 1;
     let page = i64::from(input.page).clamp(1, last_page);
-    let ranking = if searching {
-        "bm25(concept_search, 5.0, 1.0),"
+    let ranking = match input.sort {
+        LibrarySort::Relevance if searching => "bm25(concept_search, 5.0, 1.0),",
+        LibrarySort::Updated => "entities.updated_at DESC,",
+        _ => "",
+    };
+    let excerpt = if searching {
+        "snippet(concept_search, 1, '', '', '…', 24)"
     } else {
-        ""
+        "NULL"
     };
     let mut statement = connection.prepare(&format!(
         "SELECT
@@ -105,13 +136,18 @@ fn query_page(
                 INNER JOIN entities AS card_entities ON card_entities.id = cards.entity_id
                 WHERE cards.concept_id = concepts.entity_id
                     AND card_entities.deleted_at IS NULL
-            )
+            ),
+            {excerpt},
+            matching_card.entity_id,
+            matching_card.retrieval_kind,
+            templates.entity_id,
+            templates.name
         {from}
         ORDER BY {ranking}
             concepts.archived_at IS NOT NULL,
             concepts.title COLLATE NOCASE,
             concepts.entity_id
-        LIMIT ?5 OFFSET ?6"
+        LIMIT ?8 OFFSET ?9"
     ))?;
     let rows = statement.query_map(
         params![
@@ -119,11 +155,14 @@ fn query_page(
             input.deck_id,
             input.tag_id,
             expression,
+            card_type,
+            state,
+            now,
             PAGE_SIZE,
             (page - 1) * PAGE_SIZE
         ],
         |row| {
-            Ok(ConceptSummary {
+            let summary = ConceptSummary {
                 id: row.get(0)?,
                 title: row.get(1)?,
                 created_at: row.get(2)?,
@@ -132,10 +171,36 @@ fn query_page(
                 decks: Vec::new(),
                 tags: Vec::new(),
                 card_count: row.get(5)?,
-            })
+                excerpt: row.get::<_, Option<String>>(6)?.map(bounded_excerpt),
+                matching_form: None,
+            };
+
+            Ok((
+                summary,
+                row.get::<_, Option<String>>(7)?,
+                row.get::<_, Option<String>>(8)?,
+                row.get::<_, Option<String>>(9)?,
+                row.get::<_, Option<String>>(10)?,
+            ))
         },
     )?;
-    let mut concepts = rows.collect::<Result<Vec<_>, _>>()?;
+    let mut concepts = Vec::new();
+
+    for row in rows {
+        let (mut summary, card_id, kind, template_id, template_name) = row?;
+
+        if let (Some(id), Some(kind)) = (card_id, kind) {
+            summary.matching_form = Some(LibraryCardMatch {
+                id,
+                retrieval_kind: RetrievalFormKind::try_from(kind.as_str())?,
+                template: template_id
+                    .zip(template_name)
+                    .map(|(id, name)| NamedItem { id, name }),
+            });
+        }
+
+        concepts.push(summary);
+    }
 
     attach_assignments(connection, &mut concepts, OrganizationKind::Deck)?;
     attach_assignments(connection, &mut concepts, OrganizationKind::Tag)?;
@@ -158,6 +223,17 @@ fn query_page(
         page,
         page_size: PAGE_SIZE,
     })
+}
+
+fn bounded_excerpt(text: String) -> String {
+    let mut characters = text.trim().chars();
+    let mut excerpt: String = characters.by_ref().take(MAXIMUM_EXCERPT_LENGTH).collect();
+
+    if characters.next().is_some() {
+        excerpt.push('…');
+    }
+
+    excerpt
 }
 
 pub(super) fn index_concept(

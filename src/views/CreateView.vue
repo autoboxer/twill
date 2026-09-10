@@ -32,6 +32,7 @@ import {
   createConceptEditorState
 } from '../drafts/conceptDraft';
 import { markStudyConceptChanged } from '../study/resume';
+import { libraryNavigationQuery } from '../library/search';
 
 const route = useRoute();
 const router = useRouter();
@@ -429,7 +430,8 @@ async function finishSavedConcept() {
 
   await router.replace({
     name: 'concept-detail',
-    params: { conceptId: savedConcept.value.id }
+    params: { conceptId: savedConcept.value.id },
+    query: libraryNavigationQuery( route.query, savedConcept.value.id === conceptId.value )
   });
 }
 
@@ -528,7 +530,7 @@ async function discardRecoveryDraft() {
 
     if ( targetUnavailable.value ) {
       allowNavigation.value = true;
-      await router.replace({ name: 'library' });
+      await router.replace({ name: 'library', query: libraryNavigationQuery( route.query ) });
       return;
     }
 
@@ -556,12 +558,13 @@ function cancel() {
   if ( isEditing.value ) {
     router.push({
       name: 'concept-detail',
-      params: { conceptId: conceptId.value }
+      params: { conceptId: conceptId.value },
+      query: libraryNavigationQuery( route.query, true )
     });
     return;
   }
 
-  router.push({ name: 'library' });
+  router.push({ name: 'library', query: libraryNavigationQuery( route.query ) });
 }
 </script>
 
