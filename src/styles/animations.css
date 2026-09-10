@@ -1,0 +1,18 @@
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes cloze-reveal {
+  from {
+    background: color-mix(in srgb, var(--ui-primary) 32%, transparent);
+  }
+}
+
+@keyframes image-occlusion-reveal {
+  from {
+    background: color-mix(in srgb, var(--ui-primary) 72%, black);
+    border-color: color-mix(in srgb, var(--ui-primary) 38%, white);
+  }
+}
