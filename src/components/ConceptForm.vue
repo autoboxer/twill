@@ -1,6 +1,8 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue';
 
+import { retrievalForms } from '../retrieval-forms/catalog';
+
 import ClozePreview from './ClozePreview.vue';
 import ImageOcclusionPreview from './ImageOcclusionPreview.vue';
 import RichContentEditor from './RichContentEditor.vue';
@@ -133,32 +135,32 @@ const tagItems = computed( () => props.tags.map( ( tag ) => ({
 const retrievalFormItems = computed( () => [
   {
     description: 'Shows the prompt first and the answer after reveal.',
-    label: 'Standard recall',
+    label: retrievalForms.recall.label,
     value: STANDARD_RECALL_ID
   },
   {
     description: 'Requires a typed response before the answer is revealed.',
-    label: 'Type answer',
+    label: retrievalForms.typeAnswer.label,
     value: TYPE_ANSWER_ID
   },
   {
     description: 'Builds an explanation and compares it with key points.',
-    label: 'Explain',
+    label: retrievalForms.explain.label,
     value: EXPLAIN_ID
   },
   {
     description: 'Works through a problem and checks the solution steps.',
-    label: 'Problem',
+    label: retrievalForms.problem.label,
     value: PROBLEM_ID
   },
   {
     description: 'Hides marked Prompt passages and reveals them in context.',
-    label: 'Cloze',
+    label: retrievalForms.cloze.label,
     value: CLOZE_ID
   },
   {
     description: 'Hides selected regions of a Prompt image.',
-    label: 'Image occlusion',
+    label: retrievalForms.imageOcclusion.label,
     value: IMAGE_OCCLUSION_ID
   },
 

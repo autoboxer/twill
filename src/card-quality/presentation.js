@@ -1,5 +1,6 @@
 import { collectClozeGroups } from '../cloze/documents';
 import { collectImageOcclusionGroups } from '../image-occlusion/documents';
+import { retrievalFormLabel } from '../retrieval-forms/catalog';
 import { cardQualityKinds } from './options';
 
 export function cardQualityLabel( item ) {
@@ -9,15 +10,7 @@ export function cardQualityLabel( item ) {
 }
 
 export function cardQualityFormName( card, prompt = null ) {
-  const names = {
-    recall: 'Standard recall',
-    typeAnswer: 'Type answer',
-    explain: 'Explain',
-    problem: 'Problem',
-    cloze: 'Cloze',
-    imageOcclusion: 'Image occlusion'
-  };
-  const name = card.template?.name ?? names[ card.retrievalKind ];
+  const name = retrievalFormLabel( card );
   let groupIndex = -1;
 
   if ( prompt && card.cloze ) {

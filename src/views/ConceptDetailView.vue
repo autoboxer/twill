@@ -13,6 +13,7 @@ import {
 } from '../composables/useConceptLibrary';
 import { collectImageOcclusionGroups } from '../image-occlusion/documents';
 import { richDocumentHasContent } from '../rich-content/schema';
+import { retrievalFormIcon, retrievalFormLabel } from '../retrieval-forms/catalog';
 
 const route = useRoute();
 const router = useRouter();
@@ -242,55 +243,21 @@ function formattedDueDate( timestamp ) {
 }
 
 function retrievalFormName( card ) {
+  const label = retrievalFormLabel( card );
+
   if ( card.retrievalKind === 'cloze' ) {
     const group = clozeGroupDetails( card );
 
-    return group ? `Cloze ${ group.index + 1 }` : 'Cloze';
-  }
-
-  if ( card.retrievalKind === 'typeAnswer' ) {
-    return 'Type answer';
-  }
-
-  if ( card.retrievalKind === 'explain' ) {
-    return 'Explain';
-  }
-
-  if ( card.retrievalKind === 'problem' ) {
-    return 'Problem';
+    return group ? `${ label } ${ group.index + 1 }` : label;
   }
 
   if ( card.retrievalKind === 'imageOcclusion' ) {
     const group = imageOcclusionGroupDetails( card );
 
-    return group ? `Image occlusion ${ group.index + 1 }` : 'Image occlusion';
+    return group ? `${ label } ${ group.index + 1 }` : label;
   }
 
-  return card.template?.name ?? 'Standard recall';
-}
-
-function retrievalFormIcon( card ) {
-  if ( card.retrievalKind === 'cloze' ) {
-    return 'i-lucide-text-select';
-  }
-
-  if ( card.retrievalKind === 'typeAnswer' ) {
-    return 'i-lucide-keyboard';
-  }
-
-  if ( card.retrievalKind === 'explain' ) {
-    return 'i-lucide-message-square-text';
-  }
-
-  if ( card.retrievalKind === 'problem' ) {
-    return 'i-lucide-list-ordered';
-  }
-
-  if ( card.retrievalKind === 'imageOcclusion' ) {
-    return 'i-lucide-scan';
-  }
-
-  return card.template ? 'i-lucide-panels-top-left' : 'i-lucide-rotate-ccw';
+  return label;
 }
 
 function retrievalFormDescription( card ) {

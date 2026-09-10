@@ -1,0 +1,118 @@
+.organization-manager {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0.25rem;
+  background: var(--ui-bg-muted);
+  border: 1px solid var(--ui-border);
+  border-radius: calc(var(--ui-radius) + 0.2rem);
+}
+
+.segmented-control__button {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.8rem;
+  color: var(--ui-text-muted);
+  font-weight: 620;
+  background: transparent;
+  border: 0;
+  border-radius: var(--ui-radius);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.segmented-control__button--active {
+  color: var(--ui-text-highlighted);
+  background: var(--ui-bg);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 8%);
+}
+
+.segmented-control__button:focus-visible,
+.library-filter:focus-visible,
+.concept-card__link:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+.organization-create {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.organization-create__field {
+  flex: 1;
+}
+
+.organization-list {
+  overflow: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: calc(var(--ui-radius) + 0.25rem);
+}
+
+.organization-row {
+  min-height: 4.25rem;
+  padding: 0.75rem 0.9rem;
+  background: var(--ui-bg);
+}
+
+.organization-row + .organization-row {
+  border-top: 1px solid var(--ui-border);
+}
+
+.organization-row,
+.organization-row__copy,
+.organization-row__edit,
+.organization-row__actions {
+  display: flex;
+  align-items: center;
+}
+
+.organization-row__copy {
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+
+.organization-row__copy strong {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--ui-text-highlighted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-row__copy span,
+.organization-empty {
+  color: var(--ui-text-muted);
+  font-size: 0.85rem;
+}
+
+.organization-row__actions {
+  gap: 0.25rem;
+}
+
+.organization-row__edit {
+  width: 100%;
+  gap: 0.5rem;
+}
+
+.organization-row__edit > :first-child {
+  flex: 1;
+}
+
+.organization-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  background: var(--ui-bg-muted);
+  border: 1px dashed var(--ui-border-accented);
+  border-radius: calc(var(--ui-radius) + 0.25rem);
+}
