@@ -1,19 +1,38 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use rusqlite::{params_from_iter, Connection};
+use rusqlite::{named_params, params_from_iter, Connection};
 
 use crate::library::media::query_media_for_concepts;
 use crate::library::mixed_practice::mix_due_cards;
 use crate::library::models::TemplateMode;
 use crate::library::retrieval_forms::parse_retrieval_form_configuration;
+use crate::library::search_query::search_expression;
 use crate::library::{
     LibraryError, LibraryResult, RetrievalFormKind, SchedulingState, StudyCard, StudyConcept,
-    StudyQueue, StudyTemplate,
+    StudyQuery, StudyQueue, StudyTemplate,
 };
 
 const ID_BATCH_SIZE: usize = 500;
 
 pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<StudyQueue> {
+    query_selected_study_queue(connection, now, &StudyQuery::default())
+}
+
+pub fn query_selected_study_queue(
+    connection: &Connection,
+    now: i64,
+    input: &StudyQuery,
+) -> LibraryResult<StudyQueue> {
+    if input.card_limit == Some(0) {
+        return Err(LibraryError::InvalidContent {
+            field: "Card limit",
+            message: "must be a positive whole number".into(),
+        });
+    }
+
+    let expression = search_expression(&input.query)?;
+    let card_type = input.card_type.map(RetrievalFormKind::as_str);
+    let state = input.state.map(SchedulingState::as_str);
     let mixed_practice_enabled = connection.query_row(
         "SELECT mixed_practice_enabled
         FROM device_preferences
@@ -21,52 +40,56 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
         [],
         |row| row.get(0),
     )?;
-    let total_cards = connection.query_row(
-        "SELECT COUNT(*)
-        FROM cards
-        INNER JOIN entities AS card_entities
-            ON card_entities.id = cards.entity_id
-        INNER JOIN concepts
-            ON concepts.entity_id = cards.concept_id
-        INNER JOIN entities AS concept_entities
-            ON concept_entities.id = concepts.entity_id
-        LEFT JOIN entities AS template_entities
-            ON template_entities.id = cards.template_id
+    let scope = "FROM cards
+        INNER JOIN card_scheduling ON card_scheduling.card_id = cards.entity_id
+        INNER JOIN entities AS card_entities ON card_entities.id = cards.entity_id
+        INNER JOIN concepts ON concepts.entity_id = cards.concept_id
+        INNER JOIN entities AS concept_entities ON concept_entities.id = concepts.entity_id
+        LEFT JOIN entities AS template_entities ON template_entities.id = cards.template_id
         WHERE card_entities.deleted_at IS NULL
             AND concept_entities.deleted_at IS NULL
             AND concepts.archived_at IS NULL
-            AND (
-                cards.template_id IS NULL
-                OR template_entities.deleted_at IS NULL
-            )",
-        [],
-        |row| row.get(0),
+            AND (cards.template_id IS NULL OR template_entities.deleted_at IS NULL)
+            AND (:deck IS NULL OR EXISTS (
+                SELECT 1 FROM concept_decks
+                INNER JOIN entities AS decks ON decks.id = concept_decks.deck_id
+                WHERE concept_decks.concept_id = concepts.entity_id
+                    AND concept_decks.deck_id = :deck
+                    AND concept_decks.removed_at IS NULL
+                    AND decks.deleted_at IS NULL
+            ))
+            AND (:tag IS NULL OR EXISTS (
+                SELECT 1 FROM concept_tags
+                INNER JOIN entities AS tags ON tags.id = concept_tags.tag_id
+                WHERE concept_tags.concept_id = concepts.entity_id
+                    AND concept_tags.tag_id = :tag
+                    AND concept_tags.removed_at IS NULL
+                    AND tags.deleted_at IS NULL
+            ))
+            AND (:search = '' OR concepts.rowid IN (
+                SELECT rowid FROM concept_search WHERE concept_search MATCH :search
+            ))
+            AND (:kind IS NULL OR cards.retrieval_kind = :kind)
+            AND (:state IS NULL OR card_scheduling.state = :state)";
+    let filters = named_params! {
+        ":deck": input.deck_id,
+        ":tag": input.tag_id,
+        ":search": expression,
+        ":kind": card_type,
+        ":state": state,
+        ":now": now,
+    };
+    let (total_cards, due_cards, next_due_at) = connection.query_row(
+        &format!(
+            "SELECT COUNT(*),
+                COUNT(*) FILTER (WHERE card_scheduling.due_at <= :now),
+                MIN(card_scheduling.due_at) FILTER (WHERE card_scheduling.due_at > :now)
+            {scope}"
+        ),
+        filters,
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
     )?;
-    let next_due_at = connection.query_row(
-        "SELECT MIN(card_scheduling.due_at)
-        FROM card_scheduling
-        INNER JOIN cards
-            ON cards.entity_id = card_scheduling.card_id
-        INNER JOIN entities AS card_entities
-            ON card_entities.id = cards.entity_id
-        INNER JOIN concepts
-            ON concepts.entity_id = cards.concept_id
-        INNER JOIN entities AS concept_entities
-            ON concept_entities.id = concepts.entity_id
-        LEFT JOIN entities AS template_entities
-            ON template_entities.id = cards.template_id
-        WHERE card_entities.deleted_at IS NULL
-            AND concept_entities.deleted_at IS NULL
-            AND concepts.archived_at IS NULL
-            AND (
-                cards.template_id IS NULL
-                OR template_entities.deleted_at IS NULL
-            )
-            AND card_scheduling.due_at > ?1",
-        [now],
-        |row| row.get(0),
-    )?;
-    let mut statement = connection.prepare(
+    let mut statement = connection.prepare(&format!(
         "SELECT
             cards.entity_id,
             concepts.entity_id,
@@ -77,51 +100,41 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
             card_scheduling.due_at,
             card_scheduling.state = 'new'
                 AND NOT EXISTS (
-                    SELECT 1
-                    FROM reviews
-                    INNER JOIN cards AS reviewed_cards
-                        ON reviewed_cards.entity_id = reviews.card_id
+                    SELECT 1 FROM reviews
+                    INNER JOIN cards AS reviewed_cards ON reviewed_cards.entity_id = reviews.card_id
                     WHERE reviewed_cards.concept_id = concepts.entity_id
                 )
                 AND NOT EXISTS (
-                    SELECT 1
-                    FROM pretests
-                    WHERE pretests.concept_id = concepts.entity_id
-                )
-                AS pretest_eligible
-        FROM card_scheduling
-        INNER JOIN cards
-            ON cards.entity_id = card_scheduling.card_id
-        INNER JOIN entities AS card_entities
-            ON card_entities.id = cards.entity_id
-        INNER JOIN concepts
-            ON concepts.entity_id = cards.concept_id
-        INNER JOIN entities AS concept_entities
-            ON concept_entities.id = concepts.entity_id
-        LEFT JOIN entities AS template_entities
-            ON template_entities.id = cards.template_id
-        WHERE card_entities.deleted_at IS NULL
-            AND concept_entities.deleted_at IS NULL
-            AND concepts.archived_at IS NULL
-            AND (
-                cards.template_id IS NULL
-                OR template_entities.deleted_at IS NULL
-            )
-            AND card_scheduling.due_at <= ?1
-        ORDER BY card_scheduling.due_at, cards.entity_id",
+                    SELECT 1 FROM pretests WHERE pretests.concept_id = concepts.entity_id
+                ) AS pretest_eligible
+        {scope}
+            AND card_scheduling.due_at <= :now
+        ORDER BY card_scheduling.due_at, cards.entity_id
+        LIMIT :limit"
+    ))?;
+    let rows = statement.query_map(
+        named_params! {
+            ":deck": input.deck_id,
+            ":tag": input.tag_id,
+            ":search": expression,
+            ":kind": card_type,
+            ":state": state,
+            ":now": now,
+            ":limit": input.card_limit.map(i64::from).unwrap_or(-1),
+        },
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, i64>(6)?,
+                row.get::<_, bool>(7)?,
+            ))
+        },
     )?;
-    let rows = statement.query_map([now], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, String>(2)?,
-            row.get::<_, String>(3)?,
-            row.get::<_, Option<String>>(4)?,
-            row.get::<_, String>(5)?,
-            row.get::<_, i64>(6)?,
-            row.get::<_, bool>(7)?,
-        ))
-    })?;
     let card_rows = rows.collect::<Result<Vec<_>, _>>()?;
 
     drop(statement);
@@ -214,6 +227,7 @@ pub fn query_study_queue(connection: &Connection, now: i64) -> LibraryResult<Stu
         media: media.into_values().collect(),
         next_due_at,
         total_cards,
+        due_cards,
         mixed_practice_enabled,
     })
 }

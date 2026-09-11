@@ -12,7 +12,7 @@ use crate::library::{
     AppearancePreferences, ConceptDetail, DevicePreferences, GradingMode, LibraryError,
     LibraryResult, MediaSummary, PretestRecord, RecordPretestInput,
     RecordReviewInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
-    SchedulingSettings, StartupDestination, StudyQueue, UpdateSchedulingSettingsInput,
+    SchedulingSettings, StartupDestination, StudyQuery, StudyQueue, UpdateSchedulingSettingsInput,
 };
 
 mod assignments;
@@ -43,6 +43,14 @@ impl<'store> ConceptLibrary<'store> {
 
     pub fn study_queue(&self) -> LibraryResult<StudyQueue> {
         self.study_queue_at(current_timestamp()?)
+    }
+
+    pub fn selected_study_queue(&self, input: StudyQuery) -> LibraryResult<StudyQueue> {
+        let now = current_timestamp()?;
+
+        self.store.read_result(|connection| {
+            crate::library::study::query_selected_study_queue(connection, now, &input)
+        })
     }
 
     pub fn record_review(&self, input: RecordReviewInput) -> LibraryResult<ReviewOutcome> {

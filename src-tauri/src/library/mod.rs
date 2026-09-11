@@ -13,6 +13,7 @@ mod models;
 mod pretesting;
 mod preferences;
 mod retrieval_forms;
+mod search_query;
 mod service;
 mod study;
 mod templates;
@@ -46,7 +47,7 @@ pub use models::{
     SetAppearancePreferencesInput, SetConceptArchivedInput,
     SetCssSnippetEnabledInput, SetGradingModeInput, SetMixedPracticeEnabledInput,
     SetPretestingEnabledInput, SetStartupDestinationInput,
-    StartupDestination, StudyCard, StudyConcept, StudyQueue, StudyTemplate, TemplateBlock,
+    StartupDestination, StudyCard, StudyConcept, StudyQuery, StudyQueue, StudyTemplate, TemplateBlock,
     TemplateCatalog, TemplateContent, TemplateDetail, TemplateSummary,
     TypeAnswerSettings, UpdateConceptInput, UpdateCssSnippetInput,
     UpdateSchedulingSettingsInput, UpdateTemplateInput, UpsertAuthoringDraftInput,

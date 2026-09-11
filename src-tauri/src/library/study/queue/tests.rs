@@ -5,7 +5,8 @@ use serde_json::json;
 use super::ID_BATCH_SIZE;
 use crate::data::LocalDataStore;
 use crate::library::{
-    ConceptLibrary, CreateTemplateInput, RecordReviewInput, ReviewRating, TemplateLibrary,
+    ConceptLibrary, CreateTemplateInput, LibraryError, LibraryQuery, RecordReviewInput,
+    RetrievalFormKind, ReviewRating, SchedulingState, StudyQuery, TemplateLibrary,
 };
 
 #[test]
@@ -146,4 +147,221 @@ fn batched_content_reads_keep_complete_membership_and_mixed_order() {
     assert_eq!(mixed.concepts, ordered.concepts);
     assert_eq!(mixed, library.study_queue().unwrap());
     assert!(mixed.mixed_practice_enabled);
+}
+
+#[test]
+fn focused_filters_match_one_due_card_and_keep_scoped_counts() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = LocalDataStore::open(directory.path()).unwrap();
+    let library = ConceptLibrary::new(&store);
+    let deck = library.create_deck("Deck".into()).unwrap();
+    let tag = library.create_tag("Tag".into()).unwrap();
+    let concept = library
+        .create_concept(
+            serde_json::from_value(json!({
+                "title": "Café biology",
+                "deckIds": [deck.id],
+                "tagIds": [tag.id],
+                "typeAnswer": { "acceptedAnswers": ["Mitochondrion"] }
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    let recall = concept
+        .cards
+        .iter()
+        .find(|card| card.retrieval_kind == RetrievalFormKind::Recall)
+        .unwrap();
+    library
+        .record_review(RecordReviewInput {
+            card_id: recall.id.clone(),
+            rating: ReviewRating::Good,
+        })
+        .unwrap();
+    let input = StudyQuery {
+        query: "cafe mito".into(),
+        deck_id: Some(deck.id.clone()),
+        tag_id: Some(tag.id.clone()),
+        card_type: Some(RetrievalFormKind::TypeAnswer),
+        state: Some(SchedulingState::New),
+        ..Default::default()
+    };
+    let queue = library.selected_study_queue(input.clone()).unwrap();
+
+    assert_eq!(queue.cards.len(), 1);
+    assert_eq!(
+        (queue.total_cards, queue.due_cards, queue.next_due_at),
+        (1, 1, None)
+    );
+    assert_eq!(queue.cards[0].retrieval_kind, RetrievalFormKind::TypeAnswer);
+    assert!(!queue.cards[0].pretest_eligible);
+
+    let mismatched = library
+        .selected_study_queue(StudyQuery {
+            state: Some(SchedulingState::Review),
+            ..input.clone()
+        })
+        .unwrap();
+    assert_eq!(mismatched.total_cards, 0);
+    assert!(mismatched.cards.is_empty());
+
+    let future = library
+        .selected_study_queue(StudyQuery {
+            card_type: Some(RetrievalFormKind::Recall),
+            state: Some(SchedulingState::Review),
+            ..input.clone()
+        })
+        .unwrap();
+    assert_eq!((future.total_cards, future.due_cards), (1, 0));
+    assert!(future.cards.is_empty());
+    assert!(future.next_due_at.is_some());
+
+    library.set_concept_archived(&concept.id, true).unwrap();
+    assert_eq!(
+        library
+            .selected_study_queue(input.clone())
+            .unwrap()
+            .total_cards,
+        0
+    );
+    library.set_concept_archived(&concept.id, false).unwrap();
+    library.delete_tag(&tag.id).unwrap();
+    assert_eq!(library.selected_study_queue(input).unwrap().total_cards, 0);
+}
+
+#[test]
+fn sessions_use_all_search_results_and_limit_before_mixing() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = LocalDataStore::open(directory.path()).unwrap();
+    let library = ConceptLibrary::new(&store);
+    let deck = library.create_deck("Selected".into()).unwrap();
+    library
+        .create_concept(serde_json::from_value(json!({ "title": "Outside scope" })).unwrap())
+        .unwrap();
+
+    for index in 0..55 {
+        library
+            .create_concept(
+                serde_json::from_value(json!({
+                    "title": format!("Session match {index}"),
+                    "deckIds": [deck.id]
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+    }
+
+    let page = library
+        .search(LibraryQuery {
+            query: "Session mat".into(),
+            deck_id: Some(deck.id.clone()),
+            page: 2,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!((page.total_count, page.concepts.len()), (55, 5));
+
+    let input = StudyQuery {
+        query: "Session mat".into(),
+        deck_id: Some(deck.id),
+        ..Default::default()
+    };
+    let full = library.selected_study_queue(input.clone()).unwrap();
+    assert_eq!(full.cards.len(), 55);
+    let selected = full
+        .cards
+        .iter()
+        .take(3)
+        .map(|card| card.id.clone())
+        .collect::<BTreeSet<_>>();
+    library.set_mixed_practice_enabled(true).unwrap();
+    let limited = library
+        .selected_study_queue(StudyQuery {
+            card_limit: Some(3),
+            ..input.clone()
+        })
+        .unwrap();
+
+    assert_eq!(
+        limited
+            .cards
+            .iter()
+            .map(|card| card.id.clone())
+            .collect::<BTreeSet<_>>(),
+        selected
+    );
+    assert_eq!(
+        (
+            limited.total_cards,
+            limited.due_cards,
+            limited.concepts.len()
+        ),
+        (55, 55, 3)
+    );
+    assert_eq!(
+        limited,
+        library
+            .selected_study_queue(StudyQuery {
+                card_limit: Some(3),
+                ..input.clone()
+            })
+            .unwrap()
+    );
+    assert_eq!(
+        library
+            .selected_study_queue(StudyQuery {
+                card_limit: Some(u32::MAX),
+                ..input
+            })
+            .unwrap()
+            .cards
+            .len(),
+        55
+    );
+}
+
+#[test]
+fn session_inputs_reject_invalid_limits_and_do_not_accept_library_pagination() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = LocalDataStore::open(directory.path()).unwrap();
+    let library = ConceptLibrary::new(&store);
+
+    assert!(matches!(
+        library.selected_study_queue(StudyQuery {
+            card_limit: Some(0),
+            ..Default::default()
+        }),
+        Err(LibraryError::InvalidContent {
+            field: "Card limit",
+            ..
+        })
+    ));
+    assert!(matches!(
+        library.selected_study_queue(StudyQuery {
+            query: "é".repeat(251),
+            ..Default::default()
+        }),
+        Err(LibraryError::ValueTooLong { .. })
+    ));
+
+    for input in [
+        json!({"cardLimit": -1}),
+        json!({"cardLimit": 1.5}),
+        json!({"state": "due"}),
+        json!({"page": 2}),
+        json!({"includeArchived": true}),
+    ] {
+        assert!(serde_json::from_value::<StudyQuery>(input).is_err());
+    }
+
+    for query in ["", "   ", "\" OR *", "é"] {
+        let queue = library
+            .selected_study_queue(StudyQuery {
+                query: query.into(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(queue.cards.is_empty());
+        assert_eq!((queue.total_cards, queue.due_cards), (0, 0));
+    }
 }

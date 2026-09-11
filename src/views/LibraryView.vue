@@ -9,6 +9,7 @@ import PageHeader from '../components/PageHeader.vue';
 import { useLibrarySearch } from '../composables/useLibrarySearch';
 import { libraryCardTypeOptions, librarySortOptions, libraryStateOptions } from '../library/search';
 import { retrievalFormIcon, retrievalFormLabel } from '../retrieval-forms/catalog';
+import { studyBuilderLocation } from '../study/selection';
 
 const {
   cardType,
@@ -263,11 +264,22 @@ function formattedDate( timestamp ) {
             </p>
           </div>
 
-          <LibraryPagination
-            :library="library"
-            :loading="loading"
-            @change="changePage"
-          />
+          <div class="library-results__actions">
+            <UButton
+              :to="studyBuilderLocation(navigationQuery)"
+              leading-icon="i-lucide-list-filter"
+              color="neutral"
+              variant="subtle"
+            >
+              Study results
+            </UButton>
+
+            <LibraryPagination
+              :library="library"
+              :loading="loading"
+              @change="changePage"
+            />
+          </div>
         </div>
 
         <ContentState

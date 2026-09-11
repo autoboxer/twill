@@ -6,6 +6,7 @@ import { useRecallSession } from './useRecallSession';
 import { richDocumentHasContent } from '../rich-content/schema';
 import { gradingOptionsByMode } from '../study/grading';
 import { takeStudySession } from '../study/resume';
+import { emptyStudySelection, hasStudySelection, studyQuery } from '../study/selection';
 import { normalizeTypeAnswer } from '../type-answer/comparison';
 
 export function useStudySession({
@@ -90,6 +91,10 @@ export function useStudySession({
   const mixedPracticeEnabled = ref( false );
   const nextDueAt = ref( null );
   const totalAvailableCards = ref( 0 );
+  const matchingDueCards = ref( 0 );
+  const selectedCardCount = ref( 0 );
+  const sessionSelection = ref( emptyStudySelection() );
+  const focusedSession = computed( () => hasStudySelection( sessionSelection.value ) );
 
   const sessionChangedConceptIds = ref( new Set() );
   const sessionResumeNotice = ref( '' );
@@ -180,27 +185,30 @@ export function useStudySession({
     loadRequestSequence += 1;
   });
 
-  async function loadStudyQueue() {
-    if ( gradingModePending.value ) {
-      return;
+  async function loadStudyQueue( selection = sessionSelection.value, preserveCurrent = false ) {
+    if ( gradingModePending.value || assessmentPending.value || pretestPending.value || undoPending.value ) {
+      return false;
     }
 
     const request = ++loadRequestSequence;
 
     clearError();
     gradingModeError.value = '';
-    loadError.value = '';
-    sessionResumeNotice.value = '';
+
+    if ( !preserveCurrent ) {
+      loadError.value = '';
+    }
+
     initialLoading.value = true;
 
     try {
       const [ queue, preferences ] = await Promise.all([
-        getStudyQueue(),
+        getStudyQueue( studyQuery( selection ) ),
         getDevicePreferences()
       ]);
 
       if ( request !== loadRequestSequence ) {
-        return;
+        return false;
       }
 
       studyMedia.value = queue.media;
@@ -216,10 +224,25 @@ export function useStudySession({
       nextDueAt.value = queue.nextDueAt;
       sessionGradingMode.value = preferences.gradingMode;
       totalAvailableCards.value = queue.totalCards;
+      matchingDueCards.value = queue.dueCards ?? queue.cards.length;
+      selectedCardCount.value = queue.cards.length;
+      sessionSelection.value = { ...selection };
+      sessionResumeNotice.value = '';
+      loadError.value = '';
+      assessmentError.value = '';
+      recoveryError.value = '';
+
+      return true;
     } catch ( cause ) {
       if ( request === loadRequestSequence ) {
+        if ( preserveCurrent ) {
+          throw cause;
+        }
+
         loadError.value = conceptLibraryErrorMessage( cause );
       }
+
+      return false;
     } finally {
       if ( request === loadRequestSequence ) {
         initialLoading.value = false;
@@ -556,6 +579,9 @@ export function useStudySession({
       sessionGradingMode: sessionGradingMode.value,
       studyMedia: [ ...studyMedia.value ],
       totalAvailableCards: totalAvailableCards.value,
+      matchingDueCards: matchingDueCards.value,
+      selectedCardCount: selectedCardCount.value,
+      selection: { ...sessionSelection.value },
       response: studyResponse.value
     };
   }
@@ -570,6 +596,9 @@ export function useStudySession({
     sessionChangedConceptIds.value = new Set( session.changedConceptIds ?? []);
     studyMedia.value = [ ...session.studyMedia ];
     totalAvailableCards.value = session.totalAvailableCards;
+    matchingDueCards.value = session.matchingDueCards ?? session.totalAvailableCards;
+    selectedCardCount.value = session.selectedCardCount ?? session.recall.cards.length;
+    sessionSelection.value = { ...emptyStudySelection(), ...session.selection };
     studyResponse.value = session.response ?? '';
     pausedResponses.clear();
 
@@ -595,6 +624,7 @@ export function useStudySession({
     currentCard,
     explainSettings,
     finishCurrentPretest,
+    focusedSession,
     gradingMode,
     gradingModeError,
     gradingModeLocked,
@@ -612,6 +642,7 @@ export function useStudySession({
     masteryRecalledCount,
     masteryStarted,
     masteryTotal,
+    matchingDueCards,
     mixedPracticeEnabled,
     nextDueAt,
     pendingAssessment,
@@ -629,7 +660,9 @@ export function useStudySession({
     recordMasteryAssessment,
     recoveryError,
     sessionGradingMode,
+    selectedCardCount,
     sessionResumeNotice,
+    sessionSelection,
     showAnswer,
     skipCurrentPretest,
     studyMedia,

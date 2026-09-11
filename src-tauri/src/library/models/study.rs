@@ -48,10 +48,22 @@ pub struct StudyQueue {
     pub media: Vec<MediaSummary>,
     pub next_due_at: Option<i64>,
     pub total_cards: i64,
+    pub due_cards: i64,
     pub mixed_practice_enabled: bool,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct StudyQuery {
+    pub query: String,
+    pub deck_id: Option<String>,
+    pub tag_id: Option<String>,
+    pub card_type: Option<RetrievalFormKind>,
+    pub state: Option<SchedulingState>,
+    pub card_limit: Option<u32>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SchedulingState {
     New,

@@ -20,7 +20,7 @@ use crate::library::{
     SchedulingSettings,
     SetAppearancePreferencesInput, SetConceptArchivedInput, SetCssSnippetEnabledInput,
     SetGradingModeInput, SetMixedPracticeEnabledInput, SetPretestingEnabledInput,
-    SetStartupDestinationInput, StudyQueue, TemplateCatalog,
+    SetStartupDestinationInput, StudyQuery, StudyQueue, TemplateCatalog,
     TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
     UpdateCssSnippetInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
     UpsertAuthoringDraftInput,
@@ -178,10 +178,15 @@ pub(crate) fn get_concept(
 #[tauri::command(async)]
 pub(crate) fn get_study_queue(
     local_data: State<'_, LocalDataStore>,
+    input: Option<StudyQuery>,
 ) -> CommandResult<StudyQueue> {
-    ConceptLibrary::new(local_data.inner())
-        .study_queue()
-        .map_err(Into::into)
+    let library = ConceptLibrary::new(local_data.inner());
+
+    match input {
+        Some(input) => library.selected_study_queue(input),
+        None => library.study_queue(),
+    }
+    .map_err(Into::into)
 }
 
 #[tauri::command(async)]

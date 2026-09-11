@@ -1,6 +1,7 @@
 <script setup>
 import { AnimatePresence, m } from 'motion-v';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 
 import CardQualityAction from '../components/CardQualityAction.vue';
 import ContentState from '../components/ContentState.vue';
@@ -10,6 +11,7 @@ import PageHeader from '../components/PageHeader.vue';
 import ProblemResponse from '../components/ProblemResponse.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
+import StudySessionBuilder from '../components/StudySessionBuilder.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
 import { COMMAND_IDS } from '../commands/registry';
 import {
@@ -20,9 +22,14 @@ import { useStudySession } from '../composables/useStudySession';
 import { useStudyFocus } from '../composables/useStudyFocus';
 import { useStudyDeferredEdits } from '../composables/useStudyDeferredEdits';
 import { gradingModeItems, gradingOptionsByMode } from '../study/grading';
+import { emptyStudySelection, studySelectionFromLibrary } from '../study/selection';
 import { retrievalFormLabel as studyCardName } from '../retrieval-forms/catalog';
 
 const commands = useCommands();
+const route = useRoute();
+const router = useRouter();
+const builderOpen = ref( false );
+const builderSelection = ref( emptyStudySelection() );
 const session = useStudySession({
   onStateChanged: () => focusCurrentState(),
   onAnswerRevealed: () => focusAnswer(),
@@ -43,6 +50,7 @@ const {
   currentCard,
   explainSettings,
   finishCurrentPretest,
+  focusedSession,
   gradingMode,
   gradingModeError,
   gradingModeLocked,
@@ -60,6 +68,7 @@ const {
   masteryRecalledCount,
   masteryStarted,
   masteryTotal,
+  matchingDueCards,
   mixedPracticeEnabled,
   nextDueAt,
   pendingAssessment,
@@ -77,7 +86,9 @@ const {
   recordMasteryAssessment,
   recoveryError,
   sessionGradingMode,
+  selectedCardCount,
   sessionResumeNotice,
+  sessionSelection,
   showAnswer,
   skipCurrentPretest,
   studyMedia,
@@ -116,6 +127,31 @@ const {
   removeQueuedConcept,
   startDeferredEditing
 } = useStudyDeferredEdits( session );
+
+const builderDisabled = computed( () => initialLoading.value || gradingModePending.value
+  || assessmentPending.value || pretestPending.value || undoPending.value || deferredStartPending.value );
+
+watch( () => route.fullPath, () => {
+  if ( route.name === 'study' && route.query.build === '1' ) {
+    builderSelection.value = studySelectionFromLibrary( route.query );
+    builderOpen.value = true;
+  }
+}, { immediate: true });
+
+watch( builderOpen, ( open ) => {
+  if ( !open && route.name === 'study' && route.query.build === '1' ) {
+    void router.replace({ name: 'study' });
+  }
+});
+
+function openBuilder() {
+  builderSelection.value = { ...sessionSelection.value };
+  builderOpen.value = true;
+}
+
+function startFocusedSession( selection ) {
+  return loadStudyQueue( selection, true );
+}
 
 const cardTransition = {
   duration: 0.22,
@@ -395,6 +431,16 @@ function registerGradingCommand( commandId, mode, rating ) {
         </div>
 
         <UButton
+          leading-icon="i-lucide-list-filter"
+          color="neutral"
+          variant="subtle"
+          :disabled="builderDisabled"
+          @click="openBuilder"
+        >
+          Build session
+        </UButton>
+
+        <UButton
           :to="{ name: 'library' }"
           leading-icon="i-lucide-library"
           color="neutral"
@@ -404,6 +450,16 @@ function registerGradingCommand( commandId, mode, rating ) {
         </UButton>
       </template>
     </PageHeader>
+
+    <UAlert
+      v-if="focusedSession && !initialLoading && !loadError"
+      class="study-mode-error"
+      title="Focused session"
+      :description="`${ selectedCardCount } of ${ matchingDueCards } matching due cards selected. Only this selection is included.`"
+      icon="i-lucide-list-filter"
+      color="neutral"
+      variant="subtle"
+    />
 
     <UAlert
       v-if="gradingModeError"
@@ -450,7 +506,7 @@ function registerGradingCommand( commandId, mode, rating ) {
         <UButton
           leading-icon="i-lucide-refresh-cw"
           :disabled="gradingModePending"
-          @click="loadStudyQueue"
+          @click="loadStudyQueue()"
         >
           Retry
         </UButton>
@@ -466,7 +522,7 @@ function registerGradingCommand( commandId, mode, rating ) {
     </ContentState>
 
     <ContentState
-      v-else-if="!hasCards && totalAvailableCards === 0"
+      v-else-if="!hasCards && totalAvailableCards === 0 && !focusedSession"
       title="No cards to study"
       description="Create or restore a concept to make a study card available."
     >
@@ -493,15 +549,15 @@ function registerGradingCommand( commandId, mode, rating ) {
 
     <ContentState
       v-else-if="!hasCards"
-      title="Nothing due"
-      :description="nextReviewDescription"
+      :title="focusedSession ? 'No matching cards due' : 'Nothing due'"
+      :description="focusedSession ? 'Change your session filters or check again later. Cards that are not due are excluded.' : nextReviewDescription"
     >
       <template #actions>
         <UButton
           leading-icon="i-lucide-refresh-cw"
           size="lg"
           :disabled="gradingModePending"
-          @click="loadStudyQueue"
+          @click="loadStudyQueue()"
         >
           Check again
         </UButton>
@@ -1087,6 +1143,13 @@ function registerGradingCommand( commandId, mode, rating ) {
       :starting="deferredStartPending"
       @remove="removeQueuedConcept"
       @start="startDeferredEditing"
+    />
+    <StudySessionBuilder
+      v-model:open="builderOpen"
+      :selection="builderSelection"
+      :disabled="builderDisabled"
+      :replacing="hasCards && !isComplete"
+      :start-session="startFocusedSession"
     />
   </div>
 </template>

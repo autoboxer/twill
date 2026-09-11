@@ -5,33 +5,18 @@ use super::assignments::attach_assignments;
 use super::organizations::OrganizationKind;
 use super::ConceptLibrary;
 use crate::data::{current_timestamp, WriteTransaction};
+use crate::library::search_query::search_expression;
 use crate::library::{
-    ConceptDetail, ConceptSummary, LibraryCardMatch, LibraryCardState, LibraryError, LibraryPage,
+    ConceptDetail, ConceptSummary, LibraryCardMatch, LibraryCardState, LibraryPage,
     LibraryQuery, LibraryResult, LibrarySort, NamedItem, RetrievalFormKind,
 };
 
 const PAGE_SIZE: i64 = 50;
-const MAXIMUM_QUERY_LENGTH: usize = 250;
 const MAXIMUM_EXCERPT_LENGTH: usize = 280;
 
 impl ConceptLibrary<'_> {
     pub fn search(&self, input: LibraryQuery) -> LibraryResult<LibraryPage> {
-        let query = input.query.trim();
-
-        if query.chars().count() > MAXIMUM_QUERY_LENGTH {
-            return Err(LibraryError::ValueTooLong {
-                field: "Search",
-                maximum: MAXIMUM_QUERY_LENGTH,
-            });
-        }
-
-        // Quote user input so FTS operators and punctuation cannot change the query grammar
-        let expression = query
-            .split(|character: char| character.is_whitespace() || character == '\0')
-            .filter(|term| !term.is_empty())
-            .map(|term| format!("\"{}\"*", term.replace('"', "\"\"")))
-            .collect::<Vec<_>>()
-            .join(" AND ");
+        let expression = search_expression(&input.query)?;
 
         self.store
             .read_result(|connection| query_page(connection, &input, &expression))

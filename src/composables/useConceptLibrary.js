@@ -52,7 +52,7 @@ export function useConceptLibrary() {
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
     getLibrary: ( input = {}) => run( 'get_library', { input }),
     getLibraryOrganizations: () => run( 'get_library_organizations' ),
-    getStudyQueue: async () => resolveStudyQueue( await run( 'get_study_queue' ) ),
+    getStudyQueue: async ( input = {}) => resolveStudyQueue( await run( 'get_study_queue', { input }) ),
     isPending,
     readMedia: ( mediaId ) => run( 'read_media', { mediaId }),
     recordPretest: ( cardId, outcome ) => run( 'record_pretest', {
