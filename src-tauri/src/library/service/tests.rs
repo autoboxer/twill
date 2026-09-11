@@ -711,8 +711,8 @@ fn retrieval_forms_are_selected_without_duplicates_and_schedule_independently() 
     assert!(queue.media.is_empty());
     assert_eq!(queue.cards[0].id, waiting_card.id);
     assert_eq!(
-        queue.cards[0].template.as_ref().unwrap().id,
-        second_template.id
+        queue.cards[0].template_id.as_ref().unwrap(),
+        &second_template.id
     );
 
     let updated_template = templates
@@ -725,7 +725,7 @@ fn retrieval_forms_are_selected_without_duplicates_and_schedule_independently() 
     let updated_queue = library.study_queue_at(review_time).unwrap();
 
     assert_eq!(
-        updated_queue.cards[0].template.as_ref().unwrap().name,
+        updated_queue.templates[0].name,
         updated_template.name
     );
 }
@@ -1206,13 +1206,15 @@ fn problem_checkpoints_are_validated_normalized_and_queued() {
         card.problem.as_ref().unwrap().checkpoints,
         vec!["Identify the net force.", "Solve F = ma for acceleration.",]
     );
-    let study_card = library.study_queue().unwrap().cards[0].clone();
+    let queue = library.study_queue().unwrap();
+    let study_card = &queue.cards[0];
 
     assert_eq!(study_card.id, card.id);
     assert_eq!(study_card.retrieval_kind, RetrievalFormKind::Problem);
     assert_eq!(study_card.problem, card.problem);
-    assert_eq!(study_card.content, concept.content);
-    assert_eq!(library.study_queue().unwrap().media, vec![media]);
+    assert_eq!(queue.concepts[0].id, study_card.concept_id);
+    assert_eq!(queue.concepts[0].content, concept.content);
+    assert_eq!(queue.media, vec![media]);
 }
 
 #[test]
@@ -1842,13 +1844,15 @@ fn study_cards_include_only_active_unarchived_recall_cards() {
 
     library.set_concept_archived(&archived.id, true).unwrap();
 
-    let cards = library.study_queue().unwrap().cards;
+    let queue = library.study_queue().unwrap();
+    let cards = queue.cards;
 
     assert_eq!(cards.len(), 1);
     assert_eq!(cards[0].id, active.cards[0].id);
     assert_eq!(cards[0].concept_id, active.id);
-    assert_eq!(cards[0].concept_title, active.title);
-    assert_eq!(cards[0].content, content);
+    assert_eq!(queue.concepts[0].id, active.id);
+    assert_eq!(queue.concepts[0].title, active.title);
+    assert_eq!(queue.concepts[0].content, content);
 
     store
         .write(|transaction| transaction.soft_delete_entity(&cards[0].id))

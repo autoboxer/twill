@@ -31,7 +31,6 @@ import {
   conceptEditorStateKey,
   createConceptEditorState
 } from '../drafts/conceptDraft';
-import { markStudyConceptChanged } from '../study/resume';
 import { libraryNavigationQuery } from '../library/search';
 
 const route = useRoute();
@@ -388,10 +387,6 @@ async function saveConcept( input ) {
       concept: input,
       deferredEditPosition: isDeferredEdit.value ? deferredEditItem.value.position : null
     }) );
-
-    if ( isDeferredEdit.value && savesExistingConcept.value ) {
-      markStudyConceptChanged( conceptId.value );
-    }
 
     savedConcept.value = saved;
     await finishSavedConcept();

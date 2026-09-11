@@ -18,16 +18,13 @@ pub struct StudyTemplate {
 pub struct StudyCard {
     pub id: String,
     pub concept_id: String,
-    pub concept_last_change_id: String,
-    pub concept_title: String,
-    pub content: ConceptContent,
     pub retrieval_kind: RetrievalFormKind,
     pub explain: Option<ExplainSettings>,
     pub problem: Option<ProblemSettings>,
     pub cloze: Option<ClozeSettings>,
     pub image_occlusion: Option<ImageOcclusionSettings>,
     pub type_answer: Option<TypeAnswerSettings>,
-    pub template: Option<StudyTemplate>,
+    pub template_id: Option<String>,
     pub scheduling_state: SchedulingState,
     pub due_at: i64,
     pub pretest_eligible: bool,
@@ -35,15 +32,38 @@ pub struct StudyCard {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct StudyConcept {
+    pub id: String,
+    pub last_change_id: String,
+    pub title: String,
+    pub content: ConceptContent,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StudyQueue {
     pub cards: Vec<StudyCard>,
+    pub concepts: Vec<StudyConcept>,
+    pub templates: Vec<StudyTemplate>,
     pub media: Vec<MediaSummary>,
     pub next_due_at: Option<i64>,
     pub total_cards: i64,
+    pub due_cards: i64,
     pub mixed_practice_enabled: bool,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct StudyQuery {
+    pub query: String,
+    pub deck_id: Option<String>,
+    pub tag_id: Option<String>,
+    pub card_type: Option<RetrievalFormKind>,
+    pub state: Option<SchedulingState>,
+    pub card_limit: Option<u32>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SchedulingState {
     New,

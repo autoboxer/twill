@@ -386,6 +386,33 @@ export function useRecallSession() {
     ratingCounts.value = { ...snapshot.ratingCounts };
   }
 
+  function excludeConcepts( conceptIds ) {
+    if ( !conceptIds.size ) {
+      return false;
+    }
+
+    const previousCardId = currentCard.value?.id;
+
+    cards.value = [
+      ...cards.value.slice( 0, currentIndex.value ),
+      ...cards.value.slice( currentIndex.value ).filter( ( card ) => !conceptIds.has( card.conceptId ) )
+    ];
+    masteryItems.value = [
+      ...masteryItems.value.slice( 0, masteryIndex.value ),
+      ...masteryItems.value.slice( masteryIndex.value ).filter( ( item ) => !conceptIds.has( item.card.conceptId ) )
+    ];
+
+    const currentChanged = previousCardId !== currentCard.value?.id;
+
+    if ( currentChanged ) {
+      answerRevealed.value = false;
+      correctionPending.value = false;
+      pretestTeaching.value = null;
+    }
+
+    return currentChanged;
+  }
+
   return {
     answerRevealed,
     assess,
@@ -397,6 +424,7 @@ export function useRecallSession() {
     correctionPending,
     createSnapshot,
     currentCard,
+    excludeConcepts,
     hasCards,
     isComplete,
     lastAssessment,

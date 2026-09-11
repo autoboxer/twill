@@ -3,7 +3,7 @@ use serde_json::{json, Value};
 
 use super::*;
 use crate::data::{DataResult, LocalDataStore};
-use crate::library::{CreateConceptInput, RecordReviewInput, ReviewRating, UpdateConceptInput};
+use crate::library::{CreateConceptInput, LibraryError, RecordReviewInput, ReviewRating, UpdateConceptInput};
 
 fn input(title: &str) -> CreateConceptInput {
     serde_json::from_value(json!({ "title": title })).unwrap()

@@ -44,7 +44,7 @@ pub use retrieval::{
 pub use study::{
     PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput, ReverseReviewInput,
     ReviewOutcome, ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
-    StudyCard, StudyQueue, StudyTemplate, UpdateSchedulingSettingsInput,
+    StudyCard, StudyConcept, StudyQuery, StudyQueue, StudyTemplate, UpdateSchedulingSettingsInput,
 };
 pub use templates::{
     CreateTemplateInput, TemplateBlock, TemplateCatalog, TemplateContent, TemplateDetail,

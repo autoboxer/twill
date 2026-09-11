@@ -137,6 +137,14 @@
   margin-bottom: 1.25rem;
 }
 
+.library-results__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 100%;
+}
+
 .library-search label,
 .library-search-options label {
   color: var(--ui-text-highlighted);

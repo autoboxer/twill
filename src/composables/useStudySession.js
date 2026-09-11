@@ -1,11 +1,14 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeRouteLeave, useRoute } from 'vue-router';
 
 import { conceptLibraryErrorMessage, useConceptLibrary } from './useConceptLibrary';
 import { useDevicePreferences } from './useDevicePreferences';
 import { useRecallSession } from './useRecallSession';
+import { useNativeActionGuard } from './useNativeLifecycle';
 import { richDocumentHasContent } from '../rich-content/schema';
 import { gradingOptionsByMode } from '../study/grading';
-import { takeStudySession } from '../study/resume';
+import { preserveStudySession, takeStudySession } from '../study/resume';
+import { emptyStudySelection, hasStudySelection, studyQuery } from '../study/selection';
 import { normalizeTypeAnswer } from '../type-answer/comparison';
 
 export function useStudySession({
@@ -37,6 +40,7 @@ export function useStudySession({
     correctionPending,
     createSnapshot,
     currentCard,
+    excludeConcepts,
     hasCards,
     isComplete,
     lastAssessment,
@@ -64,6 +68,11 @@ export function useStudySession({
   } = useRecallSession();
 
   const initialLoading = ref( true );
+  const route = useRoute();
+  const sessionStatus = ref( 'active' );
+  const sessionPaused = computed( () => sessionStatus.value === 'paused' );
+  const sessionEnded = computed( () => sessionStatus.value === 'ended' );
+  const navigationNotice = ref( '' );
   const loadError = ref( '' );
   let loadRequestSequence = 0;
   let viewActive = true;
@@ -82,6 +91,18 @@ export function useStudySession({
   const pretestPending = ref( false );
   const pendingPretestOutcome = ref( '' );
 
+  const writePending = computed( () => gradingModePending.value || assessmentPending.value
+    || pretestPending.value || undoPending.value );
+
+  // Study writes are already durable when their pending flags clear
+  const { nativeActionPending } = useNativeActionGuard({
+    busy: writePending,
+    flush: () => {}
+  });
+  const sessionBusy = computed( () => writePending.value || initialLoading.value || nativeActionPending.value );
+  const actionsBlocked = computed( () => sessionBusy.value || sessionStatus.value !== 'active'
+    || route.name !== 'study' );
+
   const answerFeedbackReviewed = ref( false );
   const studyResponse = ref( '' );
   const pausedResponses = new Map();
@@ -90,6 +111,10 @@ export function useStudySession({
   const mixedPracticeEnabled = ref( false );
   const nextDueAt = ref( null );
   const totalAvailableCards = ref( 0 );
+  const matchingDueCards = ref( 0 );
+  const selectedCardCount = ref( 0 );
+  const sessionSelection = ref( emptyStudySelection() );
+  const focusedSession = computed( () => hasStudySelection( sessionSelection.value ) );
 
   const sessionChangedConceptIds = ref( new Set() );
   const sessionResumeNotice = ref( '' );
@@ -103,13 +128,10 @@ export function useStudySession({
 
   const canUndoLastGrade = computed( () => (
     lastAssessmentCanBeRestored.value
+    && !actionsBlocked.value
     && !sessionChangedConceptIds.value.has( lastAssessment.value?.conceptId )
     && !correctionPending.value
     && !masteryStarted.value
-    && !assessmentPending.value
-    && !gradingModePending.value
-    && !pretestPending.value
-    && !undoPending.value
   ) );
 
   const typeAnswerSettings = computed( () => {
@@ -137,7 +159,7 @@ export function useStudySession({
   });
 
   const canRevealAnswer = computed( () => (
-    !typeAnswerSettings.value || Boolean( normalizeTypeAnswer( studyResponse.value ) )
+    !actionsBlocked.value && ( !typeAnswerSettings.value || Boolean( normalizeTypeAnswer( studyResponse.value ) ) )
   ) );
 
   const currentAnswerFeedback = computed( () => {
@@ -166,8 +188,8 @@ export function useStudySession({
       restoreStudySession( resumableSession );
       initialLoading.value = false;
       sessionResumeNotice.value = resumableSession.changedConceptIds?.length
-        ? 'Your completed session was restored. Edited concepts will use their new content next time; their earlier grades cannot be undone here.'
-        : 'Your study session was restored.';
+        ? 'Changed or removed concepts were excluded from the remaining session. Completed work is kept; earlier grades for those concepts cannot be undone here. Start a new session to study updated content.'
+        : '';
       await nextTick();
       onStateChanged();
     } else {
@@ -176,31 +198,83 @@ export function useStudySession({
   });
 
   onBeforeUnmount( () => {
+    if ( hasCards.value || sessionEnded.value || focusedSession.value || sessionResumeNotice.value ) {
+      preserveStudySession( createStudySessionSnapshot() );
+    }
+
     viewActive = false;
     loadRequestSequence += 1;
   });
 
-  async function loadStudyQueue() {
-    if ( gradingModePending.value ) {
+  onBeforeRouteLeave( () => {
+    if ( writePending.value || nativeActionPending.value || ( initialLoading.value && hasCards.value ) ) {
+      navigationNotice.value = 'Wait for the current study action to finish, then try again.';
+      return false;
+    }
+
+    return true;
+  });
+
+  function pauseSession() {
+    if ( actionsBlocked.value || !hasCards.value || isComplete.value ) {
       return;
+    }
+
+    sessionStatus.value = 'paused';
+  }
+
+  async function resumeSession() {
+    if ( sessionBusy.value || !sessionPaused.value ) {
+      return;
+    }
+
+    sessionStatus.value = 'active';
+    await nextTick();
+    onStateChanged();
+  }
+
+  function endSession() {
+    if ( sessionBusy.value || sessionEnded.value ) {
+      return false;
+    }
+
+    begin([]);
+    sessionStatus.value = 'ended';
+    studyResponse.value = '';
+    studyMedia.value = [];
+    pausedResponses.clear();
+    sessionResumeNotice.value = '';
+    navigationNotice.value = '';
+    assessmentError.value = '';
+    recoveryError.value = '';
+
+    return true;
+  }
+
+  async function loadStudyQueue( selection = sessionSelection.value, preserveCurrent = false ) {
+    if ( writePending.value || nativeActionPending.value || route.name !== 'study' ) {
+      return false;
     }
 
     const request = ++loadRequestSequence;
 
     clearError();
     gradingModeError.value = '';
-    loadError.value = '';
-    sessionResumeNotice.value = '';
+
+    if ( !preserveCurrent ) {
+      loadError.value = '';
+    }
+
     initialLoading.value = true;
 
     try {
       const [ queue, preferences ] = await Promise.all([
-        getStudyQueue(),
+        getStudyQueue( studyQuery( selection ) ),
         getDevicePreferences()
       ]);
 
       if ( request !== loadRequestSequence ) {
-        return;
+        return false;
       }
 
       studyMedia.value = queue.media;
@@ -208,6 +282,8 @@ export function useStudySession({
       begin( queue.cards, {
         pretestingEnabled: preferences.pretestingEnabled
       });
+      sessionStatus.value = 'active';
+      navigationNotice.value = '';
       pausedResponses.clear();
       sessionChangedConceptIds.value = new Set();
       studyResponse.value = '';
@@ -216,10 +292,25 @@ export function useStudySession({
       nextDueAt.value = queue.nextDueAt;
       sessionGradingMode.value = preferences.gradingMode;
       totalAvailableCards.value = queue.totalCards;
+      matchingDueCards.value = queue.dueCards ?? queue.cards.length;
+      selectedCardCount.value = queue.cards.length;
+      sessionSelection.value = { ...selection };
+      sessionResumeNotice.value = '';
+      loadError.value = '';
+      assessmentError.value = '';
+      recoveryError.value = '';
+
+      return true;
     } catch ( cause ) {
       if ( request === loadRequestSequence ) {
+        if ( preserveCurrent ) {
+          throw cause;
+        }
+
         loadError.value = conceptLibraryErrorMessage( cause );
       }
+
+      return false;
     } finally {
       if ( request === loadRequestSequence ) {
         initialLoading.value = false;
@@ -228,13 +319,7 @@ export function useStudySession({
   }
 
   async function showAnswer() {
-    if (
-      !canRevealAnswer.value
-      || assessmentPending.value
-      || gradingModePending.value
-      || pretestPending.value
-      || undoPending.value
-    ) {
+    if ( !canRevealAnswer.value ) {
       return;
     }
 
@@ -251,7 +336,7 @@ export function useStudySession({
   }
 
   async function skipCurrentPretest() {
-    if ( !pretestActive.value || pretestPending.value ) {
+    if ( actionsBlocked.value || !pretestActive.value ) {
       return;
     }
 
@@ -309,7 +394,7 @@ export function useStudySession({
   }
 
   async function finishCurrentPretest() {
-    if ( !pretestTeachingActive.value || answerFeedbackPending.value ) {
+    if ( actionsBlocked.value || !pretestTeachingActive.value || answerFeedbackPending.value ) {
       return;
     }
 
@@ -329,11 +414,8 @@ export function useStudySession({
     });
 
     if (
-      !visibleRating
-      || assessmentPending.value
-      || gradingModePending.value
-      || pretestPending.value
-      || undoPending.value
+      actionsBlocked.value
+      || !visibleRating
       || answerFeedbackPending.value
       || pretestTeachingActive.value
       || !answerRevealed.value
@@ -384,7 +466,7 @@ export function useStudySession({
   }
 
   async function beginMasteryRound() {
-    if ( !startMastery() ) {
+    if ( actionsBlocked.value || !startMastery() ) {
       return;
     }
 
@@ -470,10 +552,7 @@ export function useStudySession({
 
   async function updateGradingMode( nextMode ) {
     if (
-      gradingModePending.value
-      || assessmentPending.value
-      || pretestPending.value
-      || undoPending.value
+      actionsBlocked.value
       || gradingModeLocked.value
       || !gradingOptionsByMode[ nextMode ]
       || nextMode === gradingMode.value
@@ -508,16 +587,14 @@ export function useStudySession({
   }
 
   function masteryActionEnabled() {
-    return masteryActive.value
+    return !actionsBlocked.value
+      && masteryActive.value
       && answerRevealed.value
-      && !answerFeedbackPending.value
-      && !assessmentPending.value
-      && !gradingModePending.value
-      && !undoPending.value;
+      && !answerFeedbackPending.value;
   }
 
   async function continueToGrading() {
-    if ( !answerFeedbackPending.value ) {
+    if ( actionsBlocked.value || !answerFeedbackPending.value ) {
       return;
     }
 
@@ -546,6 +623,9 @@ export function useStudySession({
 
   function createStudySessionSnapshot() {
     return {
+      status: sessionStatus.value,
+      assessmentError: assessmentError.value,
+      recoveryError: recoveryError.value,
       changedConceptIds: [ ...sessionChangedConceptIds.value ],
       gradingMode: gradingMode.value,
       mixedPracticeEnabled: mixedPracticeEnabled.value,
@@ -556,12 +636,18 @@ export function useStudySession({
       sessionGradingMode: sessionGradingMode.value,
       studyMedia: [ ...studyMedia.value ],
       totalAvailableCards: totalAvailableCards.value,
+      matchingDueCards: matchingDueCards.value,
+      selectedCardCount: selectedCardCount.value,
+      selection: { ...sessionSelection.value },
       response: studyResponse.value
     };
   }
 
   function restoreStudySession( session ) {
     restoreSnapshot( session.recall );
+    sessionStatus.value = session.status ?? 'active';
+    assessmentError.value = session.assessmentError ?? '';
+    recoveryError.value = session.recoveryError ?? '';
     answerFeedbackReviewed.value = Boolean( session.answerFeedbackReviewed );
     gradingMode.value = session.gradingMode;
     mixedPracticeEnabled.value = Boolean( session.mixedPracticeEnabled );
@@ -570,15 +656,29 @@ export function useStudySession({
     sessionChangedConceptIds.value = new Set( session.changedConceptIds ?? []);
     studyMedia.value = [ ...session.studyMedia ];
     totalAvailableCards.value = session.totalAvailableCards;
+    matchingDueCards.value = session.matchingDueCards ?? session.totalAvailableCards;
+    selectedCardCount.value = session.selectedCardCount ?? session.recall.cards.length;
+    sessionSelection.value = { ...emptyStudySelection(), ...session.selection };
     studyResponse.value = session.response ?? '';
     pausedResponses.clear();
 
     for ( const [ cardId, response ] of session.pausedResponses ) {
       pausedResponses.set( cardId, response );
     }
+
+    if ( excludeConcepts( sessionChangedConceptIds.value ) ) {
+      answerFeedbackReviewed.value = false;
+      studyResponse.value = '';
+      assessmentError.value = '';
+    }
+
+    if ( sessionPaused.value && ( !hasCards.value || isComplete.value ) ) {
+      sessionStatus.value = 'active';
+    }
   }
 
   return {
+    actionsBlocked,
     answerFeedbackPending,
     answerFeedbackReviewed,
     answerRevealed,
@@ -593,8 +693,10 @@ export function useStudySession({
     createStudySessionSnapshot,
     currentAnswerFeedback,
     currentCard,
+    endSession,
     explainSettings,
     finishCurrentPretest,
+    focusedSession,
     gradingMode,
     gradingModeError,
     gradingModeLocked,
@@ -612,8 +714,11 @@ export function useStudySession({
     masteryRecalledCount,
     masteryStarted,
     masteryTotal,
+    matchingDueCards,
     mixedPracticeEnabled,
     nextDueAt,
+    navigationNotice,
+    pauseSession,
     pendingAssessment,
     pendingPretestOutcome,
     position,
@@ -628,8 +733,14 @@ export function useStudySession({
     recordAssessment,
     recordMasteryAssessment,
     recoveryError,
+    resumeSession,
+    sessionBusy,
+    sessionEnded,
+    sessionPaused,
     sessionGradingMode,
+    selectedCardCount,
     sessionResumeNotice,
+    sessionSelection,
     showAnswer,
     skipCurrentPretest,
     studyMedia,

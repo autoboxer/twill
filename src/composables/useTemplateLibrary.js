@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { computed, ref } from 'vue';
 
 import { conceptLibraryErrorMessage } from './useConceptLibrary';
+import { markStudyTemplateChanged } from '../study/resume';
 
 export function useTemplateLibrary() {
   const activeRequests = ref( 0 );
@@ -34,16 +35,24 @@ export function useTemplateLibrary() {
     error.value = '';
   }
 
+  async function changeTemplate( command, input ) {
+    const result = await run( command, { input });
+
+    markStudyTemplateChanged( result?.id ?? input.id );
+
+    return result;
+  }
+
   return {
     clearError,
     createTemplate: ( input ) => run( 'create_template', { input }),
-    deleteTemplate: ( id ) => run( 'delete_template', { input: { id } }),
+    deleteTemplate: ( id ) => changeTemplate( 'delete_template', { id }),
     error,
-    finalizeTemplate: ( input ) => run( 'finalize_template', { input }),
+    finalizeTemplate: ( input ) => changeTemplate( 'finalize_template', input ),
     getTemplate: ( templateId ) => run( 'get_template', { templateId }),
     getTemplates: () => run( 'get_templates' ),
     isPending,
     preparePreview: ( content ) => run( 'prepare_template_preview', { content }),
-    updateTemplate: ( input ) => run( 'update_template', { input })
+    updateTemplate: ( input ) => changeTemplate( 'update_template', input )
   };
 }
