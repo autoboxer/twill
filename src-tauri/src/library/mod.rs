@@ -46,7 +46,7 @@ pub use models::{
     SetAppearancePreferencesInput, SetConceptArchivedInput,
     SetCssSnippetEnabledInput, SetGradingModeInput, SetMixedPracticeEnabledInput,
     SetPretestingEnabledInput, SetStartupDestinationInput,
-    StartupDestination, StudyCard, StudyQueue, StudyTemplate, TemplateBlock,
+    StartupDestination, StudyCard, StudyConcept, StudyQueue, StudyTemplate, TemplateBlock,
     TemplateCatalog, TemplateContent, TemplateDetail, TemplateSummary,
     TypeAnswerSettings, UpdateConceptInput, UpdateCssSnippetInput,
     UpdateSchedulingSettingsInput, UpdateTemplateInput, UpsertAuthoringDraftInput,

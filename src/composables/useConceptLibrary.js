@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
 import { computed, ref } from 'vue';
 
+import { resolveStudyQueue } from '../study/queue';
+
 export function conceptLibraryErrorMessage( error ) {
   if ( typeof error === 'string' ) {
     return error;
@@ -50,7 +52,7 @@ export function useConceptLibrary() {
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
     getLibrary: ( input = {}) => run( 'get_library', { input }),
     getLibraryOrganizations: () => run( 'get_library_organizations' ),
-    getStudyQueue: () => run( 'get_study_queue' ),
+    getStudyQueue: async () => resolveStudyQueue( await run( 'get_study_queue' ) ),
     isPending,
     readMedia: ( mediaId ) => run( 'read_media', { mediaId }),
     recordPretest: ( cardId, outcome ) => run( 'record_pretest', {
