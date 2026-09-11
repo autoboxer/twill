@@ -12,6 +12,7 @@ import ProblemResponse from '../components/ProblemResponse.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import StudySessionBuilder from '../components/StudySessionBuilder.vue';
+import StudySessionControls from '../components/StudySessionControls.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
 import { COMMAND_IDS } from '../commands/registry';
 import {
@@ -36,6 +37,7 @@ const session = useStudySession({
   onFeedbackContinued: () => focusFirstGradingAction()
 });
 const {
+  actionsBlocked,
   answerFeedbackPending,
   answerRevealed,
   assessmentError,
@@ -48,6 +50,7 @@ const {
   correctionPending,
   currentAnswerFeedback,
   currentCard,
+  endSession,
   explainSettings,
   finishCurrentPretest,
   focusedSession,
@@ -71,6 +74,8 @@ const {
   matchingDueCards,
   mixedPracticeEnabled,
   nextDueAt,
+  navigationNotice,
+  pauseSession,
   pendingAssessment,
   pendingPretestOutcome,
   position,
@@ -85,6 +90,10 @@ const {
   recordAssessment,
   recordMasteryAssessment,
   recoveryError,
+  resumeSession,
+  sessionBusy,
+  sessionEnded,
+  sessionPaused,
   sessionGradingMode,
   selectedCardCount,
   sessionResumeNotice,
@@ -128,8 +137,7 @@ const {
   startDeferredEditing
 } = useStudyDeferredEdits( session );
 
-const builderDisabled = computed( () => initialLoading.value || gradingModePending.value
-  || assessmentPending.value || pretestPending.value || undoPending.value || deferredStartPending.value );
+const builderDisabled = computed( () => sessionBusy.value || deferredStartPending.value );
 
 watch( () => route.fullPath, () => {
   if ( route.name === 'study' && route.query.build === '1' ) {
@@ -383,6 +391,7 @@ function registerGradingCommand( commandId, mode, rating ) {
   useCommandHandler( commandId, {
     enabled: computed( () => (
       gradingMode.value === mode
+      && !actionsBlocked.value
       && !masteryActive.value
       && !pretestTeachingActive.value
       && answerRevealed.value
@@ -416,11 +425,7 @@ function registerGradingCommand( commandId, mode, rating ) {
             id="grading-mode"
             :model-value="gradingMode"
             :items="gradingModeItems"
-            :disabled="gradingModeLocked
-              || assessmentPending
-              || initialLoading
-              || pretestPending
-              || undoPending"
+            :disabled="gradingModeLocked || actionsBlocked"
             :loading="gradingModePending"
             value-key="value"
             leading-icon="i-lucide-list-checks"
@@ -451,8 +456,27 @@ function registerGradingCommand( commandId, mode, rating ) {
       </template>
     </PageHeader>
 
+    <StudySessionControls
+      v-if="hasCards && !initialLoading && !loadError"
+      :busy="builderDisabled"
+      :complete="isComplete"
+      :paused="sessionPaused"
+      @pause="pauseSession"
+      @resume="resumeSession"
+      @end="endSession"
+    />
+
     <UAlert
-      v-if="focusedSession && !initialLoading && !loadError"
+      v-if="navigationNotice && sessionBusy"
+      class="study-mode-error"
+      :description="navigationNotice"
+      color="neutral"
+      variant="subtle"
+      role="status"
+    />
+
+    <UAlert
+      v-if="focusedSession && !initialLoading && !loadError && !sessionEnded"
       class="study-mode-error"
       title="Focused session"
       :description="`${ selectedCardCount } of ${ matchingDueCards } matching due cards selected. Only this selection is included.`"
@@ -522,6 +546,24 @@ function registerGradingCommand( commandId, mode, rating ) {
     </ContentState>
 
     <ContentState
+      v-else-if="sessionEnded"
+      title="Session ended"
+      description="Completed reviews and pretests remain saved. Start another session when you're ready."
+    >
+      <template #actions>
+        <UButton variant="subtle" :disabled="sessionBusy" @click="loadStudyQueue()">
+          Start another session
+        </UButton>
+      </template>
+    </ContentState>
+
+    <ContentState
+      v-else-if="sessionPaused"
+      title="Session paused"
+      :description="`${visibleCompletedCount} of ${visibleTotalCards} ${masteryPhase ? 'retries' : 'cards'} completed. Your place and responses are kept while Twill is open. Completed reviews survive app restarts.`"
+    />
+
+    <ContentState
       v-else-if="!hasCards && totalAvailableCards === 0 && !focusedSession"
       title="No cards to study"
       description="Create or restore a concept to make a study card available."
@@ -549,8 +591,8 @@ function registerGradingCommand( commandId, mode, rating ) {
 
     <ContentState
       v-else-if="!hasCards"
-      :title="focusedSession ? 'No matching cards due' : 'Nothing due'"
-      :description="focusedSession ? 'Change your session filters or check again later. Cards that are not due are excluded.' : nextReviewDescription"
+      :title="sessionResumeNotice ? 'No cards remain in this session' : focusedSession ? 'No matching cards due' : 'Nothing due'"
+      :description="sessionResumeNotice ? 'Start a new session to load current cards matching your selection.' : focusedSession ? 'Change your session filters or check again later. Cards that are not due are excluded.' : nextReviewDescription"
     >
       <template #actions>
         <UButton

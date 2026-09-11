@@ -3,13 +3,12 @@ import { useRouter } from 'vue-router';
 
 import { conceptLibraryErrorMessage } from './useConceptLibrary';
 import { useDeferredEdits } from './useDeferredEdits';
-import { preserveStudySession } from '../study/resume';
 
 export function useStudyDeferredEdits( session ) {
   const {
-    createStudySessionSnapshot,
+    actionsBlocked,
     currentCard,
-    hasCards,
+    sessionBusy,
     pretestPending
   } = session;
   const router = useRouter();
@@ -43,6 +42,7 @@ export function useStudyDeferredEdits( session ) {
 
   const canQueueCurrentConcept = computed( () => (
     Boolean( currentCard.value )
+    && !actionsBlocked.value
     && !currentConceptQueued.value
     && !deferredLoading.value
     && !deferredPendingConceptId.value
@@ -131,6 +131,7 @@ export function useStudyDeferredEdits( session ) {
 
     if (
       deferredStartPending.value
+      || sessionBusy.value
       || deferredPendingConceptId.value
       || firstItem?.targetStatus !== 'current'
     ) {
@@ -139,10 +140,6 @@ export function useStudyDeferredEdits( session ) {
 
     deferredStartPending.value = true;
     deferredError.value = '';
-
-    if ( hasCards.value ) {
-      preserveStudySession( createStudySessionSnapshot() );
-    }
 
     try {
       await router.push({
