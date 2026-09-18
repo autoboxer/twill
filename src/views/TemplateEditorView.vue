@@ -52,7 +52,7 @@ const {
   load: loadDraft,
   retry: retryDraft,
   scheduleDelete: scheduleDraftDelete,
-  scheduleSave: scheduleDraftSave,
+  scheduleSnapshot: scheduleDraftSnapshot,
   start: startDraft,
   status: draftStatus
 } = useAuthoringDraft( 'template' );
@@ -325,7 +325,7 @@ async function saveTemplate() {
       clearError();
 
       if ( !draft.value ) {
-        scheduleDraftSave( cloneTemplateEditorState( form ) );
+        scheduleDraftSnapshot( () => ({ payload: cloneTemplateEditorState( form ) }) );
       }
 
       saveAsCopy.value = true;
@@ -376,10 +376,8 @@ function templateStateChanged() {
     return;
   }
 
-  const state = cloneTemplateEditorState( form );
-
-  if ( templateEditorStateKey( state ) !== savedSnapshot.value ) {
-    scheduleDraftSave( state );
+  if ( hasChanges.value ) {
+    scheduleDraftSnapshot( () => ({ payload: cloneTemplateEditorState( form ) }) );
   } else if ( draft.value || hasPendingPersistence.value ) {
     scheduleDraftDelete();
   }

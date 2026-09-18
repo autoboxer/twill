@@ -62,6 +62,26 @@ export function cloneConceptEditorState( state ) {
   };
 }
 
+export function captureConceptEditorState( state ) {
+  // Editors replace document values; observe those references, not every rich-text node
+  return {
+    content: {
+      schemaVersion: state.content.schemaVersion,
+      prompt: state.content.prompt,
+      answer: state.content.answer,
+      feedback: { ...state.content.feedback }
+    },
+    deckIds: [ ...state.deckIds ],
+    explainFocus: state.explainFocus,
+    explainKeyPoints: [ ...state.explainKeyPoints ],
+    problemCheckpoints: [ ...state.problemCheckpoints ],
+    retrievalFormIds: [ ...state.retrievalFormIds ],
+    tagIds: [ ...state.tagIds ],
+    typeAnswerAcceptedAnswers: [ ...state.typeAnswerAcceptedAnswers ],
+    title: state.title
+  };
+}
+
 export function conceptEditorStateKey( state ) {
   return JSON.stringify( cloneConceptEditorState( state ) );
 }

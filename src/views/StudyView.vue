@@ -1,5 +1,5 @@
 <script setup>
-import { AnimatePresence, m } from 'motion-v';
+import { m } from 'motion-v';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -22,11 +22,13 @@ import {
 import { useStudySession } from '../composables/useStudySession';
 import { useStudyFocus } from '../composables/useStudyFocus';
 import { useStudyDeferredEdits } from '../composables/useStudyDeferredEdits';
+import { useAppearance } from '../composables/useAppearance';
 import { gradingModeItems, gradingOptionsByMode } from '../study/grading';
 import { emptyStudySelection, studySelectionFromLibrary } from '../study/selection';
 import { retrievalFormLabel as studyCardName } from '../retrieval-forms/catalog';
 
 const commands = useCommands();
+const { resolvedMotion } = useAppearance();
 const route = useRoute();
 const router = useRouter();
 const builderOpen = ref( false );
@@ -120,7 +122,6 @@ const {
   studyContent,
   typeAnswerResponse,
   focusCurrentState,
-  focusGradingAfterFeedback,
   focusAnswer,
   focusFirstGradingAction
 } = useStudyFocus( session );
@@ -162,7 +163,7 @@ function startFocusedSession( selection ) {
 }
 
 const cardTransition = {
-  duration: 0.22,
+  duration: 0.12,
   ease: [ 0.22, 1, 0.36, 1 ]
 };
 
@@ -715,467 +716,434 @@ function registerGradingCommand( commandId, mode, rating ) {
         variant="subtle"
       />
 
-      <AnimatePresence
-        mode="wait"
-        :initial="false"
+      <m.article
+        v-if="currentCard"
+        :key="currentCard.id"
+        class="study-card"
+        data-twill-study-card
+        :data-twill-card-id="currentCard.id"
+        :initial="{ opacity: resolvedMotion === 'reduced' ? 1 : 0.96 }"
+        :animate="{ opacity: 1 }"
+        :transition="cardTransition"
       >
-        <m.article
-          v-if="currentCard"
-          :key="currentCard.id"
-          class="study-card"
-          data-twill-study-card
-          :data-twill-card-id="currentCard.id"
-          :initial="{ opacity: 0, x: 18 }"
-          :animate="{ opacity: 1, x: 0 }"
-          :exit="{ opacity: 0, x: -14 }"
-          :transition="cardTransition"
-          :on-animation-complete="focusCurrentState"
-        >
-          <header class="study-card__header">
-            <div>
-              <span class="study-card__eyebrow">
-                {{ masteryActive
-                  ? `Mastery retry · ${ studyCardName( currentCard ) }`
-                  : pretestActive || pretestTeachingActive
-                    ? `Pretest · ${ studyCardName( currentCard ) }`
-                    : studyCardName( currentCard ) }}
-              </span>
-              <h2>{{ currentCard.conceptTitle }}</h2>
-            </div>
+        <header class="study-card__header">
+          <div>
+            <span class="study-card__eyebrow">
+              {{ masteryActive
+                ? `Mastery retry · ${ studyCardName( currentCard ) }`
+                : pretestActive || pretestTeachingActive
+                  ? `Pretest · ${ studyCardName( currentCard ) }`
+                  : studyCardName( currentCard ) }}
+            </span>
+            <h2>{{ currentCard.conceptTitle }}</h2>
+          </div>
 
-            <div class="study-card__actions">
-              <CardQualityAction
-                :card="currentCard"
-                :form-name="studyCardName( currentCard )"
-                :disabled="assessmentPending || gradingModePending || pretestPending || undoPending"
-              />
+          <div class="study-card__actions">
+            <CardQualityAction
+              :card="currentCard"
+              :form-name="studyCardName( currentCard )"
+              :disabled="assessmentPending || gradingModePending || pretestPending || undoPending"
+            />
+
+            <UButton
+              :leading-icon="currentConceptQueued
+                ? 'i-lucide-check'
+                : 'i-lucide-list-plus'"
+              color="neutral"
+              :variant="currentConceptQueued ? 'subtle' : 'link'"
+              size="sm"
+              class="study-edit-later"
+              :disabled="currentConceptQueued
+                || deferredLoading
+                || Boolean( deferredPendingConceptId )"
+              :loading="deferredPendingConceptId === currentCard.conceptId"
+              :aria-keyshortcuts="queueEditCommand.ariaKeyshortcuts"
+              :title="queueEditCommand.tooltip"
+              @click="queueCurrentConcept"
+            >
+              {{ currentConceptQueued ? 'Queued' : 'Edit later' }}
+            </UButton>
+          </div>
+        </header>
+
+        <div class="study-card__body">
+          <UAlert
+            v-if="pretestActive || pretestTeachingActive"
+            class="study-pretest-notice"
+            title="Pretest"
+            description="Attempt this exact prompt before studying its answer. The result is separate from review grading."
+            icon="i-lucide-brain"
+            color="primary"
+            variant="subtle"
+          />
+
+          <StudyCardContent
+            ref="studyContent"
+            :card="currentCard"
+            :answer-revealed="answerRevealed"
+            :media="studyMedia"
+          />
+
+          <TypeAnswerResponse
+            v-if="typeAnswerSettings"
+            ref="typeAnswerResponse"
+            v-model="studyResponse"
+            :accepted-answers="typeAnswerSettings.acceptedAnswers"
+            :revealed="answerRevealed"
+            @submit="showAnswer"
+          />
+
+          <ExplainResponse
+            v-if="explainSettings"
+            ref="explainResponse"
+            v-model="studyResponse"
+            :settings="explainSettings"
+            :revealed="answerRevealed"
+          />
+
+          <ProblemResponse
+            v-if="problemSettings"
+            ref="problemResponse"
+            v-model="studyResponse"
+            :settings="problemSettings"
+            :revealed="answerRevealed"
+          />
+
+          <StudyAnswerFeedback
+            v-if="answerRevealed && currentAnswerFeedback"
+            ref="answerFeedback"
+            :feedback="currentAnswerFeedback"
+          />
+        </div>
+
+        <footer class="study-card__footer">
+          <UAlert
+            v-if="correctionPending"
+            class="study-correction-notice"
+            title="Grade undone"
+            description="Choose the intended grade to continue."
+            icon="i-lucide-undo-2"
+            color="primary"
+            variant="subtle"
+          />
+
+          <UAlert
+            v-if="assessmentError"
+            class="study-assessment-error"
+            :description="assessmentError"
+            icon="i-lucide-circle-alert"
+            color="error"
+            variant="soft"
+          />
+
+          <div
+            v-if="!answerRevealed"
+            key="reveal"
+            class="study-actions"
+          >
+            <p>{{ revealActionCopy }}</p>
+
+            <div class="study-actions__primary">
+              <UButton
+                ref="revealButton"
+                leading-icon="i-lucide-eye"
+                size="lg"
+                :disabled="!canRevealAnswer || pretestPending"
+                :loading="pretestPending
+                  && pendingPretestOutcome === 'attempted'"
+                :aria-keyshortcuts="revealCommand.ariaKeyshortcuts"
+                :title="revealCommand.tooltip"
+                @click="showAnswer"
+              >
+                {{ revealActionLabel }}
+              </UButton>
 
               <UButton
-                :leading-icon="currentConceptQueued
-                  ? 'i-lucide-check'
-                  : 'i-lucide-list-plus'"
+                v-if="pretestActive"
                 color="neutral"
-                :variant="currentConceptQueued ? 'subtle' : 'link'"
-                size="sm"
-                class="study-edit-later"
-                :disabled="currentConceptQueued
-                  || deferredLoading
-                  || Boolean( deferredPendingConceptId )"
-                :loading="deferredPendingConceptId === currentCard.conceptId"
-                :aria-keyshortcuts="queueEditCommand.ariaKeyshortcuts"
-                :title="queueEditCommand.tooltip"
-                @click="queueCurrentConcept"
+                variant="link"
+                size="lg"
+                :disabled="pretestPending"
+                :loading="pretestPending
+                  && pendingPretestOutcome === 'skipped'"
+                @click="skipCurrentPretest"
               >
-                {{ currentConceptQueued ? 'Queued' : 'Edit later' }}
+                Skip pretest
               </UButton>
             </div>
-          </header>
-
-          <div class="study-card__body">
-            <UAlert
-              v-if="pretestActive || pretestTeachingActive"
-              class="study-pretest-notice"
-              title="Pretest"
-              description="Attempt this exact prompt before studying its answer. The result is separate from review grading."
-              icon="i-lucide-brain"
-              color="primary"
-              variant="subtle"
-            />
-
-            <StudyCardContent
-              ref="studyContent"
-              :card="currentCard"
-              :answer-revealed="answerRevealed"
-              :media="studyMedia"
-            />
-
-            <TypeAnswerResponse
-              v-if="typeAnswerSettings"
-              ref="typeAnswerResponse"
-              v-model="studyResponse"
-              :accepted-answers="typeAnswerSettings.acceptedAnswers"
-              :revealed="answerRevealed"
-              @submit="showAnswer"
-            />
-
-            <ExplainResponse
-              v-if="explainSettings"
-              ref="explainResponse"
-              v-model="studyResponse"
-              :settings="explainSettings"
-              :revealed="answerRevealed"
-            />
-
-            <ProblemResponse
-              v-if="problemSettings"
-              ref="problemResponse"
-              v-model="studyResponse"
-              :settings="problemSettings"
-              :revealed="answerRevealed"
-            />
-
-            <StudyAnswerFeedback
-              v-if="answerRevealed && currentAnswerFeedback"
-              ref="answerFeedback"
-              :feedback="currentAnswerFeedback"
-            />
           </div>
 
-          <footer class="study-card__footer">
-            <UAlert
-              v-if="correctionPending"
-              class="study-correction-notice"
-              title="Grade undone"
-              description="Choose the intended grade to continue."
-              icon="i-lucide-undo-2"
-              color="primary"
-              variant="subtle"
-            />
-
-            <UAlert
-              v-if="assessmentError"
-              class="study-assessment-error"
-              :description="assessmentError"
-              icon="i-lucide-circle-alert"
-              color="error"
-              variant="soft"
-            />
-
-            <AnimatePresence
-              mode="wait"
-              :initial="false"
-            >
-              <m.div
-                v-if="!answerRevealed"
-                key="reveal"
-                class="study-actions"
-                :initial="{ opacity: 0, y: 5 }"
-                :animate="{ opacity: 1, y: 0 }"
-                :exit="{ opacity: 0, y: -5 }"
-              >
-                <p>{{ revealActionCopy }}</p>
-
-                <div class="study-actions__primary">
-                  <UButton
-                    ref="revealButton"
-                    leading-icon="i-lucide-eye"
-                    size="lg"
-                    :disabled="!canRevealAnswer || pretestPending"
-                    :loading="pretestPending
-                      && pendingPretestOutcome === 'attempted'"
-                    :aria-keyshortcuts="revealCommand.ariaKeyshortcuts"
-                    :title="revealCommand.tooltip"
-                    @click="showAnswer"
-                  >
-                    {{ revealActionLabel }}
-                  </UButton>
-
-                  <UButton
-                    v-if="pretestActive"
-                    color="neutral"
-                    variant="link"
-                    size="lg"
-                    :disabled="pretestPending"
-                    :loading="pretestPending
-                      && pendingPretestOutcome === 'skipped'"
-                    @click="skipCurrentPretest"
-                  >
-                    Skip pretest
-                  </UButton>
-                </div>
-              </m.div>
-
-              <m.div
-                v-else-if="answerFeedbackPending"
-                key="feedback"
-                class="study-actions"
-                :initial="{ opacity: 0, y: 5 }"
-                :animate="{ opacity: 1, y: 0 }"
-                :exit="{ opacity: 0, y: -5 }"
-              >
-                <p>
-                  {{ pretestTeachingActive
-                    ? 'Review the answer and feedback before continuing.'
-                    : 'Review the feedback before grading.' }}
-                </p>
-
-                <UButton
-                  leading-icon="i-lucide-arrow-right"
-                  size="lg"
-                  @click="continueToGrading"
-                >
-                  {{ pretestTeachingActive ? 'Continue' : 'Continue to grading' }}
-                </UButton>
-              </m.div>
-
-              <m.div
-                v-else-if="pretestTeachingActive"
-                ref="gradingActions"
-                key="pretest-complete"
-                class="study-actions"
-                :initial="{ opacity: 0, y: 5 }"
-                :animate="{ opacity: 1, y: 0 }"
-                :exit="{ opacity: 0, y: -5 }"
-              >
-                <p>
-                  This attempt is recorded separately. The concept will return
-                  as an ordinary review in a later session.
-                </p>
-
-                <UButton
-                  leading-icon="i-lucide-arrow-right"
-                  size="lg"
-                  @click="finishCurrentPretest"
-                >
-                  Continue
-                </UButton>
-              </m.div>
-
-              <m.div
-                v-else-if="masteryActive"
-                id="study-mastery-actions"
-                ref="gradingActions"
-                key="mastery"
-                class="study-actions study-actions--assessment"
-                :initial="{ opacity: 0, y: 5 }"
-                :animate="{ opacity: 1, y: 0 }"
-                :exit="{ opacity: 0, y: -5 }"
-                :on-animation-complete="focusGradingAfterFeedback"
-              >
-                <p>Did you recall it this time?</p>
-
-                <div class="study-actions__buttons">
-                  <UButton
-                    v-for="option in masteryOptions"
-                    :key="option.outcome"
-                    :leading-icon="option.icon"
-                    :color="option.color"
-                    :variant="option.variant"
-                    :disabled="assessmentPending"
-                    :loading="assessmentPending
-                      && pendingAssessment === option.outcome"
-                    :aria-keyshortcuts="option.command.ariaKeyshortcuts"
-                    :title="option.command.tooltip"
-                    size="lg"
-                    class="study-grade-button"
-                    @click="recordMasteryAssessment( option.recalled )"
-                  >
-                    <span>{{ option.label }}</span>
-
-                    <kbd
-                      class="study-grade-button__shortcut"
-                      aria-hidden="true"
-                    >
-                      {{ option.shortcut }}
-                    </kbd>
-                  </UButton>
-                </div>
-              </m.div>
-
-              <m.div
-                v-else
-                id="study-grading-actions"
-                ref="gradingActions"
-                key="assess"
-                class="study-actions study-actions--assessment"
-                :initial="{ opacity: 0, y: 5 }"
-                :animate="{ opacity: 1, y: 0 }"
-                :exit="{ opacity: 0, y: -5 }"
-                :on-animation-complete="focusGradingAfterFeedback"
-              >
-                <p>{{ assessmentActionCopy }}</p>
-
-                <div class="study-actions__buttons">
-                  <UButton
-                    v-for="option in gradingOptions"
-                    :key="option.rating"
-                    :leading-icon="option.icon"
-                    :color="option.color"
-                    :variant="option.variant"
-                    :disabled="assessmentPending || gradingModePending"
-                    :loading="assessmentPending && pendingAssessment === option.rating"
-                    :aria-keyshortcuts="option.command.ariaKeyshortcuts"
-                    :title="option.command.tooltip"
-                    size="lg"
-                    class="study-grade-button"
-                    @click="recordAssessment( option.rating )"
-                  >
-                    <span>{{ option.label }}</span>
-
-                    <kbd
-                      class="study-grade-button__shortcut"
-                      aria-hidden="true"
-                    >
-                      {{ option.shortcut }}
-                    </kbd>
-                  </UButton>
-                </div>
-              </m.div>
-            </AnimatePresence>
-          </footer>
-        </m.article>
-
-        <m.section
-          v-else-if="masteryReady"
-          key="mastery-ready"
-          class="study-complete study-mastery-ready"
-          :initial="{ opacity: 0, y: 12 }"
-          :animate="{ opacity: 1, y: 0 }"
-          :exit="{ opacity: 0, y: -8 }"
-          :transition="cardTransition"
-          :on-animation-complete="focusCurrentState"
-        >
-          <span class="study-complete__icon" aria-hidden="true">
-            <UIcon name="i-lucide-repeat-2" />
-          </span>
-
-          <div>
-            <h2
-              ref="masteryHeading"
-              tabindex="-1"
-            >
-              Mastery round ready
-            </h2>
-            <p>
-              {{ masteryTotal }}
-              {{ masteryTotal === 1 ? 'card needs' : 'cards need' }}
-              one more retrieval.
-            </p>
-            <p>Retries do not change saved schedules.</p>
-          </div>
-
-          <div class="study-complete__actions">
-            <UButton
-              leading-icon="i-lucide-play"
-              size="lg"
-              @click="beginMasteryRound"
-            >
-              Start mastery round
-            </UButton>
-
-            <UButton
-              :to="{ name: 'library' }"
-              color="neutral"
-              variant="link"
-              size="lg"
-            >
-              Finish for now
-            </UButton>
-          </div>
-        </m.section>
-
-        <m.section
-          v-else-if="isComplete"
-          key="complete"
-          class="study-complete"
-          :initial="{ opacity: 0, y: 12 }"
-          :animate="{ opacity: 1, y: 0 }"
-          :exit="{ opacity: 0, y: -8 }"
-          :transition="cardTransition"
-          :on-animation-complete="focusCurrentState"
-        >
-          <span class="study-complete__icon" aria-hidden="true">
-            <UIcon name="i-lucide-check" />
-          </span>
-
-          <div>
-            <h2
-              ref="completionHeading"
-              tabindex="-1"
-            >
-              Session complete
-            </h2>
-            <p>{{ completionDescription }}</p>
-          </div>
-
-          <dl
-            v-if="completedReviewCount"
-            class="study-results"
-            :class="{
-              'study-results--advanced': sessionGradingMode === 'advanced'
-            }"
+          <div
+            v-else-if="answerFeedbackPending"
+            key="feedback"
+            class="study-actions"
           >
-            <div
-              v-for="item in sessionResultItems"
-              :key="item.rating"
+            <p>
+              {{ pretestTeachingActive
+                ? 'Review the answer and feedback before continuing.'
+                : 'Review the feedback before grading.' }}
+            </p>
+
+            <UButton
+              leading-icon="i-lucide-arrow-right"
+              size="lg"
+              @click="continueToGrading"
             >
-              <dt>{{ item.label }}</dt>
-              <dd>{{ ratingCounts[ item.rating ] }}</dd>
+              {{ pretestTeachingActive ? 'Continue' : 'Continue to grading' }}
+            </UButton>
+          </div>
+
+          <div
+            v-else-if="pretestTeachingActive"
+            ref="gradingActions"
+            key="pretest-complete"
+            class="study-actions"
+          >
+            <p>
+              This attempt is recorded separately. The concept will return
+              as an ordinary review in a later session.
+            </p>
+
+            <UButton
+              leading-icon="i-lucide-arrow-right"
+              size="lg"
+              @click="finishCurrentPretest"
+            >
+              Continue
+            </UButton>
+          </div>
+
+          <div
+            v-else-if="masteryActive"
+            id="study-mastery-actions"
+            ref="gradingActions"
+            key="mastery"
+            class="study-actions study-actions--assessment"
+          >
+            <p>Did you recall it this time?</p>
+
+            <div class="study-actions__buttons">
+              <UButton
+                v-for="option in masteryOptions"
+                :key="option.outcome"
+                :leading-icon="option.icon"
+                :color="option.color"
+                :variant="option.variant"
+                :disabled="assessmentPending"
+                :loading="assessmentPending
+                  && pendingAssessment === option.outcome"
+                :aria-keyshortcuts="option.command.ariaKeyshortcuts"
+                :title="option.command.tooltip"
+                size="lg"
+                class="study-grade-button"
+                @click="recordMasteryAssessment( option.recalled )"
+              >
+                <span>{{ option.label }}</span>
+
+                <kbd
+                  class="study-grade-button__shortcut"
+                  aria-hidden="true"
+                >
+                  {{ option.shortcut }}
+                </kbd>
+              </UButton>
+            </div>
+          </div>
+
+          <div
+            v-else
+            id="study-grading-actions"
+            ref="gradingActions"
+            key="assess"
+            class="study-actions study-actions--assessment"
+          >
+            <p>{{ assessmentActionCopy }}</p>
+
+            <div class="study-actions__buttons">
+              <UButton
+                v-for="option in gradingOptions"
+                :key="option.rating"
+                :leading-icon="option.icon"
+                :color="option.color"
+                :variant="option.variant"
+                :disabled="assessmentPending || gradingModePending"
+                :loading="assessmentPending && pendingAssessment === option.rating"
+                :aria-keyshortcuts="option.command.ariaKeyshortcuts"
+                :title="option.command.tooltip"
+                size="lg"
+                class="study-grade-button"
+                @click="recordAssessment( option.rating )"
+              >
+                <span>{{ option.label }}</span>
+
+                <kbd
+                  class="study-grade-button__shortcut"
+                  aria-hidden="true"
+                >
+                  {{ option.shortcut }}
+                </kbd>
+              </UButton>
+            </div>
+          </div>
+        </footer>
+      </m.article>
+
+      <m.section
+        v-else-if="masteryReady"
+        key="mastery-ready"
+        class="study-complete study-mastery-ready"
+        :initial="{ opacity: resolvedMotion === 'reduced' ? 1 : 0.96 }"
+        :animate="{ opacity: 1 }"
+        :transition="cardTransition"
+      >
+        <span class="study-complete__icon" aria-hidden="true">
+          <UIcon name="i-lucide-repeat-2" />
+        </span>
+
+        <div>
+          <h2
+            ref="masteryHeading"
+            tabindex="-1"
+          >
+            Mastery round ready
+          </h2>
+          <p>
+            {{ masteryTotal }}
+            {{ masteryTotal === 1 ? 'card needs' : 'cards need' }}
+            one more retrieval.
+          </p>
+          <p>Retries do not change saved schedules.</p>
+        </div>
+
+        <div class="study-complete__actions">
+          <UButton
+            leading-icon="i-lucide-play"
+            size="lg"
+            @click="beginMasteryRound"
+          >
+            Start mastery round
+          </UButton>
+
+          <UButton
+            :to="{ name: 'library' }"
+            color="neutral"
+            variant="link"
+            size="lg"
+          >
+            Finish for now
+          </UButton>
+        </div>
+      </m.section>
+
+      <m.section
+        v-else-if="isComplete"
+        key="complete"
+        class="study-complete"
+        :initial="{ opacity: resolvedMotion === 'reduced' ? 1 : 0.96 }"
+        :animate="{ opacity: 1 }"
+        :transition="cardTransition"
+      >
+        <span class="study-complete__icon" aria-hidden="true">
+          <UIcon name="i-lucide-check" />
+        </span>
+
+        <div>
+          <h2
+            ref="completionHeading"
+            tabindex="-1"
+          >
+            Session complete
+          </h2>
+          <p>{{ completionDescription }}</p>
+        </div>
+
+        <dl
+          v-if="completedReviewCount"
+          class="study-results"
+          :class="{
+            'study-results--advanced': sessionGradingMode === 'advanced'
+          }"
+        >
+          <div
+            v-for="item in sessionResultItems"
+            :key="item.rating"
+          >
+            <dt>{{ item.label }}</dt>
+            <dd>{{ ratingCounts[ item.rating ] }}</dd>
+          </div>
+        </dl>
+
+        <section
+          v-if="pretestTotal"
+          class="study-pretest-results"
+          aria-labelledby="pretest-results-heading"
+        >
+          <div>
+            <h3 id="pretest-results-heading">Pretesting</h3>
+            <p>Recorded separately from review grades.</p>
+          </div>
+
+          <dl class="study-results">
+            <div>
+              <dt>Attempted</dt>
+              <dd>{{ pretestAttemptedCount }}</dd>
+            </div>
+
+            <div>
+              <dt>Skipped</dt>
+              <dd>{{ pretestSkippedCount }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section
+          v-if="masteryTotal"
+          class="study-mastery-results"
+          aria-labelledby="mastery-results-heading"
+        >
+          <div>
+            <h3 id="mastery-results-heading">Mastery round</h3>
+            <p>One retry per missed card.</p>
+          </div>
+
+          <dl class="study-results">
+            <div>
+              <dt>Recalled</dt>
+              <dd>{{ masteryRecalledCount }}</dd>
+            </div>
+
+            <div>
+              <dt>Still learning</dt>
+              <dd>{{ masteryMissedCount }}</dd>
             </div>
           </dl>
 
-          <section
-            v-if="pretestTotal"
-            class="study-pretest-results"
-            aria-labelledby="pretest-results-heading"
+          <p v-if="masteryMissedCount">
+            Still-learning cards remain on their saved review schedules.
+          </p>
+        </section>
+
+        <DeferredEditQueue
+          v-if="deferredEdits.length"
+          :items="deferredEdits"
+          :pending-concept-id="deferredPendingConceptId"
+          :starting="deferredStartPending"
+          @remove="removeQueuedConcept"
+          @start="startDeferredEditing"
+        />
+
+        <div class="study-complete__actions">
+          <UButton
+            :to="{ name: 'library' }"
+            leading-icon="i-lucide-library"
+            color="neutral"
+            variant="link"
+            size="lg"
           >
-            <div>
-              <h3 id="pretest-results-heading">Pretesting</h3>
-              <p>Recorded separately from review grades.</p>
-            </div>
-
-            <dl class="study-results">
-              <div>
-                <dt>Attempted</dt>
-                <dd>{{ pretestAttemptedCount }}</dd>
-              </div>
-
-              <div>
-                <dt>Skipped</dt>
-                <dd>{{ pretestSkippedCount }}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section
-            v-if="masteryTotal"
-            class="study-mastery-results"
-            aria-labelledby="mastery-results-heading"
-          >
-            <div>
-              <h3 id="mastery-results-heading">Mastery round</h3>
-              <p>One retry per missed card.</p>
-            </div>
-
-            <dl class="study-results">
-              <div>
-                <dt>Recalled</dt>
-                <dd>{{ masteryRecalledCount }}</dd>
-              </div>
-
-              <div>
-                <dt>Still learning</dt>
-                <dd>{{ masteryMissedCount }}</dd>
-              </div>
-            </dl>
-
-            <p v-if="masteryMissedCount">
-              Still-learning cards remain on their saved review schedules.
-            </p>
-          </section>
-
-          <DeferredEditQueue
-            v-if="deferredEdits.length"
-            :items="deferredEdits"
-            :pending-concept-id="deferredPendingConceptId"
-            :starting="deferredStartPending"
-            @remove="removeQueuedConcept"
-            @start="startDeferredEditing"
-          />
-
-          <div class="study-complete__actions">
-            <UButton
-              :to="{ name: 'library' }"
-              leading-icon="i-lucide-library"
-              color="neutral"
-              variant="link"
-              size="lg"
-            >
-              Open library
-            </UButton>
-          </div>
-        </m.section>
-      </AnimatePresence>
+            Open library
+          </UButton>
+        </div>
+      </m.section>
     </div>
 
     <DeferredEditQueue
@@ -1192,6 +1160,7 @@ function registerGradingCommand( commandId, mode, rating ) {
       :disabled="builderDisabled"
       :replacing="hasCards && !isComplete"
       :start-session="startFocusedSession"
+      @after:leave="focusCurrentState"
     />
   </div>
 </template>

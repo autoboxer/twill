@@ -1,12 +1,10 @@
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 export function useStudyFocus( session ) {
   const {
     answerFeedbackPending,
-    answerFeedbackReviewed,
     answerRevealed,
     correctionPending,
-    currentAnswerFeedback,
     currentCard,
     explainSettings,
     isComplete,
@@ -33,6 +31,30 @@ export function useStudyFocus( session ) {
   const studyContent = ref( null );
 
   const typeAnswerResponse = ref( null );
+
+  watch([
+    completionHeading,
+    masteryHeading,
+    revealButton,
+    studyContent,
+    typeAnswerResponse,
+    explainResponse,
+    problemResponse
+  ], ( elements, previous ) => {
+    if ( elements.some( ( element, index ) => element && element !== previous[ index ]) ) {
+      focusCurrentState();
+    }
+  }, { flush: 'post' });
+
+  watch([
+    session.assessmentPending,
+    session.pretestPending,
+    session.undoPending
+  ], ( pending, previous ) => {
+    if ( previous.some( Boolean ) && !pending.some( Boolean ) ) {
+      focusCurrentState();
+    }
+  }, { flush: 'post' });
 
   function focusCurrentState() {
     if ( document.querySelector( '[role="dialog"]' ) ) {
@@ -85,20 +107,7 @@ export function useStudyFocus( session ) {
   }
 
   function focusFirstGradingAction() {
-    const element = gradingActions.value?.$el ?? gradingActions.value;
-
-    element?.querySelector( 'button:not(:disabled)' )?.focus();
-  }
-
-  function focusGradingAfterFeedback() {
-    if (
-      answerFeedbackReviewed.value
-      && currentAnswerFeedback.value
-      && !correctionPending.value
-      && !pretestTeachingActive.value
-    ) {
-      focusFirstGradingAction();
-    }
+    gradingActions.value?.querySelector( 'button:not(:disabled)' )?.focus();
   }
 
   function focusRevealedAnswer() {
@@ -134,7 +143,6 @@ export function useStudyFocus( session ) {
     focusAnswer,
     focusCurrentState,
     focusFirstGradingAction,
-    focusGradingAfterFeedback,
     focusRevealedAnswer,
     gradingActions,
     masteryHeading,

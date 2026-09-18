@@ -20,6 +20,7 @@ import {
   richDocumentHasContent
 } from '../rich-content/schema';
 import {
+  captureConceptEditorState,
   cloneConceptEditorState,
   conceptRetrievalFormId,
   createConceptEditorState
@@ -375,9 +376,9 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
   submitted.value = false;
 }, { immediate: true });
 
-watch( form, () => {
-  emit( 'change', cloneConceptEditorState( form ) );
-}, { deep: true });
+watch( () => captureConceptEditorState( form ), ( state ) => {
+  emit( 'change', state );
+});
 
 function updateRetrievalForms( retrievalFormIds ) {
   if (
