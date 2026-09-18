@@ -46,20 +46,13 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
     status.value = existingDraft ? 'restorable' : 'untouched';
   }
 
-  function scheduleSave( payload, mediaIds = []) {
+  function scheduleSnapshot( readSnapshot ) {
     ensureStarted();
 
     pendingOperation = {
-      kind: 'save',
-      input: {
-        kind,
-        targetId: context.targetId,
-        schemaVersion: AUTHORING_DRAFT_SCHEMA_VERSION,
-        baseChangeId: context.baseChangeId,
-        mediaSessionId: context.mediaSessionId,
-        payload: structuredClone( payload ),
-        mediaIds: [ ...new Set( mediaIds ) ]
-      }
+      kind: 'snapshot',
+      context: { ...context },
+      readSnapshot
     };
     error.value = '';
     status.value = 'dirty';
@@ -194,13 +187,17 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
 
   async function persistPendingOperations() {
     while ( pendingOperation ) {
-      const operation = pendingOperation;
+      let operation = pendingOperation;
 
       pendingOperation = null;
       error.value = '';
       status.value = 'saving';
 
       try {
+        if ( operation.kind === 'snapshot' ) {
+          operation = prepareSnapshot( operation );
+        }
+
         if ( operation.kind === 'save' ) {
           draft.value = await invoke( 'upsert_authoring_draft', {
             input: operation.input
@@ -225,6 +222,33 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
     }
 
     status.value = draft.value ? 'saved' : 'untouched';
+  }
+
+  function prepareSnapshot( operation ) {
+    // Capture once before IPC so retries never read a different editor state
+    const snapshot = operation.readSnapshot();
+    const { targetId, baseChangeId, mediaSessionId } = operation.context;
+
+    // A null snapshot removes the draft after returning to the saved state
+    if ( !snapshot ) {
+      return {
+        kind: 'delete',
+        input: { kind, targetId }
+      };
+    }
+
+    return {
+      kind: 'save',
+      input: {
+        kind,
+        targetId,
+        schemaVersion: AUTHORING_DRAFT_SCHEMA_VERSION,
+        baseChangeId,
+        mediaSessionId,
+        payload: structuredClone( snapshot.payload ),
+        mediaIds: [ ...new Set( snapshot.mediaIds ?? []) ]
+      }
+    };
   }
 
   function locator() {
@@ -258,7 +282,7 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
     refresh,
     retry,
     scheduleDelete,
-    scheduleSave,
+    scheduleSnapshot,
     start,
     status
   };

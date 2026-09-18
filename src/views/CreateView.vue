@@ -60,8 +60,7 @@ const {
   hasPendingPersistence,
   load: loadDraft,
   retry: retryDraft,
-  scheduleDelete: scheduleDraftDelete,
-  scheduleSave: scheduleDraftSave,
+  scheduleSnapshot: scheduleDraftSnapshot,
   start: startDraft,
   status: draftStatus
 } = useAuthoringDraft( 'concept' );
@@ -395,7 +394,10 @@ async function saveConcept( input ) {
       clearError();
 
       if ( !draft.value ) {
-        scheduleDraftSave( canonicalEditorState, conceptDraftMediaIds( canonicalEditorState ) );
+        scheduleDraftSnapshot( () => ({
+          payload: canonicalEditorState,
+          mediaIds: conceptDraftMediaIds( canonicalEditorState )
+        }) );
       }
 
       saveAsCopy.value = true;
@@ -488,16 +490,18 @@ function conceptStateChanged( state ) {
     return;
   }
 
-  const normalizedState = cloneConceptEditorState( state );
-  const modified = conceptEditorStateKey( normalizedState ) !== canonicalStateKey;
+  isModified.value = true;
 
-  isModified.value = modified;
+  scheduleDraftSnapshot( () => {
+    const normalizedState = cloneConceptEditorState( state );
 
-  if ( modified ) {
-    scheduleDraftSave( normalizedState, conceptDraftMediaIds( normalizedState ) );
-  } else if ( draft.value || hasPendingPersistence.value ) {
-    scheduleDraftDelete();
-  }
+    isModified.value = conceptEditorStateKey( normalizedState ) !== canonicalStateKey;
+
+    return isModified.value ? {
+      payload: normalizedState,
+      mediaIds: conceptDraftMediaIds( normalizedState )
+    } : null;
+  });
 }
 
 function restoreRecoveryDraft() {
