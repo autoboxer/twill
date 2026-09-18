@@ -1,5 +1,4 @@
 <script setup>
-import { AnimatePresence, m } from 'motion-v';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import { createClozePrompt } from '../cloze/documents';
@@ -122,7 +121,7 @@ function fieldValue( field ) {
 }
 
 function focus() {
-  root.value?.focus();
+  root.value?.focus({ preventScroll: true });
 }
 
 async function prepareCustomDocuments() {
@@ -268,104 +267,93 @@ function normalizeBytes( value ) {
     role="group"
     tabindex="-1"
   >
-    <AnimatePresence
-      mode="wait"
-      :initial="false"
+    <div
+      v-if="isStandard || isVisual"
+      :key="`${ card.id }-visual`"
+      class="study-template__visual"
+      :class="`study-template__visual--${ visualAppearance.alignment }`"
     >
-      <m.div
-        v-if="isStandard || isVisual"
-        :key="`${ card.id }-${ side }-visual`"
-        class="study-template__visual"
-        :class="`study-template__visual--${ visualAppearance.alignment }`"
-        :initial="{ opacity: 0, y: 10 }"
-        :animate="{ opacity: 1, y: 0 }"
-        :exit="{ opacity: 0, y: -6 }"
+      <section
+        v-for="( block, index ) in visibleBlocks"
+        :key="block.type === 'field' ? block.field : `text-${ index }`"
+        class="study-template-block"
       >
-        <section
-          v-for="( block, index ) in visibleBlocks"
-          :key="`${ block.type }-${ block.field ?? index }-${ index }`"
-          class="study-template-block"
-        >
-          <template v-if="block.type === 'field'">
-            <span
-              v-if="visualAppearance.showFieldLabels"
-              class="study-template-block__label"
-            >
-              {{ fieldDetails( block.field )?.label }}
-            </span>
-
-            <strong
-              v-if="block.field === 'title'"
-              class="study-template-title"
-            >
-              {{ fieldValue( block.field ) }}
-            </strong>
-
-            <RichContentRenderer
-              v-else
-              :document="fieldValue( block.field )"
-              :image-occlusion-group-id="block.field === 'prompt'
-                ? imageOcclusionGroupId
-                : ''"
-              :image-occlusion-revealed="answerRevealed"
-              :label="`${ fieldDetails( block.field )?.label } for ${ card.conceptTitle }`"
-            />
-          </template>
-
-          <p
-            v-else
-            class="study-template-text"
+        <template v-if="block.type === 'field'">
+          <span
+            v-if="visualAppearance.showFieldLabels"
+            class="study-template-block__label"
           >
-            {{ block.text }}
-          </p>
-        </section>
-      </m.div>
+            {{ fieldDetails( block.field )?.label }}
+          </span>
 
-      <m.div
-        v-else
-        :key="`${ card.id }-${ side }-custom`"
-        class="study-template__custom"
-        :initial="{ opacity: 0, y: 10 }"
-        :animate="{ opacity: 1, y: 0 }"
-        :exit="{ opacity: 0, y: -6 }"
-      >
-        <div
-          v-if="customPending"
-          class="study-template__state"
-          role="status"
+          <strong
+            v-if="block.field === 'title'"
+            class="study-template-title"
+          >
+            {{ fieldValue( block.field ) }}
+          </strong>
+
+          <RichContentRenderer
+            v-else
+            :document="fieldValue( block.field )"
+            :image-occlusion-group-id="block.field === 'prompt'
+              ? imageOcclusionGroupId
+              : ''"
+            :image-occlusion-revealed="answerRevealed"
+            :label="`${ fieldDetails( block.field )?.label } for ${ card.conceptTitle }`"
+          />
+        </template>
+
+        <p
+          v-else
+          class="study-template-text"
         >
-          <UIcon name="i-lucide-loader-circle" />
-          <span>Loading retrieval form</span>
-        </div>
+          {{ block.text }}
+        </p>
+      </section>
+    </div>
 
+    <div
+      v-else
+      :key="`${ card.id }-custom`"
+      class="study-template__custom"
+    >
+      <div
+        v-if="customPending"
+        class="study-template__state"
+        role="status"
+      >
+        <UIcon name="i-lucide-loader-circle" />
+        <span>Loading retrieval form</span>
+      </div>
+
+      <UAlert
+        v-else-if="renderError"
+        :description="renderError"
+        icon="i-lucide-circle-alert"
+        color="error"
+        variant="soft"
+      />
+
+      <template v-else>
         <UAlert
-          v-else-if="renderError"
-          :description="renderError"
-          icon="i-lucide-circle-alert"
-          color="error"
+          v-if="mediaWarning"
+          class="study-template__warning"
+          description="One or more images could not be loaded."
+          icon="i-lucide-image-off"
+          color="warning"
           variant="soft"
         />
 
-        <template v-else>
-          <UAlert
-            v-if="mediaWarning"
-            class="study-template__warning"
-            description="One or more images could not be loaded."
-            icon="i-lucide-image-off"
-            color="warning"
-            variant="soft"
-          />
-
-          <iframe
-            :title="`${ side === 'front' ? 'Front' : 'Answer' } for ${ card.conceptTitle }`"
-            :srcdoc="customDocuments[ side ]"
-            class="study-template__frame"
-            sandbox=""
-            referrerpolicy="no-referrer"
-            tabindex="0"
-          />
-        </template>
-      </m.div>
-    </AnimatePresence>
+        <iframe
+          :title="`${ side === 'front' ? 'Front' : 'Answer' } for ${ card.conceptTitle }`"
+          :srcdoc="customDocuments[ side ]"
+          class="study-template__frame"
+          sandbox=""
+          referrerpolicy="no-referrer"
+          tabindex="0"
+        />
+      </template>
+    </div>
   </div>
 </template>

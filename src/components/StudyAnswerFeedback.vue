@@ -1,5 +1,4 @@
 <script setup>
-import { m } from 'motion-v';
 import { computed, ref } from 'vue';
 
 import { richDocumentHasContent } from '../rich-content/schema';
@@ -30,22 +29,17 @@ const documents = computed( () => [
 defineExpose({ focus });
 
 function focus() {
-  const element = root.value?.$el ?? root.value;
-
-  element?.focus();
+  root.value?.focus();
 }
 </script>
 
 <template>
-  <m.section
+  <section
     ref="root"
     class="study-answer-feedback"
     data-twill-answer-feedback
     tabindex="-1"
     aria-labelledby="study-answer-feedback-heading"
-    :initial="{ opacity: 0, y: 8 }"
-    :animate="{ opacity: 1, y: 0 }"
-    :transition="{ duration: 0.2, ease: [ 0.22, 1, 0.36, 1 ] }"
   >
     <h3 id="study-answer-feedback-heading">Answer feedback</h3>
 
@@ -63,5 +57,5 @@ function focus() {
         />
       </div>
     </div>
-  </m.section>
+  </section>
 </template>
