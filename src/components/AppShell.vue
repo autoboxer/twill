@@ -1,6 +1,5 @@
 <script setup>
 import {
-  AnimatePresence,
   domAnimation,
   LazyMotion,
   m,
@@ -24,7 +23,7 @@ const animateRouteEntrance = ref( false );
 const mainContent = ref( null );
 const router = useRouter();
 const commands = provideCommands( router );
-const { motionConfigPreference } = useAppearance();
+const { motionConfigPreference, resolvedMotion } = useAppearance();
 const paletteCommand = commands.command( COMMAND_IDS.commandPaletteOpen );
 const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
 
@@ -104,20 +103,17 @@ function skipToContent() {
               {{ route.meta.title }}
             </span>
 
-            <AnimatePresence
-              mode="wait"
-              :initial="false"
+            <m.div
+              :key="route.name"
+              class="route-content"
+              :initial="animateRouteEntrance && resolvedMotion === 'full'
+                ? { opacity: 0.9 }
+                : false"
+              :animate="{ opacity: 1 }"
+              :transition="{ duration: 0.12 }"
             >
-              <m.div
-                :key="route.name"
-                class="route-content"
-                :initial="animateRouteEntrance ? { opacity: 0, y: 6 } : false"
-                :animate="{ opacity: 1, y: 0 }"
-                :exit="{ opacity: 0, y: -4 }"
-              >
-                <component :is="Component" />
-              </m.div>
-            </AnimatePresence>
+              <component :is="Component" />
+            </m.div>
           </RouterView>
         </main>
       </div>
