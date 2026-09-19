@@ -111,7 +111,7 @@ function formattedDate( timestamp ) {
     data-twill-page="templates"
   >
     <PageHeader title="Templates">
-      <template #actions>
+      <template #leading>
         <UButton
           :to="{ name: 'library' }"
           leading-icon="i-lucide-arrow-left"
@@ -120,7 +120,9 @@ function formattedDate( timestamp ) {
         >
           Library
         </UButton>
+      </template>
 
+      <template #actions>
         <UButton
           :to="{ name: 'template-create' }"
           leading-icon="i-lucide-plus"

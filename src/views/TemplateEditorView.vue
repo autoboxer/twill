@@ -468,7 +468,7 @@ function cancel() {
     data-twill-page="template-editor"
   >
     <PageHeader :title="pageTitle">
-      <template #actions>
+      <template #leading>
         <UButton
           :to="{ name: 'templates' }"
           leading-icon="i-lucide-arrow-left"
@@ -578,16 +578,9 @@ function cancel() {
           class="editor-section template-editor__basics"
           data-twill-editor-section="template-basics"
         >
-          <div class="editor-section__heading">
-            <div>
-              <h2>Template</h2>
-              <p>Name the layout and choose how it is edited.</p>
-            </div>
-          </div>
-
           <UFormField
             label="Name"
-            :error="nameError"
+            :error="nameError || false"
             :hint="`${ form.name.length } / 80`"
             required
           >
@@ -598,7 +591,6 @@ function cancel() {
               autocomplete="off"
               autofocus
               class="w-full"
-              size="xl"
             />
           </UFormField>
 
@@ -773,7 +765,6 @@ function cancel() {
           :loading="isPending || saveInProgress"
           :aria-keyshortcuts="saveCommand.ariaKeyshortcuts"
           :title="saveCommand.tooltip"
-          size="lg"
         >
           {{ submitLabel }}
         </UButton>

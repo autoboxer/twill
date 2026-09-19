@@ -49,7 +49,7 @@ function formattedDate( timestamp ) {
 <template>
   <div class="page quality-page" data-twill-page="card-quality">
     <PageHeader title="Card quality">
-      <template #actions>
+      <template #leading>
         <UButton
           :to="{ name: 'library' }"
           leading-icon="i-lucide-arrow-left"
@@ -58,7 +58,9 @@ function formattedDate( timestamp ) {
         >
           Library
         </UButton>
+      </template>
 
+      <template #actions>
         <UButton
           leading-icon="i-lucide-refresh-cw"
           color="neutral"
