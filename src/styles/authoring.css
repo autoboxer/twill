@@ -34,16 +34,14 @@
 
 .editor-section,
 .concept-detail-panel {
-  padding: clamp(1.25rem, 4vw, 2rem);
-  background: color-mix(in srgb, var(--ui-bg) 92%, transparent);
-  border: 1px solid var(--ui-border);
-  border-radius: 0.7rem;
-  box-shadow: 0 0.75rem 2.5rem rgb(60 54 45 / 5%);
+  min-width: 0;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--ui-border);
 }
 
 .editor-section {
   display: grid;
-  gap: 1.75rem;
+  gap: 1rem;
 }
 
 .editor-section__heading,
@@ -67,7 +65,7 @@
 .editor-section__heading h2,
 .concept-detail-panel__heading h2,
 .library-results__heading h2 {
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 670;
 }
 

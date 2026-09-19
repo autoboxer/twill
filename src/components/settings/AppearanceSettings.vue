@@ -142,13 +142,11 @@ async function persistAppearance(
 
       <div>
         <h2>Appearance</h2>
-        <p>Control color, reading type, and motion.</p>
       </div>
     </header>
 
     <fieldset class="appearance-fieldset">
       <legend>Theme</legend>
-      <p>Choose a complete dark or light color theme.</p>
 
       <section
         v-for="group in themeGroups"

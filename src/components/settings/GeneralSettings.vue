@@ -99,7 +99,6 @@ async function updateStartupDestination(
 
       <div>
         <h2>General</h2>
-        <p>Choose what opens when Twill starts.</p>
       </div>
     </header>
 

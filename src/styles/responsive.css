@@ -1,15 +1,16 @@
 @media (max-width: 960px) and (min-width: 701px) {
   .twill-shell {
-    grid-template-columns: 6.25rem minmax(0, 1fr);
+    grid-template-columns: 3.5rem minmax(0, 1fr);
   }
 
   .app-navigation {
     align-items: center;
-    padding-inline: 0.65rem;
+    padding-inline: 0.4rem;
   }
 
   .app-wordmark {
     margin-inline: 0;
+    font-size: 0.85rem;
   }
 
   .primary-navigation {
@@ -21,23 +22,20 @@
   }
 
   .command-entry {
-    min-height: 3rem;
+    min-height: 2.5rem;
     justify-content: center;
     padding-inline: 0.35rem;
   }
 
   .command-entry__label,
-  .command-entry__shortcut {
+  .navigation-link__label {
     display: none;
   }
 
   .navigation-link {
-    flex-direction: column;
-    gap: 0.25rem;
-    min-height: 4.25rem;
+    min-height: 2.5rem;
     justify-content: center;
-    padding: 0.45rem 0.25rem;
-    font-size: 0.72rem;
+    padding: 0.5rem;
   }
 
   .library-layout {
@@ -50,7 +48,8 @@
 
   .settings-navigation {
     position: static;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: wrap;
   }
 
   .settings-navigation > * {
@@ -84,42 +83,20 @@
     z-index: 10;
     display: flex;
     align-items: center;
-    min-height: 3.75rem;
-    padding: max(0.75rem, env(safe-area-inset-top)) 1.25rem 0.75rem;
-    background: color-mix(in srgb, var(--ui-bg) 86%, transparent);
+    min-height: 3rem;
+    padding: max(0.25rem, env(safe-area-inset-top)) 0.5rem 0.25rem;
+    gap: 0.5rem;
+    background: var(--ui-bg);
     border-bottom: 1px solid var(--ui-border);
-    backdrop-filter: blur(1rem);
   }
 
-  .mobile-command-actions button {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-    border-radius: 0.4rem;
+  .mobile-header button {
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    border-radius: var(--ui-radius);
   }
 
-  .app-navigation {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    flex-direction: row;
-    padding: 0.5rem 0.5rem max(0.5rem, env(safe-area-inset-bottom));
-    border-top: 1px solid var(--ui-border);
-    border-right: 0;
-  }
-
-  .app-wordmark {
-    display: none;
-  }
-
-  .primary-navigation {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    width: 100%;
-    gap: 0.25rem;
-  }
-
-  .command-center-navigation {
+  .twill-shell > .app-navigation {
     display: none;
   }
 
@@ -140,35 +117,21 @@
     gap: 0.75rem;
   }
 
-  .navigation-link {
-    flex-direction: column;
-    gap: 0.2rem;
-    min-width: 0;
-    min-height: 3.75rem;
-    justify-content: center;
-    padding: 0.4rem 0.15rem;
-    font-size: 0.69rem;
-  }
-
   .app-viewport {
     grid-row: 2;
+    height: auto;
   }
 
   .route-content {
-    padding: 1.5rem 1rem calc(6rem + env(safe-area-inset-bottom));
+    padding: 0.85rem 0.75rem max(1rem, env(safe-area-inset-bottom));
   }
 
   .page {
-    min-height: calc(100dvh - 3.75rem - 7.5rem);
+    min-height: 0;
   }
 
   .page-header {
-    flex-direction: column;
-    padding: 0.25rem 0.25rem 1.75rem;
-  }
-
-  .page-header h1 {
-    font-size: 1.75rem;
+    padding-bottom: 1rem;
   }
 
   .page-header__actions {
@@ -183,11 +146,10 @@
     position: sticky;
     z-index: 5;
     top: 0;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: 0.4rem;
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0.35rem 0;
     background: var(--ui-bg);
-    backdrop-filter: none;
   }
 
   .settings-navigation > * {
@@ -200,8 +162,7 @@
   }
 
   .settings-panel {
-    padding: 1.25rem;
-    scroll-margin-top: 4.5rem;
+    scroll-margin-top: 6.5rem;
   }
 
   .settings-preference-row {
@@ -235,25 +196,9 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .settings-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .settings-section-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
   .settings-save-status {
     min-height: 1.25rem;
     text-align: center;
-  }
-
-  .settings-actions > *:not(.settings-save-status),
-  .settings-section-actions > *:not(.settings-save-status) {
-    width: 100%;
-    justify-content: center;
   }
 
   .grading-mode-control {
@@ -451,10 +396,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .template-editor__basics > .editor-section__heading {
-    grid-column: auto;
-  }
-
   .template-visual-settings,
   .template-markup-editor__heading {
     align-items: stretch;
@@ -531,10 +472,6 @@
     padding: 1rem;
   }
 
-  .content-state {
-    border-radius: 0.65rem;
-  }
-
   .content-state__actions {
     flex-direction: column;
     width: 100%;
@@ -572,28 +509,15 @@
   }
 
   .dialog-actions {
-    flex-direction: column-reverse;
+    flex-wrap: wrap;
   }
 
   .dialog-actions--split > span {
     display: none;
   }
-
-  .dialog-actions > * {
-    width: 100%;
-    justify-content: center;
-  }
 }
 
 @media (max-width: 420px) {
-  .settings-navigation {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .settings-panel {
-    scroll-margin-top: 8rem;
-  }
-
   .css-snippet-row {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -608,5 +532,22 @@
 @media (max-width: 360px) {
   .study-actions__buttons {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (pointer: coarse) {
+  .twill-control,
+  .twill-field,
+  .segmented-control__button {
+    min-height: 2.75rem;
+  }
+
+  .twill-control:has(> svg:only-child) {
+    min-width: 2.75rem;
+  }
+
+  .mobile-header .twill-control {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
   }
 }

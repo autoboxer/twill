@@ -175,7 +175,6 @@ async function confirmDelete() {
   <UModal
     v-model:open="isOpen"
     title="Organize library"
-    description="Create and manage the decks and tags used by concepts."
     scrollable
   >
     <template #body>
@@ -225,7 +224,6 @@ async function confirmDelete() {
               :maxlength="80"
               autocomplete="off"
               class="w-full"
-              size="lg"
             />
           </UFormField>
 

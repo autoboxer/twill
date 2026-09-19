@@ -567,13 +567,6 @@ defineExpose({ submit });
       class="editor-section"
       data-twill-editor-section="concept-basics"
     >
-      <div class="editor-section__heading">
-        <div>
-          <h2>Concept</h2>
-          <p>Use a short, recognizable title.</p>
-        </div>
-      </div>
-
       <UFormField
         label="Title"
         :error="titleError || false"
@@ -587,7 +580,6 @@ defineExpose({ submit });
           autocomplete="off"
           autofocus
           class="w-full"
-          size="xl"
           :disabled="disabled"
         />
       </UFormField>
@@ -600,7 +592,6 @@ defineExpose({ submit });
       <div class="editor-section__heading">
         <div>
           <h2>Content</h2>
-          <p>Write the prompt and answer for this concept.</p>
         </div>
       </div>
 

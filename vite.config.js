@@ -2,6 +2,8 @@ import vue from '@vitejs/plugin-vue';
 import ui from '@nuxt/ui/vite';
 import { defineConfig } from 'vite';
 
+import { uiTheme } from './src/config/ui';
+
 const host = process.env.TAURI_DEV_HOST;
 const devServerPort = 1420;
 const hotReloadPort = 1421;
@@ -21,12 +23,7 @@ export default defineConfig({
           sizeLimitKb: 256
         }
       },
-      ui: {
-        colors: {
-          neutral: 'stone',
-          primary: 'moss'
-        }
-      }
+      ui: uiTheme
     })
   ],
   clearScreen: false,

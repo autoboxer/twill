@@ -236,7 +236,6 @@ async function restoreStudyDefaults() {
 
       <div>
         <h2>Study</h2>
-        <p>Set the controls used for review sessions.</p>
       </div>
     </header>
 

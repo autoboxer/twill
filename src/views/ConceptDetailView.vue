@@ -365,7 +365,7 @@ function schedulingStateDetails( state ) {
     data-twill-page="concept-detail"
   >
     <PageHeader :title="concept?.title ?? 'Concept'">
-      <template #actions>
+      <template #leading>
         <UButton
           :to="{ name: 'library', query: libraryQuery }"
           leading-icon="i-lucide-arrow-left"
@@ -374,7 +374,9 @@ function schedulingStateDetails( state ) {
         >
           Library
         </UButton>
+      </template>
 
+      <template #actions>
         <UButton
           v-if="concept"
           :to="{

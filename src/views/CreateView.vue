@@ -573,7 +573,7 @@ function cancel() {
     data-twill-page="concept-editor"
   >
     <PageHeader :title="pageTitle">
-      <template #actions>
+      <template #leading>
         <UButton
           leading-icon="i-lucide-arrow-left"
           color="neutral"

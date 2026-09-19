@@ -258,7 +258,6 @@ async function persistSchedulingSettings(
           FSRS {{ savedSchedulingSettings.algorithmVersion }}
         </p>
         <h2>Scheduling</h2>
-        <p>Adjust long-term retention and the longest review interval.</p>
       </div>
     </header>
 
@@ -285,7 +284,6 @@ async function persistSchedulingSettings(
             step="1"
             inputmode="decimal"
             class="settings-number-input"
-            size="xl"
             @input="clearSchedulingSaveFeedback"
           />
           <span>%</span>
@@ -308,7 +306,6 @@ async function persistSchedulingSettings(
             step="1"
             inputmode="numeric"
             class="settings-number-input"
-            size="xl"
             @input="clearSchedulingSaveFeedback"
           />
           <span>days</span>
@@ -349,7 +346,6 @@ async function persistSchedulingSettings(
         :loading="schedulingSavePending"
         :aria-keyshortcuts="schedulingSaveCommand.ariaKeyshortcuts"
         :title="schedulingSaveCommand.tooltip"
-        size="lg"
       >
         Save settings
       </UButton>

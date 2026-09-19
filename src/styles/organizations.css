@@ -1,6 +1,6 @@
 .organization-manager {
   display: grid;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .segmented-control {
@@ -13,8 +13,8 @@
 }
 
 .segmented-control__button {
-  min-height: 2.75rem;
-  padding: 0.55rem 0.8rem;
+  min-height: 2rem;
+  padding: 0.3rem 0.6rem;
   color: var(--ui-text-muted);
   font-weight: 620;
   background: transparent;
@@ -57,8 +57,8 @@
 }
 
 .organization-row {
-  min-height: 4.25rem;
-  padding: 0.75rem 0.9rem;
+  min-height: 3rem;
+  padding: 0.45rem 0.65rem;
   background: var(--ui-bg);
 }
 
