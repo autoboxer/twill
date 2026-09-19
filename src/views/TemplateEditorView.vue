@@ -587,7 +587,7 @@ function cancel() {
 
           <UFormField
             label="Name"
-            :error="nameError"
+            :error="nameError || false"
             :hint="`${ form.name.length } / 80`"
             required
           >

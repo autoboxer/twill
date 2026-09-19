@@ -273,7 +273,7 @@ async function persistSchedulingSettings(
       <UFormField
         label="Target retention"
         description="Higher values shorten intervals and increase the number of reviews."
-        :error="desiredRetentionError"
+        :error="desiredRetentionError || false"
         required
       >
         <div class="settings-input-row">
@@ -296,7 +296,7 @@ async function persistSchedulingSettings(
         label="Maximum interval"
         description="Shorter limits prevent distant due dates but can substantially increase reviews."
         :hint="maximumIntervalSummary"
-        :error="maximumIntervalError"
+        :error="maximumIntervalError || false"
         required
       >
         <div class="settings-input-row">

@@ -396,7 +396,7 @@ function formatSourceSize( source ) {
         >
           <UFormField
             label="Name"
-            :error="editorNameError"
+            :error="editorNameError || false"
             :hint="`${ Array.from( form.name ).length } / ${ MAXIMUM_NAME_LENGTH }`"
             required
           >
@@ -413,7 +413,7 @@ function formatSourceSize( source ) {
 
           <UFormField
             label="CSS"
-            :error="editorSourceError"
+            :error="editorSourceError || false"
             :hint="`${ formatSourceSize( form.source ) } / 100 KB`"
             required
           >

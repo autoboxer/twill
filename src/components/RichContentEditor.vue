@@ -735,7 +735,7 @@ async function insertImage( event ) {
       <template #body>
         <UFormField
           label="Address"
-          :error="linkError"
+          :error="linkError || false"
         >
           <UInput
             v-model="linkDraft"
@@ -808,7 +808,7 @@ async function insertImage( event ) {
 
           <UFormField
             label="LaTeX"
-            :error="mathError"
+            :error="mathError || false"
           >
             <UTextarea
               v-model="mathDraft"
