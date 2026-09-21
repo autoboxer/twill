@@ -15,20 +15,23 @@ import { initializeAppearance } from './composables/useAppearance';
 import { initializeCssSnippets } from './composables/useCssSnippets';
 import { initializeNativeLifecycle } from './composables/useNativeLifecycle';
 import router from './router';
+import { isStartupPending } from './startup';
 import './styles/main.css';
 
-initializeAppearance();
+export async function startApplication() {
+  const app = createApp( App );
 
-const app = createApp( App );
+  app.use( router );
+  app.use( ui );
 
-app.use( router );
-app.use( ui );
+  await Promise.all([
+    initializeAppearance(),
+    initializeNativeLifecycle(),
+    initializeCssSnippets(),
+    router.isReady()
+  ]);
 
-router.isReady().then( async () => {
-  await initializeNativeLifecycle();
-  app.mount( '#app' );
-  void initializeCssSnippets();
-}).catch( ( cause ) => {
-  console.error( 'Twill could not initialize window handling.', cause );
-  document.getElementById( 'app' ).textContent = 'Twill could not initialize safe window handling. Please restart the app.';
-});
+  if ( isStartupPending() ) {
+    app.mount( '#app' );
+  }
+}

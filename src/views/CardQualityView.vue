@@ -9,6 +9,7 @@ import {
 import CardQualityPreview from '../components/CardQualityPreview.vue';
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
+import { useStartupReady } from '../composables/useStartupReady';
 import { useCardQualityQueue } from '../composables/useCardQualityQueue';
 
 const {
@@ -44,6 +45,8 @@ function formattedDate( timestamp ) {
     timeStyle: 'short'
   }).format( new Date( timestamp ) );
 }
+
+useStartupReady( loading );
 </script>
 
 <template>

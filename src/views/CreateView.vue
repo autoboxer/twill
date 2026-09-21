@@ -25,6 +25,7 @@ import {
   useConceptLibrary
 } from '../composables/useConceptLibrary';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
+import { useStartupReady } from '../composables/useStartupReady';
 import {
   cloneConceptEditorState,
   conceptDraftMediaIds,
@@ -565,6 +566,8 @@ function cancel() {
 
   router.push({ name: 'library', query: libraryNavigationQuery( route.query ) });
 }
+
+useStartupReady( initialLoading );
 </script>
 
 <template>

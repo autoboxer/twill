@@ -16,6 +16,7 @@ import PageHeader from '../components/PageHeader.vue';
 import TemplateMarkupEditor from '../components/TemplateMarkupEditor.vue';
 import TemplatePreview from '../components/TemplatePreview.vue';
 import TemplateVisualSideEditor from '../components/TemplateVisualSideEditor.vue';
+import { useStartupReady } from '../composables/useStartupReady';
 import { COMMAND_IDS } from '../commands/registry';
 import { useAuthoringDraft } from '../composables/useAuthoringDraft';
 import { useCommandHandler } from '../composables/useCommands';
@@ -460,6 +461,8 @@ function customSideError( source ) {
 function cancel() {
   router.push({ name: 'templates' });
 }
+
+useStartupReady( initialLoading );
 </script>
 
 <template>

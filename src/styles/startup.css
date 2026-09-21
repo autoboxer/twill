@@ -1,0 +1,80 @@
+html,
+body {
+  margin: 0;
+  background: #08090a;
+}
+
+#twill-startup {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: auto;
+  background: #08090a;
+  color: #efeade;
+  color-scheme: dark;
+  font-family: system-ui, sans-serif;
+  transition: opacity 180ms ease-out;
+}
+
+.startup-artwork {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+#twill-startup[data-state="leaving"] {
+  opacity: 0;
+}
+
+#twill-startup[data-state="failed"] .startup-artwork {
+  visibility: hidden;
+}
+
+.startup-error {
+  box-sizing: border-box;
+  width: min(100%, 32rem);
+  margin: 18vh auto 0;
+  padding: 24px;
+  line-height: 1.6;
+}
+
+.startup-error h1 {
+  margin: 0 0 16px;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.startup-error p {
+  margin: 0 0 12px;
+}
+
+.startup-error button {
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 8px 18px;
+  border: 1px solid #45454b;
+  border-radius: 3px;
+  background: #25252a;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.startup-error button:focus-visible {
+  outline: 2px solid #efeade;
+  outline-offset: 3px;
+}
+
+html[data-motion="reduced"] #twill-startup {
+  transition: none;
+}
+
+html[data-motion="reduced"] #twill-loading .sheen {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #twill-startup {
+    transition: none;
+  }
+}

@@ -7,6 +7,7 @@ import LibraryPagination from '../components/LibraryPagination.vue';
 import OrganizationManager from '../components/OrganizationManager.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { useLibrarySearch } from '../composables/useLibrarySearch';
+import { useStartupReady } from '../composables/useStartupReady';
 import { libraryCardTypeOptions, librarySortOptions, libraryStateOptions } from '../library/search';
 import { retrievalFormIcon, retrievalFormLabel } from '../retrieval-forms/catalog';
 import { studyBuilderLocation } from '../study/selection';
@@ -75,6 +76,8 @@ function formattedDate( timestamp ) {
     year: 'numeric'
   }).format( new Date( timestamp ) );
 }
+
+useStartupReady( loading );
 </script>
 
 <template>

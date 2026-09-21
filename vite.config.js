@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import vue from '@vitejs/plugin-vue';
 import ui from '@nuxt/ui/vite';
 import { defineConfig } from 'vite';
@@ -7,9 +8,19 @@ import { uiTheme } from './src/config/ui';
 const host = process.env.TAURI_DEV_HOST;
 const devServerPort = 1420;
 const hotReloadPort = 1421;
+const startupArtwork = new URL( './src/assets/twill-loading.svg', import.meta.url );
 
 export default defineConfig({
   plugins: [
+    {
+      name: 'twill-startup-artwork',
+      transformIndexHtml( html ) {
+        return html.replace(
+          '<!-- twill-startup-artwork -->',
+          readFileSync( startupArtwork, 'utf8' )
+        );
+      }
+    },
     vue(),
     ui({
       colorMode: false,
