@@ -26,6 +26,7 @@ import {
 } from '../composables/useConceptLibrary';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
 import { useStartupReady } from '../composables/useStartupReady';
+import { useActionNotifications } from '../composables/useActionNotifications';
 import {
   cloneConceptEditorState,
   conceptDraftMediaIds,
@@ -69,6 +70,7 @@ const {
   getDeferredEdits,
   removeDeferredEdit
 } = useDeferredEdits();
+const { notifySuccess } = useActionNotifications();
 
 const concept = ref( null );
 const conceptForm = ref( null );
@@ -175,10 +177,6 @@ const draftStatusMessage = computed( () => {
 
   if ( draftStatus.value === 'saving' ) {
     return 'Saving draft…';
-  }
-
-  if ( draftStatus.value === 'saved' ) {
-    return 'Draft saved locally.';
   }
 
   return '';
@@ -389,6 +387,7 @@ async function saveConcept( input ) {
     }) );
 
     savedConcept.value = saved;
+    notifySuccess( 'Concept saved' );
     await finishSavedConcept();
   } catch ( cause ) {
     if ( cause.code === 'targetChanged' || cause.code === 'targetMissing' ) {
@@ -705,7 +704,7 @@ useStartupReady( initialLoading );
         class="draft-persistence__status"
       >
         <UIcon
-          :name="draftStatus === 'saved' ? 'i-lucide-check' : 'i-lucide-loader-circle'"
+          name="i-lucide-loader-circle"
           aria-hidden="true"
         />
         {{ draftStatusMessage }}

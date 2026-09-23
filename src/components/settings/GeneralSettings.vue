@@ -4,6 +4,7 @@ import { onBeforeUnmount, ref } from 'vue';
 
 import { conceptLibraryErrorMessage } from '../../composables/useConceptLibrary';
 import { useDevicePreferences } from '../../composables/useDevicePreferences';
+import { useActionNotifications } from '../../composables/useActionNotifications';
 
 const props = defineProps({
   initialDestination: {
@@ -24,13 +25,13 @@ const startupDestinationItems = [
 ];
 
 const { setStartupDestination } = useDevicePreferences();
+const { notifySuccess } = useActionNotifications();
 
 const startupDestination = ref( props.initialDestination );
 const savedStartupDestination = ref( props.initialDestination );
 
 const startupDestinationError = ref( '' );
 const startupDestinationPending = ref( false );
-const startupDestinationStatus = ref( '' );
 
 let viewActive = true;
 
@@ -54,7 +55,6 @@ async function updateStartupDestination(
 
   startupDestination.value = nextDestination;
   startupDestinationError.value = '';
-  startupDestinationStatus.value = '';
   startupDestinationPending.value = true;
 
   try {
@@ -66,7 +66,7 @@ async function updateStartupDestination(
 
     startupDestination.value = preferences.startupDestination;
     savedStartupDestination.value = preferences.startupDestination;
-    startupDestinationStatus.value = successMessage;
+    notifySuccess( successMessage );
   } catch ( cause ) {
     if ( viewActive ) {
       startupDestination.value = previousDestination;
@@ -130,13 +130,6 @@ async function updateStartupDestination(
     />
 
     <footer class="settings-section-actions">
-      <p
-        class="settings-save-status"
-        aria-live="polite"
-      >
-        {{ startupDestinationStatus }}
-      </p>
-
       <UButton
         type="button"
         color="neutral"

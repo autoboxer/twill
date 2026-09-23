@@ -6,6 +6,7 @@ import { COMMAND_IDS } from '../../commands/registry';
 import { useCommandHandler } from '../../composables/useCommands';
 import { conceptLibraryErrorMessage } from '../../composables/useConceptLibrary';
 import { useSchedulingSettings } from '../../composables/useSchedulingSettings';
+import { useActionNotifications } from '../../composables/useActionNotifications';
 
 const props = defineProps({
   initialSettings: {
@@ -26,6 +27,7 @@ const MINIMUM_INTERVAL_DAYS = 1;
 const MAXIMUM_INTERVAL_DAYS = 36_500;
 
 const { updateSchedulingSettings } = useSchedulingSettings();
+const { notifySuccess } = useActionNotifications();
 
 const schedulingForm = reactive({
   desiredRetentionPercent: props.initialSettings.desiredRetention * 100,
@@ -36,7 +38,6 @@ const savedSchedulingSettings = ref( props.initialSettings );
 const schedulingSaveAttempted = ref( false );
 const schedulingSaveError = ref( '' );
 const schedulingSavePending = ref( false );
-const schedulingSaveStatus = ref( '' );
 let viewActive = true;
 
 const desiredRetention = computed( () => {
@@ -159,7 +160,6 @@ function applySchedulingSettings( settings ) {
 
 function clearSchedulingSaveFeedback() {
   schedulingSaveError.value = '';
-  schedulingSaveStatus.value = '';
 }
 
 function formatApproximateDuration( value, unit, maximumFractionDigits ) {
@@ -221,7 +221,7 @@ async function persistSchedulingSettings(
     }
 
     applySchedulingSettings( settings );
-    schedulingSaveStatus.value = successMessage;
+    notifySuccess( successMessage );
   } catch ( cause ) {
     if ( viewActive ) {
       schedulingSaveError.value = conceptLibraryErrorMessage( cause );
@@ -322,13 +322,6 @@ async function persistSchedulingSettings(
     />
 
     <footer class="settings-actions">
-      <p
-        class="settings-save-status"
-        aria-live="polite"
-      >
-        {{ schedulingSaveStatus }}
-      </p>
-
       <UButton
         type="button"
         color="neutral"

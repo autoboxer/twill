@@ -62,6 +62,21 @@ export const uiTheme = {
     defaultVariants: { variant: 'subtle' }
   },
 
+  toast: {
+    slots: {
+      root: 'action-notification rounded-(--ui-radius) bg-elevated p-2 gap-2 shadow-sm',
+      title: 'font-normal break-words',
+      icon: 'size-4',
+      close: 'shrink-0'
+    }
+  },
+
+  toaster: {
+    slots: {
+      viewport: 'action-notifications'
+    }
+  },
+
   modal: {
     slots: {
       overlay: 'z-70',

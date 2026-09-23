@@ -17,6 +17,7 @@ import TemplateMarkupEditor from '../components/TemplateMarkupEditor.vue';
 import TemplatePreview from '../components/TemplatePreview.vue';
 import TemplateVisualSideEditor from '../components/TemplateVisualSideEditor.vue';
 import { useStartupReady } from '../composables/useStartupReady';
+import { useActionNotifications } from '../composables/useActionNotifications';
 import { COMMAND_IDS } from '../commands/registry';
 import { useAuthoringDraft } from '../composables/useAuthoringDraft';
 import { useCommandHandler } from '../composables/useCommands';
@@ -57,6 +58,7 @@ const {
   start: startDraft,
   status: draftStatus
 } = useAuthoringDraft( 'template' );
+const { notifySuccess } = useActionNotifications();
 
 const form = reactive({
   content: createDefaultTemplateContent(),
@@ -99,10 +101,6 @@ const draftStatusMessage = computed( () => {
 
   if ( draftStatus.value === 'saving' ) {
     return 'Saving draft…';
-  }
-
-  if ( draftStatus.value === 'saved' ) {
-    return 'Draft saved locally.';
   }
 
   return '';
@@ -320,6 +318,7 @@ async function saveTemplate() {
     }) );
 
     savedTemplate.value = saved;
+    notifySuccess( 'Template saved' );
     await finishSavedTemplate();
   } catch ( cause ) {
     if ( cause.code === 'targetChanged' || cause.code === 'targetMissing' ) {
@@ -552,7 +551,7 @@ useStartupReady( initialLoading );
         class="draft-persistence__status"
       >
         <UIcon
-          :name="draftStatus === 'saved' ? 'i-lucide-check' : 'i-lucide-loader-circle'"
+          name="i-lucide-loader-circle"
           aria-hidden="true"
         />
         {{ draftStatusMessage }}

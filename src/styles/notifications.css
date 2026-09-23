@@ -1,0 +1,14 @@
+.action-notifications {
+  bottom: calc(0.75rem + env(safe-area-inset-bottom) + var(--notification-bottom-inset, 0px));
+  width: min(22rem, calc(100vw - 1.5rem - env(safe-area-inset-left) - env(safe-area-inset-right)));
+}
+
+.action-notification [data-slot="title"] {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 1024px) {
+  .action-notifications {
+    right: calc(0.75rem + env(safe-area-inset-right));
+  }
+}
