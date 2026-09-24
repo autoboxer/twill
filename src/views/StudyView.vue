@@ -23,6 +23,7 @@ import { useStudySession } from '../composables/useStudySession';
 import { useStudyFocus } from '../composables/useStudyFocus';
 import { useStudyDeferredEdits } from '../composables/useStudyDeferredEdits';
 import { useAppearance } from '../composables/useAppearance';
+import { useStartupReady } from '../composables/useStartupReady';
 import { gradingModeItems, gradingOptionsByMode } from '../study/grading';
 import { emptyStudySelection, studySelectionFromLibrary } from '../study/selection';
 import { retrievalFormLabel as studyCardName } from '../retrieval-forms/catalog';
@@ -405,6 +406,7 @@ function registerGradingCommand( commandId, mode, rating ) {
   });
 }
 
+useStartupReady( initialLoading );
 </script>
 
 <template>

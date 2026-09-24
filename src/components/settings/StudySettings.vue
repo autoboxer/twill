@@ -4,6 +4,7 @@ import { onBeforeUnmount, ref } from 'vue';
 
 import { conceptLibraryErrorMessage } from '../../composables/useConceptLibrary';
 import { useDevicePreferences } from '../../composables/useDevicePreferences';
+import { useActionNotifications } from '../../composables/useActionNotifications';
 
 const props = defineProps({
   initialPreferences: {
@@ -32,24 +33,22 @@ const {
   setMixedPracticeEnabled,
   setPretestingEnabled
 } = useDevicePreferences();
+const { notifySuccess } = useActionNotifications();
 
 const gradingMode = ref( props.initialPreferences.gradingMode );
 const savedGradingMode = ref( props.initialPreferences.gradingMode );
 const gradingModeError = ref( '' );
 const gradingModePending = ref( false );
-const gradingModeStatus = ref( '' );
 
 const mixedPracticeEnabled = ref( Boolean( props.initialPreferences.mixedPracticeEnabled ) );
 const savedMixedPracticeEnabled = ref( mixedPracticeEnabled.value );
 const mixedPracticeError = ref( '' );
 const mixedPracticePending = ref( false );
-const mixedPracticeStatus = ref( '' );
 
 const pretestingEnabled = ref( Boolean( props.initialPreferences.pretestingEnabled ) );
 const savedPretestingEnabled = ref( pretestingEnabled.value );
 const pretestingError = ref( '' );
 const pretestingPending = ref( false );
-const pretestingStatus = ref( '' );
 
 let viewActive = true;
 
@@ -73,9 +72,6 @@ async function updateGradingMode(
 
   gradingMode.value = nextMode;
   gradingModeError.value = '';
-  gradingModeStatus.value = '';
-  mixedPracticeStatus.value = '';
-  pretestingStatus.value = '';
   gradingModePending.value = true;
 
   try {
@@ -87,7 +83,7 @@ async function updateGradingMode(
 
     gradingMode.value = preferences.gradingMode;
     savedGradingMode.value = preferences.gradingMode;
-    gradingModeStatus.value = successMessage;
+    notifySuccess( successMessage );
   } catch ( cause ) {
     if ( viewActive ) {
       gradingMode.value = previousMode;
@@ -115,10 +111,7 @@ async function updatePretesting(
   const previousValue = savedPretestingEnabled.value;
 
   pretestingEnabled.value = enabled;
-  gradingModeStatus.value = '';
-  mixedPracticeStatus.value = '';
   pretestingError.value = '';
-  pretestingStatus.value = '';
   pretestingPending.value = true;
 
   try {
@@ -130,7 +123,7 @@ async function updatePretesting(
 
     pretestingEnabled.value = preferences.pretestingEnabled;
     savedPretestingEnabled.value = preferences.pretestingEnabled;
-    pretestingStatus.value = successMessage;
+    notifySuccess( successMessage );
   } catch ( cause ) {
     if ( viewActive ) {
       pretestingEnabled.value = previousValue;
@@ -158,10 +151,7 @@ async function updateMixedPractice(
   const previousValue = savedMixedPracticeEnabled.value;
 
   mixedPracticeEnabled.value = enabled;
-  gradingModeStatus.value = '';
   mixedPracticeError.value = '';
-  mixedPracticeStatus.value = '';
-  pretestingStatus.value = '';
   mixedPracticePending.value = true;
 
   try {
@@ -173,7 +163,7 @@ async function updateMixedPractice(
 
     mixedPracticeEnabled.value = preferences.mixedPracticeEnabled;
     savedMixedPracticeEnabled.value = preferences.mixedPracticeEnabled;
-    mixedPracticeStatus.value = successMessage;
+    notifySuccess( successMessage );
   } catch ( cause ) {
     if ( viewActive ) {
       mixedPracticeEnabled.value = previousValue;
@@ -208,11 +198,12 @@ async function restoreStudyDefaults() {
   }
 
   if (
-    !gradingModeError.value
+    viewActive
+    && !gradingModeError.value
     && !mixedPracticeError.value
     && !pretestingError.value
   ) {
-    gradingModeStatus.value = 'Study defaults restored.';
+    notifySuccess( 'Study defaults restored.' );
   }
 }
 </script>
@@ -323,13 +314,6 @@ async function restoreStudyDefaults() {
     />
 
     <footer class="settings-section-actions">
-      <p
-        class="settings-save-status"
-        aria-live="polite"
-      >
-        {{ mixedPracticeStatus || pretestingStatus || gradingModeStatus }}
-      </p>
-
       <UButton
         type="button"
         color="neutral"

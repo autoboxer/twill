@@ -1,0 +1,212 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  id="twill-loading"
+  width="100%"
+  height="100%"
+  role="img"
+  aria-labelledby="twill-loading-title"
+>
+  <title id="twill-loading-title">Twill is loading</title>
+
+  <style>
+    #twill-loading {
+      display: block;
+      overflow: hidden;
+      background: #050506;
+      transition: opacity 180ms ease-out;
+    }
+
+    #twill-loading .identity-position {
+      transform: translate(50vw, 50vh);
+    }
+
+    #twill-loading .background {
+      fill: url(#twill-weave);
+    }
+
+    #twill-loading .identity-scale {
+      transform: scale(1);
+    }
+
+    @media (max-width: 1400px) {
+      #twill-loading .identity-scale {
+        transform: scale(0.8);
+      }
+    }
+
+    @media (max-width: 1000px) {
+      #twill-loading .identity-scale {
+        transform: scale(0.65);
+      }
+    }
+
+    @media (max-width: 600px) {
+      #twill-loading .identity-scale {
+        transform: scale(0.46);
+      }
+    }
+
+    #twill-loading .sheen {
+      animation: twill-diagonal-shine 5.6s linear infinite;
+      pointer-events: none;
+    }
+
+    @keyframes twill-diagonal-shine {
+      0%, 8% {
+        transform: translateX(-100vw);
+        opacity: 0;
+      }
+
+      18% {
+        opacity: 1;
+      }
+
+      78% {
+        opacity: 1;
+      }
+
+      92%, 100% {
+        transform: translateX(200vw);
+        opacity: 0;
+      }
+    }
+
+    #twill-loading[data-paused="true"] .sheen {
+      animation-play-state: paused;
+    }
+
+    #twill-loading[data-motion="reduced"] .sheen,
+    #twill-loading[data-state="ready"] .sheen {
+      display: none;
+    }
+
+    #twill-loading[data-state="ready"] {
+      opacity: 0;
+    }
+
+    #twill-loading[data-motion="reduced"] {
+      transition: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #twill-loading .sheen {
+        display: none;
+      }
+
+      #twill-loading {
+        transition: none;
+      }
+    }
+  </style>
+
+  <defs>
+    <g id="twill-mark-shape">
+      <path d="M 0 25 H 59 V 40 H 0 Z" />
+      <path d="M 0 53 H 27 V 68 H 0 Z" />
+      <path d="M 9 81 H 59 V 96 H 9 Z" />
+      <path d="M 32 6 H 47 V 20 H 32 Z" />
+      <path d="M 32 45 H 47 V 76 H 32 Z" />
+      <path d="M 32 101 H 47 V 120 H 32 Z" />
+      <path d="M 53 53 H 111 V 68 H 53 Z" />
+      <path d="M 65 0 H 80 V 48 H 65 Z" />
+      <path d="M 65 73 H 80 V 113 H 65 Z" />
+      <path d="M 86 25 H 103 V 40 H 86 Z" />
+      <path d="M 86 82 H 103 V 95 H 86 Z" />
+    </g>
+
+    <g id="twill-crossing">
+      <path d="M -6 -11 H 6 V 11 H -6 Z" fill="#08090a" />
+      <path d="M -11 -6 H 11 V 6 H -11 Z" fill="#17191b" />
+    </g>
+
+    <pattern id="twill-weave" width="160" height="160" patternUnits="userSpaceOnUse" patternTransform="scale(0.25)">
+      <rect width="160" height="160" fill="#08090a" />
+
+      <path
+        d="M 20 0 V 160 M 60 0 V 160 M 100 0 V 160 M 140 0 V 160 M 0 20 H 160 M 0 60 H 160 M 0 100 H 160 M 0 140 H 160"
+        fill="none"
+        stroke="#17191b"
+        stroke-width="12"
+      />
+
+      <use href="#twill-crossing" transform="translate(20 20)" />
+      <use href="#twill-crossing" transform="translate(60 20)" />
+      <use href="#twill-crossing" transform="translate(100 20) rotate(90)" />
+      <use href="#twill-crossing" transform="translate(140 20) rotate(90)" />
+
+      <use href="#twill-crossing" transform="translate(20 60) rotate(90)" />
+      <use href="#twill-crossing" transform="translate(60 60)" />
+      <use href="#twill-crossing" transform="translate(100 60)" />
+      <use href="#twill-crossing" transform="translate(140 60) rotate(90)" />
+
+      <use href="#twill-crossing" transform="translate(20 100) rotate(90)" />
+      <use href="#twill-crossing" transform="translate(60 100) rotate(90)" />
+      <use href="#twill-crossing" transform="translate(100 100)" />
+      <use href="#twill-crossing" transform="translate(140 100)" />
+
+      <use href="#twill-crossing" transform="translate(20 140)" />
+      <use href="#twill-crossing" transform="translate(60 140) rotate(90)" />
+      <use href="#twill-crossing" transform="translate(100 140) rotate(90)" />
+      <use href="#twill-crossing" transform="translate(140 140)" />
+    </pattern>
+
+    <radialGradient id="twill-vignette" cx="50%" cy="48%" r="70%">
+      <stop offset="0" stop-color="#000" stop-opacity="0.1" />
+      <stop offset="0.5" stop-color="#000" stop-opacity="0.35" />
+      <stop offset="1" stop-color="#000" stop-opacity="0.9" />
+    </radialGradient>
+
+    <linearGradient id="twill-shine">
+      <stop offset="0" stop-color="#b7bec6" stop-opacity="0" />
+      <stop offset="0.25" stop-color="#b7bec6" stop-opacity="0.015" />
+      <stop offset="0.5" stop-color="#b7bec6" stop-opacity="0.085" />
+      <stop offset="0.75" stop-color="#b7bec6" stop-opacity="0.015" />
+      <stop offset="1" stop-color="#b7bec6" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+
+  <rect class="background" width="100%" height="100%" />
+  <rect width="100%" height="100%" fill="url(#twill-vignette)" />
+
+  <g class="sheen">
+    <rect
+      x="-20%"
+      y="-50%"
+      width="48%"
+      height="200%"
+      fill="url(#twill-shine)"
+      transform="skewX(-28)"
+    />
+  </g>
+
+  <g class="identity-position" aria-hidden="true">
+    <g class="identity-scale">
+      <g transform="translate(-238.5 -60)" fill="#efeade">
+        <g id="twill-mark">
+          <use href="#twill-mark-shape" />
+        </g>
+
+        <g id="twill-wordmark">
+          <g id="twill-letter-t">
+            <path d="M 158 7 H 243 V 23 H 209 L 191 40 V 23 H 158 Z" />
+            <path d="M 191 50 L 209 33 V 41 L 191 58 Z" />
+            <path d="M 191 68 L 209 51 V 119 H 191 Z" />
+          </g>
+
+          <path
+            id="twill-letter-w"
+            d="M 233 46 H 251 L 266 94 L 284 46 H 302 L 320 94 L 339 46 H 355 L 329 119 H 313 L 293 69 L 274 119 H 258 Z"
+          />
+
+          <g id="twill-letter-i">
+            <circle cx="381" cy="22" r="10" />
+            <path d="M 373 46 H 390 V 119 H 373 Z" />
+          </g>
+
+          <path id="twill-letter-l-first" d="M 419 7 H 436 V 119 H 419 Z" />
+          <path id="twill-letter-l-last" d="M 459 7 H 477 V 119 H 459 Z" />
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

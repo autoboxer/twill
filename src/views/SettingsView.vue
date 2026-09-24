@@ -8,6 +8,7 @@ import PageHeader from '../components/PageHeader.vue';
 import AppearanceSettings from '../components/settings/AppearanceSettings.vue';
 import GeneralSettings from '../components/settings/GeneralSettings.vue';
 import SchedulingSettings from '../components/settings/SchedulingSettings.vue';
+import { useStartupReady } from '../composables/useStartupReady';
 import StudySettings from '../components/settings/StudySettings.vue';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useDevicePreferences } from '../composables/useDevicePreferences';
@@ -76,6 +77,8 @@ function scrollToSection( sectionId ) {
     block: 'start'
   });
 }
+
+useStartupReady( initialLoading );
 </script>
 
 <template>

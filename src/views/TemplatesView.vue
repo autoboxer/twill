@@ -5,6 +5,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
+import { useStartupReady } from '../composables/useStartupReady';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
 
@@ -103,6 +104,8 @@ function formattedDate( timestamp ) {
     year: 'numeric'
   }).format( new Date( timestamp ) );
 }
+
+useStartupReady( initialLoading );
 </script>
 
 <template>

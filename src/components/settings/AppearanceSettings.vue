@@ -11,6 +11,7 @@ import {
 } from '../../appearance/options';
 import { useAppearance } from '../../composables/useAppearance';
 import { conceptLibraryErrorMessage } from '../../composables/useConceptLibrary';
+import { useActionNotifications } from '../../composables/useActionNotifications';
 
 defineProps({
   panelTransition: {
@@ -33,10 +34,10 @@ const themeGroups = [
 ];
 
 const { appearance, setAppearance } = useAppearance();
+const { notifySuccess } = useActionNotifications();
 
 const appearanceError = ref( '' );
 const appearancePendingCount = ref( 0 );
-const appearanceStatus = ref( '' );
 
 let appearanceRequestSequence = 0;
 let viewActive = true;
@@ -45,12 +46,6 @@ const appearanceDefaultsActive = computed( () => {
   return Object.entries( DEFAULT_APPEARANCE ).every( ([ key, value ]) => (
     appearance.value[ key ] === value
   ) );
-});
-
-const appearanceSaveStatus = computed( () => {
-  return appearancePendingCount.value > 0
-    ? 'Saving appearance…'
-    : appearanceStatus.value;
 });
 
 onBeforeUnmount( () => {
@@ -101,14 +96,13 @@ async function persistAppearance(
   const request = ++appearanceRequestSequence;
 
   appearanceError.value = '';
-  appearanceStatus.value = '';
   appearancePendingCount.value += 1;
 
   try {
     await setAppearance( nextAppearance );
 
     if ( viewActive && request === appearanceRequestSequence ) {
-      appearanceStatus.value = successMessage;
+      notifySuccess( successMessage );
     }
   } catch ( cause ) {
     if ( viewActive && request === appearanceRequestSequence ) {
@@ -300,10 +294,11 @@ async function persistAppearance(
 
     <footer class="settings-section-actions">
       <p
+        v-if="appearancePendingCount > 0"
         class="settings-save-status"
         aria-live="polite"
       >
-        {{ appearanceSaveStatus }}
+        Saving appearance…
       </p>
 
       <UButton

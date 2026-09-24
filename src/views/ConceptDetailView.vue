@@ -6,6 +6,7 @@ import ConfirmDialog from '../components/ConfirmDialog.vue';
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
 import RichContentRenderer from '../components/RichContentRenderer.vue';
+import { useStartupReady } from '../composables/useStartupReady';
 import { collectClozeGroups } from '../cloze/documents';
 import {
   conceptLibraryErrorMessage,
@@ -357,6 +358,8 @@ function schedulingStateDetails( state ) {
     review: { color: 'primary', label: 'Review' }
   }[ state ] ?? { color: 'neutral', label: state };
 }
+
+useStartupReady( initialLoading );
 </script>
 
 <template>

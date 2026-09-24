@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, onMounted, ref, toValue } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 
 import { useNativeActionGuard } from './useNativeLifecycle';
+import { useActionNotifications } from './useActionNotifications';
 
 export function useAuthoringNavigation({
   editorResolved,
@@ -13,6 +14,7 @@ export function useAuthoringNavigation({
   recoveryOpen,
   saveInProgress
 }) {
+  const { notifySuccess } = useActionNotifications();
   const allowNavigation = ref( false );
   const leaveDialogOpen = ref( false );
   const leaveError = ref( '' );
@@ -109,6 +111,10 @@ export function useAuthoringNavigation({
     leaveDialogOpen.value = false;
 
     if ( leaveResolution ) {
+      if ( isModified.value ) {
+        notifySuccess( 'Draft saved' );
+      }
+
       leaveResolution( true );
       leaveResolution = null;
     }

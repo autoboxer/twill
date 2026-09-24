@@ -3,6 +3,7 @@ import { computed, nextTick, reactive, ref } from 'vue';
 
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useCssSnippets } from '../composables/useCssSnippets';
+import { useActionNotifications } from '../composables/useActionNotifications';
 import ConfirmDialog from './ConfirmDialog.vue';
 
 const MAXIMUM_NAME_LENGTH = 80;
@@ -24,9 +25,10 @@ const {
   updateSnippet
 } = useCssSnippets();
 
+const { notifySuccess } = useActionNotifications();
+
 const actionError = ref( '' );
 const actionPending = ref( '' );
-const actionStatus = ref( '' );
 const deleteTarget = ref( null );
 const editorAttempted = ref( false );
 const editorError = ref( '' );
@@ -127,10 +129,10 @@ async function saveSnippet() {
   try {
     if ( editingId.value ) {
       await updateSnippet( editingId.value, form.name, form.source );
-      actionStatus.value = 'Snippet saved.';
+      notifySuccess( 'Snippet saved' );
     } else {
       await createSnippet( form.name, form.source );
-      actionStatus.value = 'Snippet created. Enable it when ready.';
+      notifySuccess( 'Snippet created' );
     }
 
     editorOpen.value = false;
@@ -153,9 +155,9 @@ async function toggleSnippet( snippet, enabled ) {
 
   try {
     await setSnippetEnabled( snippet.id, enabled );
-    actionStatus.value = enabled
+    notifySuccess( enabled
       ? `${ snippet.name } enabled.`
-      : `${ snippet.name } disabled.`;
+      : `${ snippet.name } disabled.` );
   } catch ( cause ) {
     actionError.value = conceptLibraryErrorMessage( cause );
   } finally {
@@ -173,7 +175,7 @@ async function disableAll() {
 
   try {
     await disableAllSnippets();
-    actionStatus.value = 'All snippets disabled.';
+    notifySuccess( 'All snippets disabled' );
   } catch ( cause ) {
     actionError.value = conceptLibraryErrorMessage( cause );
   } finally {
@@ -202,7 +204,7 @@ async function confirmDelete() {
   try {
     await deleteSnippet( target.id );
     deleteTarget.value = null;
-    actionStatus.value = `${ target.name } deleted.`;
+    notifySuccess( `${ target.name } deleted.` );
   } catch ( cause ) {
     actionError.value = conceptLibraryErrorMessage( cause );
   } finally {
@@ -212,7 +214,6 @@ async function confirmDelete() {
 
 function clearFeedback() {
   actionError.value = '';
-  actionStatus.value = '';
 }
 
 function formatSourceSize( source ) {
@@ -357,13 +358,6 @@ function formatSourceSize( source ) {
     />
 
     <footer class="settings-section-actions">
-      <p
-        class="settings-save-status"
-        aria-live="polite"
-      >
-        {{ actionStatus }}
-      </p>
-
       <UButton
         type="button"
         color="neutral"

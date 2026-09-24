@@ -3,12 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#fdfdfb" />
+    <meta name="theme-color" content="#08090a" />
     <title>Twill</title>
+    <link rel="stylesheet" href="/src/styles/startup.css" />
   </head>
 
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
+    <div id="twill-startup" role="status" aria-label="Opening Twill">
+      <div class="startup-artwork" aria-hidden="true">
+        <!-- twill-startup-artwork -->
+      </div>
+
+      <section id="startup-error" class="startup-error" role="alert" hidden>
+        <h1>Twill could not finish opening</h1>
+        <p>Reload to try again. If this continues, restart Twill.</p>
+        <p>Reloading does not reset your library.</p>
+        <button id="startup-reload" type="button">Reload</button>
+      </section>
+
+      <noscript>JavaScript is required to open Twill.</noscript>
+    </div>
+
+    <div id="app" inert aria-hidden="true"></div>
+    <script type="module" src="/src/startup.js"></script>
   </body>
 </html>
