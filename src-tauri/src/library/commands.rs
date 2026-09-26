@@ -19,7 +19,8 @@ use crate::library::{
     RenameNamedItemInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings,
     SetAppearancePreferencesInput, SetConceptArchivedInput, SetCssSnippetEnabledInput,
-    SetGradingModeInput, SetMixedPracticeEnabledInput, SetPretestingEnabledInput,
+    SetGradingModeInput, SetLibraryViewPreferencesInput, SetMixedPracticeEnabledInput,
+    SetPretestingEnabledInput,
     SetStartupDestinationInput, StudyQuery, StudyQueue, TemplateCatalog,
     TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
     UpdateCssSnippetInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
@@ -343,6 +344,16 @@ pub(crate) fn set_appearance_preferences(
 ) -> CommandResult<DevicePreferences> {
     ConceptLibrary::new(local_data.inner())
         .set_appearance_preferences(input.appearance)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn set_library_view_preferences(
+    local_data: State<'_, LocalDataStore>,
+    input: SetLibraryViewPreferencesInput,
+) -> CommandResult<DevicePreferences> {
+    ConceptLibrary::new(local_data.inner())
+        .set_library_view_preferences(input.library_view)
         .map_err(Into::into)
 }
 

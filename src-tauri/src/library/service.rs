@@ -1,7 +1,8 @@
 use crate::data::{current_timestamp, LocalDataStore};
 use crate::library::preferences::{
     query_device_preferences, update_appearance_preferences, update_grading_mode,
-    update_mixed_practice_enabled, update_pretesting_enabled, update_startup_destination,
+    update_library_view_preferences, update_mixed_practice_enabled, update_pretesting_enabled,
+    update_startup_destination,
 };
 use crate::library::pretesting::record_pretest;
 use crate::library::study::{
@@ -10,7 +11,7 @@ use crate::library::study::{
 };
 use crate::library::{
     AppearancePreferences, ConceptDetail, DevicePreferences, GradingMode, LibraryError,
-    LibraryResult, MediaSummary, PretestRecord, RecordPretestInput,
+    LibraryResult, LibraryViewPreferences, MediaSummary, PretestRecord, RecordPretestInput,
     RecordReviewInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings, StartupDestination, StudyQuery, StudyQueue, UpdateSchedulingSettingsInput,
 };
@@ -102,6 +103,14 @@ impl<'store> ConceptLibrary<'store> {
     ) -> LibraryResult<DevicePreferences> {
         self.store
             .write_result(|transaction| update_appearance_preferences(transaction, appearance))
+    }
+
+    pub fn set_library_view_preferences(
+        &self,
+        library_view: LibraryViewPreferences,
+    ) -> LibraryResult<DevicePreferences> {
+        self.store
+            .write_result(|transaction| update_library_view_preferences(transaction, library_view))
     }
 
     pub fn scheduling_settings(&self) -> LibraryResult<SchedulingSettings> {

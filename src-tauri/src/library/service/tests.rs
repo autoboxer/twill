@@ -11,7 +11,8 @@ use crate::data::{DataResult, EntityKind, LocalDataStore};
 use crate::library::models::{AnswerFeedback, ExplainFocus, TemplateMode};
 use crate::library::{
     AppearancePreferences, AppearanceTheme, ConceptContent, CreateConceptInput,
-    CreateTemplateInput, ExplainSettings, GradingMode, LibraryError, LibraryQuery, MotionPreference,
+    CreateTemplateInput, ExplainSettings, GradingMode, LibraryError, LibraryQuery,
+    LibraryViewPreferences, MotionPreference,
     PretestOutcome, ProblemSettings, ReadingFont, ReadingTextSize, RecordPretestInput,
     RecordReviewInput, RetrievalFormKind, ReverseReviewInput, ReviewRating, SchedulingState,
     StartupDestination, TemplateContent, TemplateLibrary, TypeAnswerSettings, UpdateConceptInput,
@@ -2001,6 +2002,7 @@ fn device_preferences_are_durable_and_stay_out_of_change_tracking() {
         assert_eq!(defaults.startup_destination, StartupDestination::Study);
         assert!(!defaults.pretesting_enabled);
         assert!(!defaults.mixed_practice_enabled);
+        assert_eq!(defaults.library_view, LibraryViewPreferences::default());
         assert_eq!(
             defaults.appearance,
             AppearancePreferences {
@@ -2012,6 +2014,22 @@ fn device_preferences_are_durable_and_stay_out_of_change_tracking() {
         );
 
         let changes_before = store.changes_after(0, 100).unwrap();
+        let library_view = LibraryViewPreferences {
+            show_tags: true,
+            show_decks: false,
+            show_prompt_preview: true,
+        };
+        let preferences = library
+            .set_library_view_preferences(library_view.clone())
+            .unwrap();
+
+        assert_eq!(preferences.library_view, library_view);
+        assert_eq!(preferences.appearance, defaults.appearance);
+        assert_eq!(preferences.grading_mode, defaults.grading_mode);
+        assert_eq!(preferences.startup_destination, defaults.startup_destination);
+        assert!(!preferences.pretesting_enabled);
+        assert!(!preferences.mixed_practice_enabled);
+
         let preferences = library.set_grading_mode(GradingMode::Advanced).unwrap();
 
         assert_eq!(preferences.grading_mode, GradingMode::Advanced);
@@ -2047,6 +2065,7 @@ fn device_preferences_are_durable_and_stay_out_of_change_tracking() {
         assert_eq!(preferences.grading_mode, GradingMode::Advanced);
         assert_eq!(preferences.startup_destination, StartupDestination::Library);
         assert_eq!(preferences.appearance, appearance);
+        assert_eq!(preferences.library_view, library_view);
         assert_eq!(store.changes_after(0, 100).unwrap(), changes_before);
     }
 
@@ -2059,6 +2078,22 @@ fn device_preferences_are_durable_and_stay_out_of_change_tracking() {
     assert!(preferences.pretesting_enabled);
     assert!(preferences.mixed_practice_enabled);
     assert_eq!(preferences.startup_destination, StartupDestination::Library);
+    assert_eq!(
+        preferences.library_view,
+        LibraryViewPreferences {
+            show_tags: true,
+            show_decks: false,
+            show_prompt_preview: true,
+        }
+    );
+
+    assert_eq!(
+        reopened_library
+            .set_library_view_preferences(LibraryViewPreferences::default())
+            .unwrap()
+            .library_view,
+        LibraryViewPreferences::default()
+    );
     assert_eq!(
         preferences.appearance,
         AppearancePreferences {

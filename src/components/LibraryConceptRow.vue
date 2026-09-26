@@ -6,6 +6,7 @@ import { retrievalFormLabel } from '../retrieval-forms/catalog';
 const props = defineProps({
   concept: { type: Object, required: true },
   navigationQuery: { type: Object, required: true },
+  viewPreferences: { type: Object, required: true },
   now: { type: Number, required: true }
 });
 
@@ -85,6 +86,35 @@ const due = computed( () => {
         >
           {{ retrievalFormLabel( concept.matchingForm ) }}
         </span>
+
+        <div
+          v-if="viewPreferences.showDecks && concept.decks.length"
+          class="concept-card__metadata concept-card__decks"
+        >
+          <span class="concept-card__metadata-label">Decks</span>
+          <span
+            v-for="deck in concept.decks"
+            :key="deck.id"
+          >{{ deck.name }}</span>
+        </div>
+
+        <div
+          v-if="viewPreferences.showTags && concept.tags.length"
+          class="concept-card__metadata concept-card__tags"
+        >
+          <span class="concept-card__metadata-label">Tags</span>
+          <span
+            v-for="tag in concept.tags"
+            :key="tag.id"
+          >{{ tag.name }}</span>
+        </div>
+
+        <p
+          v-if="viewPreferences.showPromptPreview && concept.promptPreview"
+          class="concept-card__preview"
+        >
+          {{ concept.promptPreview }}
+        </p>
       </div>
 
       <span class="concept-card__count">

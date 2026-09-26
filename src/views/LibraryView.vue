@@ -8,6 +8,7 @@ import OrganizationManager from '../components/OrganizationManager.vue';
 import PageHeader from '../components/PageHeader.vue';
 import { useLibraryReturnFocus } from '../composables/useLibraryReturnFocus';
 import { useLibrarySearch } from '../composables/useLibrarySearch';
+import { useLibraryViewPreferences } from '../composables/useLibraryViewPreferences';
 import { useStartupReady } from '../composables/useStartupReady';
 import { libraryCardTypeOptions, librarySortOptions, libraryStateOptions } from '../library/search';
 import { studyBuilderLocation } from '../study/selection';
@@ -32,6 +33,26 @@ const {
   tagId
 } = useLibrarySearch();
 const { rememberConcept } = useLibraryReturnFocus( loading, navigationQuery );
+const {
+  preferences: viewPreferences,
+  ready: viewReady,
+  loading: viewLoading,
+  error: viewError,
+  load: loadViewPreferences,
+  setOption
+} = useLibraryViewPreferences();
+
+const viewOptions = computed( () => [
+  [ 'showTags', 'Tags' ],
+  [ 'showDecks', 'Decks' ],
+  [ 'showPromptPreview', 'Prompt preview' ]
+].map( ([ name, label ]) => ({
+  label,
+  type: 'checkbox',
+  checked: viewPreferences.value[ name ],
+  onSelect: ( event ) => event.preventDefault(),
+  onUpdateChecked: ( checked ) => setOption( name, checked )
+}) ) );
 
 const organizationManagerOpen = ref( false );
 const resultsHeading = ref( null );
@@ -199,6 +220,23 @@ useStartupReady( loading );
       </label>
     </div>
 
+    <div
+      v-if="viewError"
+      class="library-view-error"
+      role="alert"
+    >
+      <span>{{ viewError }}</span>
+      <UButton
+        v-if="!viewReady"
+        :loading="viewLoading"
+        color="neutral"
+        variant="link"
+        @click="loadViewPreferences"
+      >
+        Retry View options
+      </UButton>
+    </div>
+
     <section
       class="library-results"
       :aria-busy="loading"
@@ -225,6 +263,25 @@ useStartupReady( loading );
         </div>
 
         <div class="library-results__actions">
+          <UDropdownMenu
+            :items="viewOptions"
+            :content="{ align: 'end' }"
+            :ui="{
+              content: 'w-44 max-w-[calc(100vw-1rem)]',
+              itemTrailing: 'order-first ms-0 size-3.5 shrink-0 self-center justify-center',
+              itemTrailingIcon: 'size-3.5'
+            }"
+          >
+            <UButton
+              :disabled="!viewReady"
+              leading-icon="i-lucide-sliders-horizontal"
+              color="neutral"
+              variant="ghost"
+            >
+              View
+            </UButton>
+          </UDropdownMenu>
+
           <UButton
             :to="studyBuilderLocation(navigationQuery)"
             leading-icon="i-lucide-book-open"
@@ -311,6 +368,7 @@ useStartupReady( loading );
           :concept="concept"
           :navigation-query="navigationQuery"
           :now="currentTime"
+          :view-preferences="viewPreferences"
           @open="rememberConcept( concept.id )"
         />
       </div>

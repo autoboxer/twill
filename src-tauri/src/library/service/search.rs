@@ -134,6 +134,10 @@ fn query_page(
                 WHERE cards.concept_id = concepts.entity_id
                     AND card_entities.deleted_at IS NULL
                     AND concepts.archived_at IS NULL
+            ),
+            (
+                SELECT prompt_preview FROM concept_search
+                WHERE concept_search.rowid = concepts.rowid
             )
         {from}
         ORDER BY {ranking}
@@ -166,6 +170,7 @@ fn query_page(
                 card_count: row.get(5)?,
                 next_due_at: row.get(11)?,
                 excerpt: row.get::<_, Option<String>>(6)?.map(bounded_excerpt),
+                prompt_preview: row.get(12)?,
                 matching_form: None,
             };
 
@@ -236,8 +241,13 @@ pub(super) fn index_concept(
 ) -> LibraryResult<()> {
     let mut body = String::new();
 
+    append_document_text(&concept.content.prompt, &mut body);
+
+    let prompt_preview = bounded_excerpt(body.split_whitespace().collect::<Vec<_>>().join(" "));
+
+    body.push('\n');
+
     for document in [
-        &concept.content.prompt,
         &concept.content.answer,
         &concept.content.feedback.explanation,
         &concept.content.feedback.common_mistakes,
@@ -264,9 +274,9 @@ pub(super) fn index_concept(
 
     // The index is a local projection, updated inside the concept's existing write transaction
     transaction.execute(
-        "INSERT OR REPLACE INTO concept_search (rowid, title, body)
-        SELECT rowid, ?1, ?2 FROM concepts WHERE entity_id = ?3",
-        params![concept.title, body, concept.id],
+        "INSERT OR REPLACE INTO concept_search (rowid, title, body, prompt_preview)
+        SELECT rowid, ?1, ?2, ?3 FROM concepts WHERE entity_id = ?4",
+        params![concept.title, body, prompt_preview, concept.id],
     )?;
 
     Ok(())

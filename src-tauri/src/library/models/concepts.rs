@@ -34,6 +34,7 @@ pub struct ConceptSummary {
     pub card_count: i64,
     pub next_due_at: Option<i64>,
     pub excerpt: Option<String>,
+    pub prompt_preview: String,
     pub matching_form: Option<LibraryCardMatch>,
 }
 

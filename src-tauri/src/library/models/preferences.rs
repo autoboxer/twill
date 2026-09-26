@@ -76,6 +76,21 @@ pub struct DevicePreferences {
     pub pretesting_enabled: bool,
     pub mixed_practice_enabled: bool,
     pub appearance: AppearancePreferences,
+    pub library_view: LibraryViewPreferences,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LibraryViewPreferences {
+    pub show_tags: bool,
+    pub show_decks: bool,
+    pub show_prompt_preview: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SetLibraryViewPreferencesInput {
+    pub library_view: LibraryViewPreferences,
 }
 
 #[derive(Clone, Debug, Deserialize)]

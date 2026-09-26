@@ -23,6 +23,7 @@ CREATE INDEX concepts_browse_idx
 CREATE VIRTUAL TABLE concept_search USING fts5(
     title,
     body,
+    prompt_preview UNINDEXED,
     tokenize = 'unicode61 remove_diacritics 2',
     prefix = '2 3 4'
 );
