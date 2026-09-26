@@ -481,6 +481,81 @@ fn card_filters_match_one_active_form_and_due_excludes_archived_and_future_cards
 }
 
 #[test]
+fn row_due_dates_follow_active_cards_without_narrowing_to_the_search_match() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = LocalDataStore::open(directory.path()).unwrap();
+    let library = ConceptLibrary::new(&store);
+    let mut create = input("Scheduled forms");
+    create.type_answer =
+        Some(serde_json::from_value(json!({ "acceptedAnswers": ["answer"] })).unwrap());
+    let concept = library.create_concept(create).unwrap();
+    let recall = concept.cards.iter()
+        .find(|card| card.retrieval_kind == RetrievalFormKind::Recall)
+        .unwrap();
+    let typed = concept.cards.iter()
+        .find(|card| card.retrieval_kind == RetrievalFormKind::TypeAnswer)
+        .unwrap();
+
+    let typed_review = library
+        .record_review_at(
+            RecordReviewInput {
+                card_id: typed.id.clone(),
+                rating: ReviewRating::Good,
+            },
+            typed.due_at,
+        )
+        .unwrap();
+    let filtered = library
+        .search(LibraryQuery {
+            card_type: Some(RetrievalFormKind::TypeAnswer),
+            state: Some(LibraryCardState::Review),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(filtered.concepts[0].card_count, 2);
+    assert_eq!(filtered.concepts[0].next_due_at, Some(recall.due_at));
+    assert_eq!(filtered.concepts[0].matching_form.as_ref().unwrap().id, typed.id);
+
+    let recall_review = library
+        .record_review_at(
+            RecordReviewInput {
+                card_id: recall.id.clone(),
+                rating: ReviewRating::Good,
+            },
+            recall.due_at + 86_400_000,
+        )
+        .unwrap();
+    assert_eq!(
+        search(&library, "").concepts[0].next_due_at,
+        Some(typed_review.due_at.min(recall_review.due_at))
+    );
+
+    library
+        .update_concept(serde_json::from_value(json!({
+            "id": concept.id, "title": concept.title
+        })).unwrap())
+        .unwrap();
+    let remaining = search(&library, "");
+    assert_eq!(remaining.concepts[0].card_count, 1);
+    assert_eq!(remaining.concepts[0].next_due_at, Some(recall_review.due_at));
+
+    library.set_concept_archived(&concept.id, true).unwrap();
+    let archived = library
+        .search(LibraryQuery {
+            include_archived: true,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(archived.concepts[0].card_count, 1);
+    assert_eq!(archived.concepts[0].next_due_at, None);
+    library.set_concept_archived(&concept.id, false).unwrap();
+    assert_eq!(search(&library, "").concepts[0].next_due_at, Some(recall_review.due_at));
+
+    library.delete_concept(&concept.id).unwrap();
+    assert!(search(&library, "").concepts.is_empty());
+}
+
+#[test]
 fn sorting_and_excerpts_are_deterministic_and_bounded() {
     let directory = tempfile::tempdir().unwrap();
     let store = LocalDataStore::open(directory.path()).unwrap();

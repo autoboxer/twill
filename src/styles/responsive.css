@@ -38,10 +38,6 @@
     padding: 0.5rem;
   }
 
-  .library-layout {
-    grid-template-columns: minmax(11rem, 13.5rem) minmax(0, 1fr);
-  }
-
   .settings-layout {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -326,15 +322,6 @@
     white-space: normal;
   }
 
-  .library-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .library-filters {
-    position: static;
-    max-height: none;
-  }
-
   .editor-selection-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -491,16 +478,6 @@
   .concept-detail-actions > * {
     width: 100%;
     justify-content: center;
-  }
-
-  .concept-card__link {
-    min-height: 6.5rem;
-    padding: 1rem;
-  }
-
-  .concept-card__meta > span:nth-child(2),
-  .concept-card__meta > span:nth-child(3) {
-    display: none;
   }
 
   .organization-create {

@@ -126,7 +126,15 @@ fn query_page(
             matching_card.entity_id,
             matching_card.retrieval_kind,
             templates.entity_id,
-            templates.name
+            templates.name,
+            (
+                SELECT MIN(card_scheduling.due_at) FROM cards
+                INNER JOIN entities AS card_entities ON card_entities.id = cards.entity_id
+                INNER JOIN card_scheduling ON card_scheduling.card_id = cards.entity_id
+                WHERE cards.concept_id = concepts.entity_id
+                    AND card_entities.deleted_at IS NULL
+                    AND concepts.archived_at IS NULL
+            )
         {from}
         ORDER BY {ranking}
             concepts.archived_at IS NOT NULL,
@@ -156,6 +164,7 @@ fn query_page(
                 decks: Vec::new(),
                 tags: Vec::new(),
                 card_count: row.get(5)?,
+                next_due_at: row.get(11)?,
                 excerpt: row.get::<_, Option<String>>(6)?.map(bounded_excerpt),
                 matching_form: None,
             };
