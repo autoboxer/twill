@@ -743,7 +743,6 @@ useStartupReady( initialLoading );
           <div class="study-card__actions">
             <CardQualityAction
               :card="currentCard"
-              :form-name="studyCardName( currentCard )"
               :disabled="assessmentPending || gradingModePending || pretestPending || undoPending"
             />
 

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 import ContentState from '../components/ContentState.vue';
+import ConceptCardQualityDialog from '../components/ConceptCardQualityDialog.vue';
 import LibraryConceptRow from '../components/LibraryConceptRow.vue';
 import LibraryPagination from '../components/LibraryPagination.vue';
 import OrganizationManager from '../components/OrganizationManager.vue';
@@ -55,6 +56,8 @@ const viewOptions = computed( () => [
 }) ) );
 
 const organizationManagerOpen = ref( false );
+const qualityDialogOpen = ref( false );
+const qualityConceptId = ref( '' );
 const resultsHeading = ref( null );
 const currentTime = ref( Date.now() );
 const filtersOpen = ref( cardType.value !== 'all' || state.value !== 'all'
@@ -87,6 +90,24 @@ function changePage( nextPage ) {
   resultsHeading.value?.focus({ preventScroll: true });
   resultsHeading.value?.scrollIntoView({ block: 'start' });
 }
+
+function reportConcept( concept ) {
+  qualityConceptId.value = concept.id;
+  qualityDialogOpen.value = true;
+}
+
+function restoreQualityFocus( event ) {
+  const button = document.getElementById( `library-actions-${ qualityConceptId.value }` );
+
+  if ( button && !qualityDialogOpen.value ) {
+    event.preventDefault();
+    button.focus({ preventScroll: true });
+  }
+}
+
+watch( navigationQuery, () => {
+  qualityDialogOpen.value = false;
+});
 
 watch( library, () => {
   currentTime.value = Date.now();
@@ -370,6 +391,7 @@ useStartupReady( loading );
           :now="currentTime"
           :view-preferences="viewPreferences"
           @open="rememberConcept( concept.id )"
+          @report="reportConcept( concept )"
         />
       </div>
 
@@ -380,6 +402,12 @@ useStartupReady( loading );
         @change="changePage"
       />
     </section>
+
+    <ConceptCardQualityDialog
+      v-model:open="qualityDialogOpen"
+      :concept-id="qualityConceptId"
+      @close-auto-focus="restoreQualityFocus"
+    />
 
     <OrganizationManager
       v-model:open="organizationManagerOpen"

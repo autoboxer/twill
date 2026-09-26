@@ -10,7 +10,7 @@ const props = defineProps({
   now: { type: Number, required: true }
 });
 
-const emit = defineEmits([ 'open' ]);
+const emit = defineEmits([ 'open', 'report' ]);
 
 const detailLocation = computed( () => ({
   name: 'concept-detail',
@@ -30,6 +30,12 @@ const actions = computed( () => [
     icon: 'i-lucide-pencil',
     to: { ...detailLocation.value, name: 'concept-edit' },
     onSelect: () => emit( 'open' )
+  },
+  {
+    label: 'Needs improvement',
+    icon: 'i-lucide-flag',
+    disabled: props.concept.archived,
+    onSelect: () => emit( 'report' )
   }
 ]);
 
@@ -136,6 +142,7 @@ const due = computed( () => {
       :content="{ align: 'end' }"
     >
       <UButton
+        :id="`library-actions-${concept.id}`"
         :aria-label="`Actions for ${concept.title}`"
         icon="i-lucide-ellipsis"
         color="neutral"
