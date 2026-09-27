@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue
 
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useAuthoringMedia } from '../composables/useAuthoringMedia';
+import { isApplePlatform } from '../commands/registry';
 import {
   collectClozeGroups,
   createClozeGroupId,
@@ -44,6 +45,7 @@ const props = defineProps({
 const emit = defineEmits([ 'update:modelValue' ]);
 
 const authoringMedia = useAuthoringMedia();
+const applePlatform = isApplePlatform();
 
 const activeCodeLanguage = ref( 'auto' );
 const clozeDialogOpen = ref( false );
@@ -72,6 +74,40 @@ function cancelImport() {
   activeImport?.finish();
   activeImport = null;
   imageImporting.value = false;
+}
+
+function preserveHistoryBoundary( event ) {
+  if ( event.defaultPrevented || event.isComposing || event.keyCode === 229
+    || event.altKey || !event.target.closest( '.ProseMirror' )
+    || event.target.closest( 'input, textarea, select' ) ) {
+    return;
+  }
+
+  if ( event.type === 'beforeinput' ) {
+    const command = {
+      historyUndo: 'undo',
+      historyRedo: 'redo'
+    }[ event.inputType ];
+
+    if ( command && event.cancelable ) {
+      event.preventDefault();
+
+      if ( !props.disabled ) {
+        currentEditor.value?.commands[ command ]();
+      }
+    }
+
+    return;
+  }
+
+  const modifier = applePlatform ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+  const key = event.key.toLowerCase();
+  const historyShortcut = modifier && ( key === 'z' || ( !applePlatform && key === 'y' ) );
+
+  if ( historyShortcut ) {
+    // An empty editor history must not fall through to another field's native history
+    event.preventDefault();
+  }
 }
 
 watch( () => props.disabled, ( disabled ) => {
@@ -577,7 +613,11 @@ async function insertImage( event ) {
       <label>{{ label }}</label>
     </div>
 
-    <div class="rich-editor">
+    <div
+      class="rich-editor"
+      @keydown="preserveHistoryBoundary"
+      @beforeinput="preserveHistoryBoundary"
+    >
       <UEditor
         v-model="document"
         :aria-label="label"

@@ -121,6 +121,8 @@ const form = reactive({
 });
 
 const feedbackFieldsOpen = ref( false );
+const feedbackFieldsMounted = ref( false );
+const editorSession = ref( 0 );
 const submitted = ref( false );
 
 const deckItems = computed( () => props.decks.map( ( deck ) => ({
@@ -364,7 +366,9 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
     : createConceptEditorState( concept );
 
   form.content = state.content;
+  editorSession.value += 1;
   feedbackFieldsOpen.value = answerFeedbackHasContent( state.content.feedback );
+  feedbackFieldsMounted.value = feedbackFieldsOpen.value;
   form.title = state.title;
   form.deckIds = state.deckIds;
   form.explainFocus = state.explainFocus;
@@ -375,6 +379,12 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
   form.typeAnswerAcceptedAnswers = state.typeAnswerAcceptedAnswers;
   submitted.value = false;
 }, { immediate: true });
+
+watch( feedbackFieldsOpen, ( open ) => {
+  if ( open ) {
+    feedbackFieldsMounted.value = true;
+  }
+});
 
 watch( () => captureConceptEditorState( form ), ( state ) => {
   emit( 'change', state );
@@ -597,6 +607,7 @@ defineExpose({ submit });
 
       <div class="concept-content-editors">
         <RichContentEditor
+          :key="`prompt-${ editorSession }`"
           v-model="form.content.prompt"
           label="Prompt"
           placeholder="Write a prompt"
@@ -613,6 +624,7 @@ defineExpose({ submit });
         </p>
 
         <RichContentEditor
+          :key="`answer-${ editorSession }`"
           v-model="form.content.answer"
           label="Answer"
           placeholder="Write an answer"
@@ -658,11 +670,13 @@ defineExpose({ submit });
       </div>
 
       <div
-        v-if="feedbackFieldsOpen"
+        v-if="feedbackFieldsMounted"
+        v-show="feedbackFieldsOpen"
         id="answer-feedback-fields"
         class="concept-content-editors answer-feedback-editors"
       >
         <RichContentEditor
+          :key="`explanation-${ editorSession }`"
           v-model="form.content.feedback.explanation"
           label="Explanation and context"
           placeholder="Explain why the answer is correct or add useful context"
@@ -670,6 +684,7 @@ defineExpose({ submit });
         />
 
         <RichContentEditor
+          :key="`mistakes-${ editorSession }`"
           v-model="form.content.feedback.commonMistakes"
           label="Common mistakes"
           placeholder="Describe likely mistakes or misconceptions"
