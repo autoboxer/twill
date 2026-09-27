@@ -20,6 +20,10 @@ export function useDevicePreferences() {
     setAppearancePreferences: ( appearance ) => invoke(
       'set_appearance_preferences',
       { input: { appearance } }
+    ),
+    setLibraryViewPreferences: ( libraryView ) => invoke(
+      'set_library_view_preferences',
+      { input: { libraryView } }
     )
   };
 }

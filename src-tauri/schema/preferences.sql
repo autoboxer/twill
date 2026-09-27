@@ -44,7 +44,10 @@ CREATE TABLE device_preferences (
     ),
     mixed_practice_enabled INTEGER NOT NULL CHECK (
         mixed_practice_enabled IN (0, 1)
-    )
+    ),
+    library_show_tags INTEGER NOT NULL DEFAULT 0 CHECK (library_show_tags IN (0, 1)),
+    library_show_decks INTEGER NOT NULL DEFAULT 0 CHECK (library_show_decks IN (0, 1)),
+    library_show_prompt_preview INTEGER NOT NULL DEFAULT 0 CHECK (library_show_prompt_preview IN (0, 1))
 ) STRICT;
 
 CREATE TRIGGER validate_device_preferences_update

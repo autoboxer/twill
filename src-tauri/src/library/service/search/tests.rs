@@ -3,7 +3,10 @@ use serde_json::{json, Value};
 
 use super::*;
 use crate::data::{DataResult, LocalDataStore};
-use crate::library::{CreateConceptInput, LibraryError, RecordReviewInput, ReviewRating, UpdateConceptInput};
+use crate::library::{
+    ConceptContent, CreateConceptInput, LibraryError, RecordReviewInput, ReviewRating,
+    UpdateConceptInput,
+};
 
 fn input(title: &str) -> CreateConceptInput {
     serde_json::from_value(json!({ "title": title })).unwrap()
@@ -96,6 +99,78 @@ fn search_indexes_readable_content_and_treats_query_syntax_as_text() {
         Err(LibraryError::ValueTooLong { .. })
     ));
     assert_eq!(search(&library, " \n ").total_count, 1);
+}
+
+#[test]
+fn prompt_previews_are_bounded_current_and_independent_of_search_and_view_options() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = LocalDataStore::open(directory.path()).unwrap();
+    let library = ConceptLibrary::new(&store);
+    let mut create = input("Preview target");
+    create.content.prompt = json!({ "type": "doc", "content": [
+        { "type": "paragraph", "content": [
+            { "type": "text", "text": "photo" },
+            { "type": "text", "text": "synthesis", "marks": [{ "type": "bold" }] },
+            { "type": "hardBreak" },
+            { "type": "text", "text": "  prompt  " }
+        ] },
+        { "type": "paragraph", "content": [{ "type": "text", "text": "next line" }] }
+    ] });
+    create.content.answer = document("answeronlytoken");
+    let mut concept = library.create_concept(create).unwrap();
+    let initial = search(&library, "answeronlytoken");
+
+    assert_eq!(
+        initial.concepts[0].prompt_preview,
+        "photosynthesis prompt next line"
+    );
+    assert!(initial.concepts[0]
+        .excerpt
+        .as_ref()
+        .unwrap()
+        .contains("answeronlytoken"));
+    assert_eq!(
+        search(&library, "").concepts[0].prompt_preview,
+        initial.concepts[0].prompt_preview
+    );
+
+    library
+        .set_library_view_preferences(crate::library::LibraryViewPreferences {
+            show_tags: true,
+            show_decks: true,
+            show_prompt_preview: true,
+        })
+        .unwrap();
+
+    assert_eq!(search(&library, "answeronlytoken"), initial);
+
+    for prompt in [document(&"界".repeat(400)), ConceptContent::default().prompt] {
+        concept.content.prompt = prompt;
+        concept = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id.clone(),
+                title: concept.title.clone(),
+                content: concept.content.clone(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                include_standard_recall: true,
+                template_ids: Vec::new(),
+                type_answer: None,
+                explain: None,
+                problem: None,
+            })
+            .unwrap();
+        let preview = search(&library, "answeronlytoken")
+            .concepts
+            .remove(0)
+            .prompt_preview;
+
+        if concept.content.prompt == ConceptContent::default().prompt {
+            assert!(preview.is_empty());
+        } else {
+            assert_eq!(preview, format!("{}…", "界".repeat(MAXIMUM_EXCERPT_LENGTH)));
+        }
+    }
 }
 
 #[test]
@@ -478,6 +553,81 @@ fn card_filters_match_one_active_form_and_due_excludes_archived_and_future_cards
             .total_count,
         0
     );
+}
+
+#[test]
+fn row_due_dates_follow_active_cards_without_narrowing_to_the_search_match() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = LocalDataStore::open(directory.path()).unwrap();
+    let library = ConceptLibrary::new(&store);
+    let mut create = input("Scheduled forms");
+    create.type_answer =
+        Some(serde_json::from_value(json!({ "acceptedAnswers": ["answer"] })).unwrap());
+    let concept = library.create_concept(create).unwrap();
+    let recall = concept.cards.iter()
+        .find(|card| card.retrieval_kind == RetrievalFormKind::Recall)
+        .unwrap();
+    let typed = concept.cards.iter()
+        .find(|card| card.retrieval_kind == RetrievalFormKind::TypeAnswer)
+        .unwrap();
+
+    let typed_review = library
+        .record_review_at(
+            RecordReviewInput {
+                card_id: typed.id.clone(),
+                rating: ReviewRating::Good,
+            },
+            typed.due_at,
+        )
+        .unwrap();
+    let filtered = library
+        .search(LibraryQuery {
+            card_type: Some(RetrievalFormKind::TypeAnswer),
+            state: Some(LibraryCardState::Review),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(filtered.concepts[0].card_count, 2);
+    assert_eq!(filtered.concepts[0].next_due_at, Some(recall.due_at));
+    assert_eq!(filtered.concepts[0].matching_form.as_ref().unwrap().id, typed.id);
+
+    let recall_review = library
+        .record_review_at(
+            RecordReviewInput {
+                card_id: recall.id.clone(),
+                rating: ReviewRating::Good,
+            },
+            recall.due_at + 86_400_000,
+        )
+        .unwrap();
+    assert_eq!(
+        search(&library, "").concepts[0].next_due_at,
+        Some(typed_review.due_at.min(recall_review.due_at))
+    );
+
+    library
+        .update_concept(serde_json::from_value(json!({
+            "id": concept.id, "title": concept.title
+        })).unwrap())
+        .unwrap();
+    let remaining = search(&library, "");
+    assert_eq!(remaining.concepts[0].card_count, 1);
+    assert_eq!(remaining.concepts[0].next_due_at, Some(recall_review.due_at));
+
+    library.set_concept_archived(&concept.id, true).unwrap();
+    let archived = library
+        .search(LibraryQuery {
+            include_archived: true,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(archived.concepts[0].card_count, 1);
+    assert_eq!(archived.concepts[0].next_due_at, None);
+    library.set_concept_archived(&concept.id, false).unwrap();
+    assert_eq!(search(&library, "").concepts[0].next_due_at, Some(recall_review.due_at));
+
+    library.delete_concept(&concept.id).unwrap();
+    assert!(search(&library, "").concepts.is_empty());
 }
 
 #[test]

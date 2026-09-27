@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import ConfirmDialog from '../components/ConfirmDialog.vue';
+import ConceptCardQualityDialog from '../components/ConceptCardQualityDialog.vue';
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
 import RichContentRenderer from '../components/RichContentRenderer.vue';
@@ -32,6 +33,7 @@ const deleteTarget = ref( null );
 const initialLoading = ref( true );
 const loadError = ref( '' );
 const pendingAction = ref( '' );
+const qualityDialogOpen = ref( false );
 let loadRequestSequence = 0;
 let timeUpdateTimer = null;
 
@@ -125,6 +127,7 @@ async function loadConcept() {
   const requestedConceptId = conceptId.value;
 
   concept.value = null;
+  qualityDialogOpen.value = false;
   deleteTarget.value = null;
   pendingAction.value = '';
   actionError.value = '';
@@ -380,6 +383,21 @@ useStartupReady( initialLoading );
       </template>
 
       <template #actions>
+        <ConceptCardQualityDialog
+          v-if="concept"
+          v-model:open="qualityDialogOpen"
+          :concept-id="concept.id"
+        >
+          <UButton
+            leading-icon="i-lucide-flag"
+            color="neutral"
+            variant="ghost"
+            :disabled="isPending || concept.archived"
+          >
+            Needs improvement
+          </UButton>
+        </ConceptCardQualityDialog>
+
         <UButton
           v-if="concept"
           :to="{

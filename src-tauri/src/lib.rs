@@ -51,6 +51,7 @@ pub fn run() {
             library::commands::set_pretesting_enabled,
             library::commands::set_startup_destination,
             library::commands::set_appearance_preferences,
+            library::commands::set_library_view_preferences,
             library::commands::get_scheduling_settings,
             library::commands::update_scheduling_settings,
             library::commands::create_concept,

@@ -32,7 +32,8 @@ pub use css_snippets::{
     SetCssSnippetEnabledInput, UpdateCssSnippetInput, CSS_SNIPPET_SCHEMA_VERSION,
 };
 pub use preferences::{
-    AppearancePreferences, AppearanceTheme, DevicePreferences, GradingMode, MotionPreference,
+    AppearancePreferences, AppearanceTheme, DevicePreferences, GradingMode, LibraryViewPreferences,
+    MotionPreference, SetLibraryViewPreferencesInput,
     ReadingFont, ReadingTextSize, SetAppearancePreferencesInput, SetGradingModeInput,
     SetMixedPracticeEnabledInput, SetPretestingEnabledInput, SetStartupDestinationInput,
     StartupDestination,
