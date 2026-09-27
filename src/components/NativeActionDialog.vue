@@ -3,13 +3,13 @@ import { computed } from 'vue';
 
 import { useNativeLifecycle } from '../composables/useNativeLifecycle';
 
-const { completing, error, pending, request, retry, stay, working } = useNativeLifecycle();
+const { completing, confirming, error, pending, request, retry, stay, working } = useNativeLifecycle();
 const actionLabel = computed( () => request.value?.action === 'reload' ? 'reloading' : 'closing' );
 </script>
 
 <template>
   <UModal
-    :open="pending"
+    :open="pending && !confirming"
     :dismissible="false"
     :close="false"
     :title="error ? 'Changes need attention' : `Saving before ${ actionLabel }`"

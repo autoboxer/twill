@@ -1,10 +1,11 @@
-import { computed, onBeforeUnmount, onMounted, ref, toValue } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, toValue } from 'vue';
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 
 import { useNativeActionGuard } from './useNativeLifecycle';
 import { useActionNotifications } from './useActionNotifications';
 
 export function useAuthoringNavigation({
+  discardDraft,
   editorResolved,
   flushDraft,
   hasPendingImports = false,
@@ -19,7 +20,9 @@ export function useAuthoringNavigation({
   const leaveDialogOpen = ref( false );
   const leaveError = ref( '' );
   const leaveLoading = ref( false );
+  const leaveAction = ref( '' );
   let leaveResolution = null;
+  let leaveDecision = null;
 
   const hasUnsavedChanges = computed( () => (
     isModified.value
@@ -33,7 +36,8 @@ export function useAuthoringNavigation({
       || recoveryBusy.value
       || leaveLoading.value
     ) ),
-    flush: flushDraft
+    flush: flushDraft,
+    confirm: confirmNativeAction
   });
 
   onBeforeRouteLeave( protectNavigation );
@@ -66,10 +70,18 @@ export function useAuthoringNavigation({
       return false;
     }
 
+    if ( leaveLoading.value ) {
+      return leaveDecision;
+    }
+
     if ( !hasUnsavedChanges.value ) {
       return true;
     }
 
+    return requestDecision();
+  }
+
+  function requestDecision() {
     if ( leaveResolution ) {
       leaveResolution( false );
     }
@@ -77,12 +89,18 @@ export function useAuthoringNavigation({
     leaveError.value = '';
     leaveDialogOpen.value = true;
 
-    return new Promise( ( resolve ) => {
+    leaveDecision = new Promise( ( resolve ) => {
       leaveResolution = resolve;
     });
+
+    return leaveDecision;
   }
 
   function stayInEditor() {
+    if ( leaveLoading.value ) {
+      return;
+    }
+
     leaveDialogOpen.value = false;
 
     if ( leaveResolution ) {
@@ -91,32 +109,61 @@ export function useAuthoringNavigation({
     }
   }
 
-  async function leaveEditor() {
+  async function leaveEditor( action = 'keep' ) {
     if ( leaveLoading.value || toValue( hasPendingImports ) ) {
       return;
     }
 
     leaveLoading.value = true;
+    leaveAction.value = action;
     leaveError.value = '';
 
     try {
-      await flushDraft();
+      await nextTick();
+
+      if ( action === 'discard' ) {
+        await discardDraft();
+      } else {
+        await flushDraft();
+      }
     } catch {
-      leaveError.value = 'The latest changes could not be saved. Retry or stay in the editor.';
+      leaveError.value = action === 'discard'
+        ? 'The draft could not be discarded. Try again or stay in the editor.'
+        : 'The draft could not be saved. Try again or stay in the editor.';
       leaveLoading.value = false;
+      leaveAction.value = '';
       return;
     }
 
     leaveLoading.value = false;
+    leaveAction.value = '';
     leaveDialogOpen.value = false;
 
     if ( leaveResolution ) {
-      if ( isModified.value ) {
+      if ( action === 'keep' && isModified.value ) {
         notifySuccess( 'Draft saved' );
       }
 
       leaveResolution( true );
       leaveResolution = null;
+    }
+  }
+
+  async function confirmNativeAction( signal ) {
+    if ( !editorResolved.value || !hasUnsavedChanges.value ) {
+      await flushDraft();
+      return true;
+    }
+
+    const decision = requestDecision();
+    const cancel = () => stayInEditor();
+
+    signal.addEventListener( 'abort', cancel, { once: true });
+
+    try {
+      return await decision;
+    } finally {
+      signal.removeEventListener( 'abort', cancel );
     }
   }
 
@@ -134,13 +181,14 @@ export function useAuthoringNavigation({
   }
 
   function flushHiddenDraft() {
-    if ( document.visibilityState === 'hidden' && isModified.value ) {
+    if ( document.visibilityState === 'hidden' && isModified.value && !leaveLoading.value ) {
       void flushDraft().catch( () => undefined );
     }
   }
 
   return {
     allowNavigation,
+    leaveAction,
     leaveDialogOpen,
     leaveEditor,
     leaveError,

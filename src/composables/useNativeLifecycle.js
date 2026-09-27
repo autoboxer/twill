@@ -8,6 +8,7 @@ const request = ref( null );
 const error = ref( '' );
 const working = ref( false );
 const completing = ref( false );
+const confirming = ref( false );
 const guards = new Set();
 
 let attempt = null;
@@ -31,18 +32,45 @@ export async function initializeNativeLifecycle() {
   await invoke( 'native_lifecycle_ready' );
 }
 
-export function useNativeActionGuard({ busy, flush }) {
+export function useNativeActionGuard({ busy, flush, confirm }) {
+  const disposed = ref( false );
+
   const guard = async ( signal ) => {
-    await waitUntilIdle( busy, signal );
+    await waitUntilIdle( busy, signal, disposed );
+
+    if ( disposed.value || signal.aborted ) {
+      return false;
+    }
+
     await nextTick();
 
-    if ( !signal.aborted ) {
-      await flush();
+    if ( disposed.value || signal.aborted ) {
+      return false;
     }
+
+    if ( confirm ) {
+      confirming.value = true;
+
+      try {
+        const proceed = await confirm( signal );
+
+        return !disposed.value && proceed;
+      } finally {
+        confirming.value = false;
+      }
+    }
+
+    await flush();
+
+    return !disposed.value;
   };
 
   guards.add( guard );
-  onScopeDispose( () => guards.delete( guard ) );
+
+  onScopeDispose( () => {
+    disposed.value = true;
+    guards.delete( guard );
+  });
 
   return { nativeActionPending: pending };
 }
@@ -50,6 +78,7 @@ export function useNativeActionGuard({ busy, flush }) {
 export function useNativeLifecycle() {
   return {
     completing: readonly( completing ),
+    confirming: readonly( confirming ),
     error: readonly( error ),
     pending,
     request: readonly( request ),
@@ -76,7 +105,16 @@ async function retry() {
     await nextTick();
 
     for ( const guard of guards ) {
-      await guard( controller.signal );
+      const proceed = await guard( controller.signal );
+
+      if ( controller.signal.aborted ) {
+        return;
+      }
+
+      if ( proceed === false ) {
+        await stay();
+        return;
+      }
     }
 
     if ( controller.signal.aborted ) {
@@ -120,14 +158,14 @@ async function stay() {
   }
 }
 
-function waitUntilIdle( busy, signal ) {
-  if ( !unref( busy ) || signal.aborted ) {
+function waitUntilIdle( busy, signal, disposed ) {
+  if ( !unref( busy ) || signal.aborted || disposed.value ) {
     return Promise.resolve();
   }
 
   return new Promise( ( resolve ) => {
-    const stop = watch( busy, ( value ) => {
-      if ( !value ) {
+    const stop = watch([ () => unref( busy ), disposed ], ([ isBusy, isDisposed ]) => {
+      if ( !isBusy || isDisposed ) {
         finish();
       }
     });

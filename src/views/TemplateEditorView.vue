@@ -11,6 +11,7 @@ import {
   useRouter
 } from 'vue-router';
 
+import AuthoringLeaveDialog from '../components/AuthoringLeaveDialog.vue';
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
 import TemplateMarkupEditor from '../components/TemplateMarkupEditor.vue';
@@ -177,12 +178,14 @@ const hasChanges = computed( () => {
 });
 const {
   allowNavigation,
+  leaveAction,
   leaveDialogOpen,
   leaveEditor,
   leaveError,
   leaveLoading,
   stayInEditor
 } = useAuthoringNavigation({
+  discardDraft,
   editorResolved,
   flushDraft,
   hasPendingPersistence,
@@ -198,6 +201,7 @@ const saveCommand = useCommandHandler( COMMAND_IDS.templateSave, {
     && !loadError.value
     && !isPending.value
     && !saveInProgress.value
+    && !leaveDialogOpen.value
     && !recoveryOpen.value
     && !savedTemplate.value
     && hasChanges.value
@@ -289,7 +293,7 @@ function applyEditorState( state ) {
 }
 
 async function saveTemplate() {
-  if ( saveInProgress.value ) {
+  if ( saveInProgress.value || leaveDialogOpen.value ) {
     return;
   }
 
@@ -576,7 +580,7 @@ useStartupReady( initialLoading );
 
       <fieldset
         class="template-editor__fields"
-        :disabled="isPending || saveInProgress"
+        :disabled="isPending || saveInProgress || leaveLoading"
       >
         <section
           class="editor-section template-editor__basics"
@@ -727,7 +731,7 @@ useStartupReady( initialLoading );
                   label="Front HTML"
                   description="Insert at least one concept field."
                   :error="saveAttempted ? customFrontError : ''"
-                  :disabled="isPending || saveInProgress || recoveryOpen"
+                  :disabled="isPending || saveInProgress || recoveryOpen || leaveLoading"
                 />
 
                 <TemplateMarkupEditor
@@ -736,7 +740,7 @@ useStartupReady( initialLoading );
                   label="Answer HTML"
                   description="Insert at least one concept field."
                   :error="saveAttempted ? customAnswerError : ''"
-                  :disabled="isPending || saveInProgress || recoveryOpen"
+                  :disabled="isPending || saveInProgress || recoveryOpen || leaveLoading"
                 />
 
                 <TemplateMarkupEditor
@@ -746,7 +750,7 @@ useStartupReady( initialLoading );
                   description="Styles are isolated to the card preview."
                   :rows="12"
                   :show-fields="false"
-                  :disabled="isPending || saveInProgress || recoveryOpen"
+                  :disabled="isPending || saveInProgress || recoveryOpen || leaveLoading"
                   class="template-css-editor"
                 />
               </div>
@@ -822,45 +826,15 @@ useStartupReady( initialLoading );
       </template>
     </UModal>
 
-    <UModal
-      v-model:open="leaveDialogOpen"
+    <AuthoringLeaveDialog
+      :open="leaveDialogOpen"
       title="Leave template editor?"
-      description="Your unfinished changes will remain saved as a draft on this device."
-      :dismissible="!leaveLoading"
-      @update:open="( open ) => { if ( !open && !leaveLoading ) stayInEditor() }"
-    >
-      <template
-        v-if="leaveError"
-        #body
-      >
-        <UAlert
-          :description="leaveError"
-          icon="i-lucide-circle-alert"
-          color="error"
-          variant="subtle"
-        />
-      </template>
-
-      <template #footer>
-        <div class="dialog-actions">
-          <UButton
-            color="neutral"
-            variant="link"
-            :disabled="leaveLoading"
-            @click="stayInEditor"
-          >
-            Stay
-          </UButton>
-
-          <UButton
-            leading-icon="i-lucide-log-out"
-            :loading="leaveLoading"
-            @click="leaveEditor"
-          >
-            Leave and keep draft
-          </UButton>
-        </div>
-      </template>
-    </UModal>
+      :error="leaveError"
+      :loading="leaveLoading"
+      :action="leaveAction"
+      @stay="stayInEditor"
+      @keep="leaveEditor()"
+      @discard="leaveEditor( 'discard' )"
+    />
   </div>
 </template>

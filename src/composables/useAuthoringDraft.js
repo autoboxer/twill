@@ -11,6 +11,7 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
 
   let context = null;
   let pendingOperation = null;
+  let latestOperation = null;
   let persistenceWorker = null;
   let timer = null;
 
@@ -36,6 +37,7 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
   }, existingDraft = null ) {
     clearTimer();
     pendingOperation = null;
+    latestOperation = null;
     context = {
       baseChangeId,
       mediaSessionId,
@@ -54,6 +56,7 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
       context: { ...context },
       readSnapshot
     };
+    latestOperation = pendingOperation;
     error.value = '';
     status.value = 'dirty';
     schedulePersistence();
@@ -66,6 +69,7 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
       kind: 'delete',
       input: locator()
     };
+    latestOperation = pendingOperation;
     error.value = '';
     status.value = 'dirty';
     schedulePersistence();
@@ -107,8 +111,21 @@ export function useAuthoringDraft( kind, autosaveDelay = DEFAULT_AUTOSAVE_DELAY 
     }
 
     if ( status.value === 'error' ) {
-      throw new Error( error.value );
+      const cause = new Error( error.value );
+
+      // A failed discard must not turn a later Keep draft into another deletion
+      pendingOperation = latestOperation;
+      error.value = '';
+      status.value = pendingOperation ? 'dirty' : draft.value ? 'saved' : 'untouched';
+
+      if ( pendingOperation ) {
+        schedulePersistence();
+      }
+
+      throw cause;
     }
+
+    latestOperation = null;
   }
 
   async function finalize( save ) {

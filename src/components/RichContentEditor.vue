@@ -111,7 +111,7 @@ function preserveHistoryBoundary( event ) {
 }
 
 watch( () => props.disabled, ( disabled ) => {
-  currentEditor.value?.setEditable( !disabled );
+  currentEditor.value?.setEditable( !disabled, false );
 
   if ( disabled ) {
     cancelImport();

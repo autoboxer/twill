@@ -10,6 +10,7 @@ import {
   useRouter
 } from 'vue-router';
 
+import AuthoringLeaveDialog from '../components/AuthoringLeaveDialog.vue';
 import ConceptForm from '../components/ConceptForm.vue';
 import ContentState from '../components/ContentState.vue';
 import OrganizationManager from '../components/OrganizationManager.vue';
@@ -116,6 +117,7 @@ const savesExistingConcept = computed( () => isEditing.value && !saveAsCopy.valu
 const editorDisabled = computed( () => (
   isPending.value
   || saveInProgress.value
+  || leaveLoading.value
   || deferredWorkflowPending.value
   || Boolean( savedConcept.value )
 ) );
@@ -127,12 +129,14 @@ const authoringMedia = provideAuthoringMedia({
 const { hasPendingImports } = authoringMedia;
 const {
   allowNavigation,
+  leaveAction,
   leaveDialogOpen,
   leaveEditor,
   leaveError,
   leaveLoading,
   stayInEditor
 } = useAuthoringNavigation({
+  discardDraft,
   editorResolved,
   flushDraft,
   hasPendingImports,
@@ -219,6 +223,7 @@ const saveCommand = useCommandHandler( COMMAND_IDS.conceptSave, {
     && !deferredTargetUnavailable.value
     && !isPending.value
     && !saveInProgress.value
+    && !leaveDialogOpen.value
     && !deferredWorkflowPending.value
     && !recoveryOpen.value
     && !savedConcept.value
@@ -366,7 +371,7 @@ async function refreshOrganizations() {
 }
 
 async function saveConcept( input ) {
-  if ( saveInProgress.value || hasPendingImports.value ) {
+  if ( saveInProgress.value || hasPendingImports.value || leaveDialogOpen.value ) {
     return;
   }
 
@@ -779,48 +784,16 @@ useStartupReady( initialLoading );
       </template>
     </UModal>
 
-    <UModal
-      v-model:open="leaveDialogOpen"
+    <AuthoringLeaveDialog
+      :open="leaveDialogOpen"
       title="Leave concept editor?"
-      :description="hasPendingImports
-        ? 'Wait for image imports to finish before leaving. You can stay in the editor while they import.'
-        : 'Your unfinished changes will remain saved as a draft on this device.'"
-      :dismissible="!leaveLoading"
-      @update:open="( open ) => { if ( !open && !leaveLoading ) stayInEditor() }"
-    >
-      <template
-        v-if="leaveError"
-        #body
-      >
-        <UAlert
-          :description="leaveError"
-          icon="i-lucide-circle-alert"
-          color="error"
-          variant="subtle"
-        />
-      </template>
-
-      <template #footer>
-        <div class="dialog-actions">
-          <UButton
-            color="neutral"
-            variant="link"
-            :disabled="leaveLoading"
-            @click="stayInEditor"
-          >
-            Stay
-          </UButton>
-
-          <UButton
-            leading-icon="i-lucide-log-out"
-            :loading="leaveLoading"
-            :disabled="hasPendingImports"
-            @click="leaveEditor"
-          >
-            Leave and keep draft
-          </UButton>
-        </div>
-      </template>
-    </UModal>
+      :error="leaveError"
+      :loading="leaveLoading"
+      :action="leaveAction"
+      :pending-imports="hasPendingImports"
+      @stay="stayInEditor"
+      @keep="leaveEditor()"
+      @discard="leaveEditor( 'discard' )"
+    />
   </div>
 </template>
