@@ -11,6 +11,7 @@ import {
   useRouter
 } from 'vue-router';
 
+import AuthoringLeaveDialog from '../components/AuthoringLeaveDialog.vue';
 import ContentState from '../components/ContentState.vue';
 import PageHeader from '../components/PageHeader.vue';
 import TemplateMarkupEditor from '../components/TemplateMarkupEditor.vue';
@@ -66,6 +67,7 @@ const form = reactive({
 });
 const conflictMessage = ref( '' );
 const editorResolved = ref( false );
+const editorSession = ref( 0 );
 const initialLoading = ref( true );
 const loadError = ref( '' );
 const recoveryBusy = ref( false );
@@ -176,12 +178,14 @@ const hasChanges = computed( () => {
 });
 const {
   allowNavigation,
+  leaveAction,
   leaveDialogOpen,
   leaveEditor,
   leaveError,
   leaveLoading,
   stayInEditor
 } = useAuthoringNavigation({
+  discardDraft,
   editorResolved,
   flushDraft,
   hasPendingPersistence,
@@ -197,6 +201,7 @@ const saveCommand = useCommandHandler( COMMAND_IDS.templateSave, {
     && !loadError.value
     && !isPending.value
     && !saveInProgress.value
+    && !leaveDialogOpen.value
     && !recoveryOpen.value
     && !savedTemplate.value
     && hasChanges.value
@@ -282,12 +287,13 @@ async function loadTemplate() {
 function applyEditorState( state ) {
   const normalizedState = cloneTemplateEditorState( state );
 
+  editorSession.value += 1;
   form.name = normalizedState.name;
   form.content = normalizedState.content;
 }
 
 async function saveTemplate() {
-  if ( saveInProgress.value ) {
+  if ( saveInProgress.value || leaveDialogOpen.value ) {
     return;
   }
 
@@ -574,7 +580,7 @@ useStartupReady( initialLoading );
 
       <fieldset
         class="template-editor__fields"
-        :disabled="isPending || saveInProgress"
+        :disabled="isPending || saveInProgress || leaveLoading"
       >
         <section
           class="editor-section template-editor__basics"
@@ -709,7 +715,7 @@ useStartupReady( initialLoading );
               </div>
             </template>
 
-            <template v-else>
+            <div v-show="form.content.mode === 'custom'">
               <UAlert
                 title="Restricted markup"
                 description="Unsupported tags and attributes are removed. JavaScript and external resource loading are not allowed."
@@ -720,29 +726,35 @@ useStartupReady( initialLoading );
 
               <div class="template-markup-grid">
                 <TemplateMarkupEditor
+                  :key="`front-${ editorSession }`"
                   v-model="form.content.custom.frontHtml"
                   label="Front HTML"
                   description="Insert at least one concept field."
                   :error="saveAttempted ? customFrontError : ''"
+                  :disabled="isPending || saveInProgress || recoveryOpen || leaveLoading"
                 />
 
                 <TemplateMarkupEditor
+                  :key="`answer-${ editorSession }`"
                   v-model="form.content.custom.answerHtml"
                   label="Answer HTML"
                   description="Insert at least one concept field."
                   :error="saveAttempted ? customAnswerError : ''"
+                  :disabled="isPending || saveInProgress || recoveryOpen || leaveLoading"
                 />
 
                 <TemplateMarkupEditor
+                  :key="`css-${ editorSession }`"
                   v-model="form.content.custom.css"
                   label="CSS"
                   description="Styles are isolated to the card preview."
                   :rows="12"
                   :show-fields="false"
+                  :disabled="isPending || saveInProgress || recoveryOpen || leaveLoading"
                   class="template-css-editor"
                 />
               </div>
-            </template>
+            </div>
           </section>
 
           <TemplatePreview :content="form.content" />
@@ -814,45 +826,15 @@ useStartupReady( initialLoading );
       </template>
     </UModal>
 
-    <UModal
-      v-model:open="leaveDialogOpen"
+    <AuthoringLeaveDialog
+      :open="leaveDialogOpen"
       title="Leave template editor?"
-      description="Your unfinished changes will remain saved as a draft on this device."
-      :dismissible="!leaveLoading"
-      @update:open="( open ) => { if ( !open && !leaveLoading ) stayInEditor() }"
-    >
-      <template
-        v-if="leaveError"
-        #body
-      >
-        <UAlert
-          :description="leaveError"
-          icon="i-lucide-circle-alert"
-          color="error"
-          variant="subtle"
-        />
-      </template>
-
-      <template #footer>
-        <div class="dialog-actions">
-          <UButton
-            color="neutral"
-            variant="link"
-            :disabled="leaveLoading"
-            @click="stayInEditor"
-          >
-            Stay
-          </UButton>
-
-          <UButton
-            leading-icon="i-lucide-log-out"
-            :loading="leaveLoading"
-            @click="leaveEditor"
-          >
-            Leave and keep draft
-          </UButton>
-        </div>
-      </template>
-    </UModal>
+      :error="leaveError"
+      :loading="leaveLoading"
+      :action="leaveAction"
+      @stay="stayInEditor"
+      @keep="leaveEditor()"
+      @discard="leaveEditor( 'discard' )"
+    />
   </div>
 </template>
