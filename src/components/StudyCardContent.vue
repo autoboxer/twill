@@ -146,13 +146,10 @@ async function prepareCustomDocuments() {
     const mediaResults = await Promise.all( mediaIds.map( async ( mediaId ) => {
       const media = mediaById.get( mediaId );
 
-      if ( !media ) {
-        return { id: mediaId, url: '' };
-      }
-
       try {
         const bytes = await readMedia( mediaId );
-        const url = await bytesToDataUrl( bytes, media.mimeType );
+        // Unsaved authoring images may not have a concept media summary yet
+        const url = await bytesToDataUrl( bytes, media?.mimeType ?? '' );
 
         return { id: mediaId, url };
       } catch {
