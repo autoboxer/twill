@@ -64,11 +64,6 @@
   min-height: 2.35rem;
 }
 
-.rich-editor__language {
-  width: 9.25rem;
-  margin-right: 0.25rem;
-}
-
 .rich-editor__surface [data-slot="content"] {
   min-height: 14rem;
 }
@@ -77,14 +72,6 @@
   min-height: 14rem;
   padding: 1.25rem;
   outline: none;
-}
-
-.rich-editor__surface .ProseMirror p.is-editor-empty:first-child::before {
-  height: 0;
-  color: var(--ui-text-dimmed);
-  content: attr(data-placeholder);
-  float: left;
-  pointer-events: none;
 }
 
 .rich-editor__surface [data-type="cloze"],
@@ -236,6 +223,36 @@
   color: inherit;
   background: transparent;
   border: 0;
+}
+
+.rich-code-block {
+  min-width: 0;
+  margin: 1.1rem 0;
+  background: var(--twill-code-background);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+}
+
+.rich-code-block__header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.2rem 0.35rem;
+  background: var(--ui-bg-muted);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.rich-code-block__language {
+  width: 9rem;
+  max-width: 100%;
+}
+
+.rich-editor__surface .ProseMirror .rich-code-block pre {
+  margin: 0;
+  border: 0;
+}
+
+.rich-editor__surface .ProseMirror .rich-code-block code {
+  display: block;
 }
 
 .ProseMirror .hljs-comment,

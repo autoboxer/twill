@@ -10,7 +10,6 @@ import {
   MAXIMUM_CLOZE_GROUPS
 } from '../cloze/documents';
 import {
-  codeLanguageItems,
   createRichContentExtensions,
   richContentStarterKit
 } from '../rich-content/schema';
@@ -47,13 +46,11 @@ const emit = defineEmits([ 'update:modelValue' ]);
 const authoringMedia = useAuthoringMedia();
 const applePlatform = isApplePlatform();
 
-const activeCodeLanguage = ref( 'auto' );
 const clozeDialogOpen = ref( false );
 const clozeExistingGroupId = ref( '' );
 const clozeGroupChoice = ref( 'new' );
 const clozeSelection = ref( null );
 const clozeSelectionAvailable = ref( false );
-const codeBlockActive = ref( false );
 const currentEditor = shallowRef( null );
 const fileInput = ref( null );
 const imageError = ref( '' );
@@ -144,6 +141,7 @@ const clozeGroupItems = computed( () => {
 });
 
 const extensions = createRichContentExtensions({
+  codeBlockEditingEnabled: () => !props.disabled,
   imageOcclusionDocument: () => document.value,
   imageOcclusionEnabled: () => props.imageOcclusionEnabled,
   onEditMath
@@ -337,8 +335,6 @@ const editorHandlers = {
 
 function syncEditorState({ editor }) {
   currentEditor.value = editor;
-  codeBlockActive.value = editor.isActive( 'codeBlock' );
-  activeCodeLanguage.value = editor.getAttributes( 'codeBlock' ).language ?? 'auto';
 
   const { from, to } = editor.state.selection;
   const selectedText = editor.state.doc.textBetween( from, to, ' ' );
@@ -411,18 +407,6 @@ function removeCloze() {
     .run();
 
   clozeDialogOpen.value = false;
-}
-
-function setCodeLanguage( editor, language ) {
-  editor
-    .chain()
-    .focus()
-    .updateAttributes( 'codeBlock', {
-      language: language === 'auto' ? null : language
-    })
-    .run();
-
-  activeCodeLanguage.value = language;
 }
 
 function openLinkDialog( editor ) {
@@ -626,7 +610,7 @@ async function insertImage( event ) {
         :handlers="editorHandlers"
         :image="false"
         :mention="false"
-        :placeholder="placeholder"
+        :placeholder="{ placeholder, mode: 'firstLine' }"
         :starter-kit="starterKit"
         content-type="json"
         class="rich-editor__surface"
@@ -644,19 +628,6 @@ async function insertImage( event ) {
             />
 
             <div class="rich-editor__inserts">
-              <USelect
-                v-if="codeBlockActive"
-                :model-value="activeCodeLanguage"
-                :items="codeLanguageItems"
-                value-key="value"
-                aria-label="Code language"
-                leading-icon="i-lucide-braces"
-                size="sm"
-                class="rich-editor__language"
-                :disabled="disabled"
-                @update:model-value="setCodeLanguage( editor, $event )"
-              />
-
               <UTooltip text="Equation">
                 <UButton
                   type="button"
