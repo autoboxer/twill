@@ -332,7 +332,10 @@
 }
 
 .rich-image__frame {
+  position: relative;
   display: grid;
+  max-width: 100%;
+  margin: 0 auto;
   overflow: hidden;
   min-height: 6rem;
   background:
@@ -381,13 +384,67 @@
 
 .rich-image__controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.45rem;
 }
 
+.rich-image--sized {
+  width: 100%;
+}
+
+.rich-image--sized .rich-image__frame {
+  min-height: 0;
+}
+
+.rich-image--sized .rich-image__frame img {
+  width: 100%;
+  max-height: none;
+}
+
+.rich-image--sized .image-occlusion-canvas {
+  width: 100%;
+}
+
+.rich-image__resize {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--ui-text);
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-accented);
+  border-radius: var(--ui-radius);
+  cursor: ew-resize;
+  touch-action: none;
+  place-items: center;
+}
+
+.rich-image__resize:focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: -3px;
+}
+
+.rich-image__width {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+}
+
+.rich-image__width input {
+  width: 5rem;
+  padding: 0.3rem;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border-accented);
+  border-radius: var(--ui-radius);
+}
+
 .rich-image__alt {
-  min-width: 0;
-  flex: 1;
+  min-width: min(100%, 12rem);
+  flex: 1 1 12rem;
 }
 
 .rich-image__alt input {
@@ -438,6 +495,11 @@
 .image-occlusion-canvas--editable {
   cursor: crosshair;
   touch-action: none;
+}
+
+.image-occlusion-canvas--sized > img {
+  width: 100%;
+  max-height: none;
 }
 
 .rich-image__frame > .image-occlusion-canvas {

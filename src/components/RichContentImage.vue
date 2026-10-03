@@ -4,6 +4,8 @@ import { computed, ref } from 'vue';
 
 import ImageOcclusionCanvas from './ImageOcclusionCanvas.vue';
 import { useMediaImage } from '../composables/useMediaImage';
+import { useImageResize } from '../composables/useImageResize';
+import { MINIMUM_IMAGE_WIDTH, MAXIMUM_IMAGE_WIDTH } from '../rich-content/images';
 import {
   collectImageOcclusionGroups,
   createImageOcclusionId,
@@ -30,6 +32,10 @@ const props = defineProps({
     type: Object,
     required: true
   },
+  getPos: {
+    type: Function,
+    required: true
+  },
   updateAttributes: {
     type: Function,
     required: true
@@ -38,7 +44,15 @@ const props = defineProps({
 
 const alt = computed( () => props.node.attrs.alt ?? '' );
 const draftRegions = ref([]);
-const isEditable = computed( () => props.editor.isEditable );
+const isEditable = computed( () => props.extension.options.imageEditingEnabled?.() ?? false );
+const {
+  applyWidth, cancelResize, displayWidth, finishResize, frame, moveResize,
+  resizeBy, setWidth, startResize, width, widthError
+} = useImageResize({
+  editor: props.editor,
+  getPos: props.getPos,
+  node: computed( () => props.node )
+}, isEditable );
 const mediaId = computed( () => props.node.attrs.mediaId ?? '' );
 const occlusionDialogOpen = ref( false );
 const regions = computed( () => imageOcclusionRegions( props.node ) );
@@ -244,10 +258,12 @@ function regionCardLabel( region ) {
   <NodeViewWrapper
     as="figure"
     class="rich-image"
-    :class="{ 'rich-image--editable': isEditable }"
+    :class="{ 'rich-image--editable': isEditable, 'rich-image--sized': displayWidth !== null }"
   >
     <div
+      ref="frame"
       class="rich-image__frame"
+      :style="displayWidth !== null ? { width: `${ displayWidth }px` } : undefined"
       data-drag-handle
     >
       <div
@@ -286,6 +302,24 @@ function regionCardLabel( region ) {
         :title="node.attrs.title || undefined"
         draggable="false"
       >
+
+      <button
+        v-if="isEditable && !imageLoading && !imageError"
+        type="button"
+        class="rich-image__resize"
+        aria-label="Resize image"
+        title="Drag or use Left and Right arrows to resize"
+        @pointerdown="startResize"
+        @pointermove="moveResize"
+        @pointerup="finishResize"
+        @pointercancel="cancelResize"
+        @lostpointercapture="cancelResize"
+        @keydown.esc.prevent="cancelResize"
+        @keydown.left.prevent="resizeBy( -8 )"
+        @keydown.right.prevent="resizeBy( 8 )"
+      >
+        <UIcon name="i-lucide-move-horizontal" />
+      </button>
     </div>
 
     <figcaption
@@ -309,12 +343,40 @@ function regionCardLabel( region ) {
         type="button"
         leading-icon="i-lucide-square-pen"
         color="neutral"
-        variant="soft"
+        variant="subtle"
         size="sm"
         :disabled="imageLoading || imageError"
         @click="openOcclusionEditor"
       >
         {{ regions.length ? 'Edit masks' : 'Add masks' }}
+      </UButton>
+
+      <label class="rich-image__width">
+        <span>Width</span>
+        <input
+          :value="width ?? ''"
+          type="number"
+          :min="MINIMUM_IMAGE_WIDTH"
+          :max="MAXIMUM_IMAGE_WIDTH"
+          step="1"
+          placeholder="Auto"
+          aria-label="Image width in pixels"
+          @change="applyWidth"
+          @keydown.enter.prevent="applyWidth"
+        >
+        <span>px</span>
+      </label>
+
+      <UButton
+        type="button"
+        aria-label="Reset image size"
+        color="neutral"
+        variant="ghost"
+        size="sm"
+        :disabled="width === null"
+        @click="setWidth( null )"
+      >
+        Auto
       </UButton>
 
       <UButton
@@ -327,6 +389,10 @@ function regionCardLabel( region ) {
         @click="deleteNode"
       />
     </figcaption>
+
+    <p v-if="widthError && isEditable" class="rich-editor-field__error" role="alert">
+      {{ widthError }}
+    </p>
 
     <UModal
       v-model:open="occlusionDialogOpen"

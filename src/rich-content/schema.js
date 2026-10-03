@@ -19,6 +19,7 @@ import { normalizeCodeLanguage } from './codeLanguages';
 
 import RichContentCodeBlock from '../components/RichContentCodeBlock.vue';
 import RichContentImage from '../components/RichContentImage.vue';
+import { imageDisplayWidth } from './images';
 
 export const RICH_CONTENT_SCHEMA_VERSION = 1;
 
@@ -57,6 +58,7 @@ const MediaImage = Node.create({
     return {
       imageOcclusionDocument: null,
       imageOcclusionDisplay: null,
+      imageEditingEnabled: null,
       imageOcclusionEnabled: false
     };
   },
@@ -87,6 +89,13 @@ const MediaImage = Node.create({
       occlusionRegions: {
         default: [],
         rendered: false
+      },
+      width: {
+        default: null,
+        parseHTML: ( element ) => imageDisplayWidth( Number( element.getAttribute( 'data-width' ) ) ),
+        renderHTML: ( attributes ) => imageDisplayWidth( attributes.width )
+          ? { 'data-width': attributes.width }
+          : {}
       }
     };
   },
@@ -229,6 +238,7 @@ export function richDocumentHasContent( document ) {
 
 export function createRichContentExtensions({
   codeBlockEditingEnabled = null,
+  imageEditingEnabled = null,
   imageOcclusionDocument = null,
   imageOcclusionDisplay = null,
   imageOcclusionEnabled = false,
@@ -284,6 +294,7 @@ export function createRichContentExtensions({
     Cloze,
     ClozeBlank,
     MediaImage.configure({
+      imageEditingEnabled,
       imageOcclusionDocument,
       imageOcclusionDisplay,
       imageOcclusionEnabled

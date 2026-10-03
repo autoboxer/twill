@@ -142,6 +142,7 @@ const clozeGroupItems = computed( () => {
 
 const extensions = createRichContentExtensions({
   codeBlockEditingEnabled: () => !props.disabled,
+  imageEditingEnabled: () => !props.disabled,
   imageOcclusionDocument: () => document.value,
   imageOcclusionEnabled: () => props.imageOcclusionEnabled,
   onEditMath
@@ -662,6 +663,7 @@ async function insertImage( event ) {
                   type="button"
                   icon="i-lucide-image-plus"
                   aria-label="Add image"
+                  :label="imageOcclusionEnabled ? 'Choose image' : undefined"
                   color="neutral"
                   variant="ghost"
                   size="sm"

@@ -1,6 +1,7 @@
 import katex from 'katex';
 
 import { highlightCode } from '../rich-content/schema';
+import { imageDisplayWidth } from '../rich-content/images';
 
 export function createStudyTemplateFields( card, mediaUrls ) {
   return {
@@ -194,13 +195,15 @@ function renderMedia( node, mediaUrls ) {
   }
 
   const alt = escapeHtml( node.attrs.alt ?? '' );
+  const width = imageDisplayWidth( node.attrs.width );
+  const widthAttribute = width === null ? '' : ` width="${ width }"`;
   const title = node.attrs.title
     ? ` title="${ escapeHtml( node.attrs.title ) }"`
     : '';
 
   return [
     '<figure class="twill-media-image">',
-    `<img src="${ mediaUrl }" alt="${ alt }"${ title }>`,
+    `<img src="${ mediaUrl }" alt="${ alt }"${ title }${ widthAttribute }>`,
     '</figure>'
   ].join( '' );
 }
