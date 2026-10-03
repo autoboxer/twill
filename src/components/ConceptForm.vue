@@ -1,11 +1,12 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 import { retrievalForms } from '../retrieval-forms/catalog';
 
 import ClozePreview from './ClozePreview.vue';
 import ImageOcclusionPreview from './ImageOcclusionPreview.vue';
 import RichContentEditor from './RichContentEditor.vue';
+import ConceptCardPreview from './ConceptCardPreview.vue';
 import {
   collectClozeGroups,
   removeAllClozeMarks
@@ -83,6 +84,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  media: {
+    type: Array,
+    default: () => []
+  },
   importsPending: {
     type: Boolean,
     default: false
@@ -117,6 +122,7 @@ const form = reactive({
   retrievalFormIds: [ STANDARD_RECALL_ID ],
   tagIds: [],
   typeAnswerAcceptedAnswers: [ '' ],
+  typeAnswerInitialized: false,
   title: ''
 });
 
@@ -124,6 +130,10 @@ const feedbackFieldsOpen = ref( false );
 const feedbackFieldsMounted = ref( false );
 const editorSession = ref( 0 );
 const submitted = ref( false );
+const descriptionsOpen = ref( false );
+const activeSetupId = ref( STANDARD_RECALL_ID );
+const previewOpen = ref( false );
+const editorElement = ref( null );
 
 const deckItems = computed( () => props.decks.map( ( deck ) => ({
   label: deck.name,
@@ -135,7 +145,7 @@ const tagItems = computed( () => props.tags.map( ( tag ) => ({
   value: tag.id
 }) ) );
 
-const retrievalFormItems = computed( () => [
+const builtInRetrievalFormItems = [
   {
     description: 'Shows the prompt first and the answer after reveal.',
     label: retrievalForms.recall.label,
@@ -165,14 +175,61 @@ const retrievalFormItems = computed( () => [
     description: 'Hides selected regions of a Prompt image.',
     label: retrievalForms.imageOcclusion.label,
     value: IMAGE_OCCLUSION_ID
-  },
+  }
+];
 
-  ...props.templates.map( ( template ) => ({
-    description: template.mode === 'custom' ? 'HTML & CSS template' : 'Visual template',
-    label: template.name,
-    value: template.id
-  }) )
-]);
+const templateChoices = computed( () => props.templates.map( ( template ) => ({
+  description: template.mode === 'custom' ? 'HTML & CSS template' : 'Visual template',
+  label: template.name,
+  value: template.id
+}) ) );
+const retrievalFormItems = computed( () => [ ...builtInRetrievalFormItems, ...templateChoices.value ]);
+
+const cardChoices = computed( () => builtInRetrievalFormItems.map( ( item ) => ({
+  ...item,
+  description: descriptionsOpen.value ? item.description : undefined
+}) ) );
+const selectedTemplateIds = computed({
+  get: () => form.retrievalFormIds.filter( ( id ) => templateChoices.value.some( ( item ) => item.value === id ) ),
+  set: ( ids ) => updateRetrievalForms([
+    ...form.retrievalFormIds.filter( ( id ) => !templateChoices.value.some( ( item ) => item.value === id ) ),
+    ...ids
+  ])
+});
+const selectedSetups = computed( () => retrievalFormItems.value.filter( ( item ) => (
+  form.retrievalFormIds.includes( item.value )
+) ).map( ( item ) => ({ ...item, count: cardCount( item.value ) }) ) );
+const activeSetup = computed( () => selectedSetups.value.find( ( item ) => (
+  item.value === activeSetupId.value
+) ) );
+const activeSetupIndex = computed( () => selectedSetups.value.indexOf( activeSetup.value ) );
+const generatedCardCount = computed( () => selectedSetups.value.reduce( ( sum, item ) => (
+  sum + item.count
+), 0 ) );
+const cardCountLabel = computed( () => `${ generatedCardCount.value } ${
+  generatedCardCount.value === 1 ? 'card' : 'cards'
+}` );
+const setupVisible = computed( () => selectedSetups.value.some( ( item ) => (
+  item.value !== STANDARD_RECALL_ID
+) ) || previewOpen.value );
+
+watch( selectedSetups, ( items ) => {
+  if ( !items.some( ( item ) => item.value === activeSetupId.value ) ) {
+    activeSetupId.value = items[ 0 ]?.value ?? '';
+  }
+});
+
+function cardCount( id ) {
+  if ( id === CLOZE_ID ) {
+    return clozeGroups.value.length;
+  }
+
+  if ( id === IMAGE_OCCLUSION_ID ) {
+    return imageOcclusionGroups.value.length;
+  }
+
+  return 1;
+}
 
 const titleError = computed( () => {
   if ( !submitted.value || form.title.trim() ) {
@@ -204,6 +261,19 @@ const imageOcclusionSelected = computed( () => (
   form.retrievalFormIds.includes( IMAGE_OCCLUSION_ID )
 ) );
 const typeAnswerSelected = computed( () => form.retrievalFormIds.includes( TYPE_ANSWER_ID ) );
+const selectedContent = computed( () => {
+  let prompt = form.content.prompt;
+
+  if ( !clozeSelected.value && clozeGroups.value.length ) {
+    prompt = removeAllClozeMarks( prompt );
+  }
+
+  if ( !imageOcclusionSelected.value && imageOcclusionGroups.value.length ) {
+    prompt = removeAllImageOcclusionRegions( prompt );
+  }
+
+  return { ...form.content, prompt };
+});
 const atAcceptedAnswerLimit = computed( () => (
   form.typeAnswerAcceptedAnswers.length >= MAXIMUM_ACCEPTED_ANSWERS
 ) );
@@ -323,7 +393,7 @@ const retrievalFormsError = computed( () => {
     return '';
   }
 
-  return 'Select at least one retrieval form.';
+  return 'Select at least one card type.';
 });
 
 const clozeError = computed( () => {
@@ -377,6 +447,9 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
   form.retrievalFormIds = state.retrievalFormIds;
   form.tagIds = state.tagIds;
   form.typeAnswerAcceptedAnswers = state.typeAnswerAcceptedAnswers;
+  form.typeAnswerInitialized = state.typeAnswerInitialized;
+  activeSetupId.value = state.retrievalFormIds[ 0 ] ?? '';
+  previewOpen.value = false;
   submitted.value = false;
 }, { immediate: true });
 
@@ -391,21 +464,30 @@ watch( () => captureConceptEditorState( form ), ( state ) => {
 });
 
 function updateRetrievalForms( retrievalFormIds ) {
-  if (
-    clozeSelected.value
-    && !retrievalFormIds.includes( CLOZE_ID )
-  ) {
-    form.content.prompt = removeAllClozeMarks( form.content.prompt );
-  }
+  const added = retrievalFormIds.find( ( id ) => !form.retrievalFormIds.includes( id ) );
 
-  if (
-    imageOcclusionSelected.value
-    && !retrievalFormIds.includes( IMAGE_OCCLUSION_ID )
-  ) {
-    form.content.prompt = removeAllImageOcclusionRegions( form.content.prompt );
+  if ( added === TYPE_ANSWER_ID && !form.typeAnswerInitialized ) {
+    const blocks = form.content.answer.content ?? [];
+    const paragraph = blocks.length === 1 && blocks[ 0 ].type === 'paragraph'
+      ? blocks[ 0 ]
+      : null;
+    const plainText = paragraph?.content?.every( ( node ) => node.type === 'text' );
+    const answer = plainText
+      ? normalizeAcceptedAnswer( paragraph.content.map( ( node ) => node.text ).join( '' ) )
+      : '';
+
+    if ( answer && Array.from( answer ).length <= MAXIMUM_ACCEPTED_ANSWER_LENGTH ) {
+      form.typeAnswerAcceptedAnswers = [ answer ];
+    }
+
+    form.typeAnswerInitialized = true;
   }
 
   form.retrievalFormIds = retrievalFormIds;
+
+  if ( added ) {
+    activeSetupId.value = added;
+  }
 }
 
 function normalizeAcceptedAnswer( answer ) {
@@ -500,7 +582,7 @@ function moveProblemCheckpoint( index, offset ) {
   form.problemCheckpoints.splice( nextIndex, 0, checkpoint );
 }
 
-function submit() {
+async function submit() {
   if ( props.disabled || props.importsPending ) {
     return;
   }
@@ -517,6 +599,21 @@ function submit() {
     || !problemCheckpointsValid.value
     || !acceptedAnswersValid.value
   ) {
+    if ( !acceptedAnswersValid.value ) {
+      activeSetupId.value = TYPE_ANSWER_ID;
+    } else if ( !explainKeyPointsValid.value ) {
+      activeSetupId.value = EXPLAIN_ID;
+    } else if ( !problemCheckpointsValid.value || problemPromptError.value ) {
+      activeSetupId.value = PROBLEM_ID;
+    } else if ( clozeError.value ) {
+      activeSetupId.value = CLOZE_ID;
+    } else if ( imageOcclusionError.value ) {
+      activeSetupId.value = IMAGE_OCCLUSION_ID;
+    }
+
+    await nextTick();
+    editorElement.value?.querySelector( '[aria-invalid="true"], .editor-field-error' )
+      ?.scrollIntoView({ block: 'center' });
     return;
   }
 
@@ -538,7 +635,7 @@ function submit() {
     : null;
 
   emit( 'submit', {
-    content: cloneConceptContent( form.content ),
+    content: cloneConceptContent( selectedContent.value ),
     deckIds: [ ...form.deckIds ],
     explain,
     includeStandardRecall: form.retrievalFormIds.includes( STANDARD_RECALL_ID ),
@@ -562,6 +659,7 @@ defineExpose({ submit });
 
 <template>
   <form
+    ref="editorElement"
     class="concept-editor"
     @submit.prevent="submit"
   >
@@ -595,16 +693,78 @@ defineExpose({ submit });
       </UFormField>
     </section>
 
+    <section class="editor-section card-type-picker" aria-label="Card types">
+      <div class="editor-section__heading">
+        <h2>Card types</h2>
+
+        <UButton
+          type="button"
+          color="neutral"
+          variant="link"
+          size="sm"
+          :aria-expanded="descriptionsOpen"
+          :disabled="disabled"
+          @click="descriptionsOpen = !descriptionsOpen"
+        >
+          {{ descriptionsOpen ? 'Hide descriptions' : 'Show descriptions' }}
+        </UButton>
+      </div>
+
+      <UCheckboxGroup
+        :model-value="form.retrievalFormIds"
+        :items="cardChoices"
+        legend="Card types"
+        value-key="value"
+        class="retrieval-form-options"
+        :ui="{ legend: 'sr-only', fieldset: 'card-type-options' }"
+        :disabled="disabled"
+        @update:model-value="updateRetrievalForms"
+      />
+
+      <div class="card-type-summary">
+        <USelectMenu
+          v-if="templateChoices.length"
+          v-model="selectedTemplateIds"
+          :items="templateChoices"
+          value-key="value"
+          multiple
+          placeholder="Templates"
+          aria-label="Template cards"
+          :disabled="disabled"
+          class="card-type-templates"
+        />
+        <span role="status">{{ cardCountLabel }}</span>
+        <span v-if="!generatedCardCount">Select a card type and finish its setup.</span>
+        <UButton
+          v-if="selectedSetups.length === 1 && activeSetupId === STANDARD_RECALL_ID"
+          type="button"
+          color="neutral"
+          variant="link"
+          size="sm"
+          :aria-expanded="previewOpen"
+          :disabled="disabled"
+          @click="previewOpen = !previewOpen"
+        >
+          {{ previewOpen ? 'Hide preview' : 'Preview' }}
+        </UButton>
+      </div>
+
+      <p v-if="retrievalFormsError" class="editor-field-error">{{ retrievalFormsError }}</p>
+
+      <UAlert
+        v-if="removedRetrievalForms.length"
+        title="Scheduling progress will be removed"
+        description="Saving removes deselected cards and their scheduling progress. Adding them again starts them as new."
+        icon="i-lucide-calendar-x-2"
+        color="warning"
+        variant="subtle"
+      />
+    </section>
+
     <section
       class="editor-section"
       data-twill-editor-section="concept-content"
     >
-      <div class="editor-section__heading">
-        <div>
-          <h2>Content</h2>
-        </div>
-      </div>
-
       <div class="concept-content-editors">
         <RichContentEditor
           :key="`prompt-${ editorSession }`"
@@ -616,13 +776,6 @@ defineExpose({ submit });
           :image-occlusion-enabled="imageOcclusionSelected"
         />
 
-        <p
-          v-if="problemPromptError"
-          class="editor-field-error"
-        >
-          {{ problemPromptError }}
-        </p>
-
         <RichContentEditor
           :key="`answer-${ editorSession }`"
           v-model="form.content.answer"
@@ -630,17 +783,8 @@ defineExpose({ submit });
           placeholder="Write an answer"
           :disabled="disabled"
         />
-
-        <ClozePreview
-          v-if="clozeSelected"
-          :document="form.content.prompt"
-        />
-
-        <ImageOcclusionPreview
-          v-if="imageOcclusionSelected"
-          :document="form.content.prompt"
-        />
       </div>
+      <p v-if="problemPromptError" class="editor-field-error">{{ problemPromptError }}</p>
     </section>
 
     <section
@@ -649,8 +793,7 @@ defineExpose({ submit });
     >
       <div class="editor-section__heading">
         <div>
-          <h2>Answer feedback</h2>
-          <p>Add explanation or common mistakes when the expected answer needs more context.</p>
+          <h2 class="sr-only">Answer feedback</h2>
         </div>
 
         <UButton
@@ -694,284 +837,304 @@ defineExpose({ submit });
     </section>
 
     <section
-      class="editor-section"
+      v-if="setupVisible && activeSetup"
+      class="editor-section card-setup"
       data-twill-editor-section="concept-retrieval-forms"
     >
+      <nav v-if="selectedSetups.length > 1" class="card-setup__steps" aria-label="Card setup">
+        <UButton
+          v-for="item in selectedSetups"
+          :key="item.value"
+          type="button"
+          color="neutral"
+          :variant="item.value === activeSetupId ? 'subtle' : 'ghost'"
+          :aria-current="item.value === activeSetupId ? 'step' : undefined"
+          :disabled="disabled"
+          @click="activeSetupId = item.value"
+        >
+          {{ item.label }} <span class="card-setup__count">{{ item.count }}</span>
+        </UButton>
+      </nav>
+
       <div class="editor-section__heading">
-        <div>
-          <h2>Retrieval forms</h2>
-          <p>Choose how this concept is studied. Each form keeps its own schedule.</p>
-        </div>
+        <h2>{{ activeSetup.label }}</h2>
+        <span class="card-setup__count">{{ activeSetup.count }} {{ activeSetup.count === 1 ? 'card' : 'cards' }}</span>
       </div>
 
-      <UCheckboxGroup
-        :model-value="form.retrievalFormIds"
-        :items="retrievalFormItems"
-        legend="Retrieval forms"
-        value-key="value"
-        variant="card"
-        class="retrieval-form-options"
-        :ui="{ legend: 'sr-only' }"
-        :disabled="disabled"
-        required
-        @update:model-value="updateRetrievalForms"
-      />
-
       <p
-        v-if="retrievalFormsError"
-        class="editor-field-error"
-      >
-        {{ retrievalFormsError }}
-      </p>
-
-      <p
-        v-if="clozeError"
+        v-if="clozeError && activeSetupId === CLOZE_ID"
         class="editor-field-error"
       >
         {{ clozeError }}
       </p>
 
       <p
-        v-if="imageOcclusionError"
+        v-if="imageOcclusionError && activeSetupId === IMAGE_OCCLUSION_ID"
         class="editor-field-error"
       >
         {{ imageOcclusionError }}
       </p>
 
-      <div
-        v-if="typeAnswerSelected"
-        class="type-answer-settings"
-      >
-        <div class="type-answer-settings__heading">
-          <div>
-            <h3>Accepted answers</h3>
-            <p>Add alternatives that should count as an exact match.</p>
-          </div>
+      <ClozePreview v-if="activeSetupId === CLOZE_ID" :document="form.content.prompt" />
+      <ImageOcclusionPreview v-else-if="activeSetupId === IMAGE_OCCLUSION_ID" :document="form.content.prompt" />
 
-          <span>
-            {{ form.typeAnswerAcceptedAnswers.length }} / {{ MAXIMUM_ACCEPTED_ANSWERS }}
-          </span>
-        </div>
-
-        <div class="accepted-answer-list">
-          <UFormField
-            v-for="( answer, index ) in form.typeAnswerAcceptedAnswers"
-            :key="index"
-            :label="index === 0 ? 'Answer' : `Alternative ${ index }`"
-            :error="acceptedAnswerErrors[ index ] || false"
-            :hint="`${ acceptedAnswerLength( answer ) } / ${ MAXIMUM_ACCEPTED_ANSWER_LENGTH }`"
-            required
-          >
-            <div class="accepted-answer-row">
-              <UInput
-                v-model="form.typeAnswerAcceptedAnswers[ index ]"
-                :placeholder="index === 0 ? 'Accepted answer' : 'Alternative answer'"
-                autocomplete="off"
-                class="accepted-answer-row__input"
-                size="lg"
-                :disabled="disabled"
-              />
-
-              <UButton
-                type="button"
-                icon="i-lucide-x"
-                :aria-label="`Remove ${ index === 0 ? 'answer' : `alternative ${ index }` }`"
-                color="neutral"
-                variant="ghost"
-                size="lg"
-                square
-                :disabled="disabled || form.typeAnswerAcceptedAnswers.length === 1"
-                @click="removeAcceptedAnswer( index )"
-              />
-            </div>
-          </UFormField>
-        </div>
-
-        <UButton
-          type="button"
-          label="Add alternative"
-          leading-icon="i-lucide-plus"
-          color="neutral"
-          variant="subtle"
-          :disabled="disabled || atAcceptedAnswerLimit"
-          class="type-answer-settings__add"
-          @click="addAcceptedAnswer"
-        />
-      </div>
-
-      <div
-        v-if="explainSelected"
-        class="explain-settings"
-      >
-        <div class="explain-settings__heading">
-          <div>
-            <h3>Explanation guide</h3>
-            <p>The Prompt sets the topic. Key points provide the comparison after reveal.</p>
-          </div>
-
-          <span>
-            {{ form.explainKeyPoints.length }} / {{ MAXIMUM_EXPLAIN_KEY_POINTS }}
-          </span>
-        </div>
-
-        <UFormField
-          label="Prompt focus"
-          description="Choose the kind of explanation to build."
-          required
+      <div class="card-setup__workspace">
+        <div
+          v-if="activeSetupId === TYPE_ANSWER_ID"
+          class="type-answer-settings"
         >
-          <USelect
-            v-model="form.explainFocus"
-            :items="explainFocusItems"
-            value-key="value"
-            class="explain-settings__focus"
-            size="lg"
-            :disabled="disabled"
-          />
-        </UFormField>
-
-        <div class="explain-key-point-list">
-          <UFormField
-            v-for="( keyPoint, index ) in form.explainKeyPoints"
-            :key="index"
-            :label="`Key point ${ index + 1 }`"
-            :error="explainKeyPointErrors[ index ] || false"
-            :hint="`${ explainKeyPointLength( keyPoint ) } / ${ MAXIMUM_EXPLAIN_KEY_POINT_LENGTH }`"
-            required
-          >
-            <div class="explain-key-point-row">
-              <UTextarea
-                v-model="form.explainKeyPoints[ index ]"
-                placeholder="Expected idea"
-                :rows="2"
-                autoresize
-                :maxrows="5"
-                class="explain-key-point-row__input"
-                :disabled="disabled"
-              />
-
-              <UButton
-                type="button"
-                icon="i-lucide-x"
-                :aria-label="`Remove key point ${ index + 1 }`"
-                color="neutral"
-                variant="ghost"
-                size="lg"
-                square
-                :disabled="disabled || form.explainKeyPoints.length === 1"
-                @click="removeExplainKeyPoint( index )"
-              />
+          <div class="type-answer-settings__heading">
+            <div>
+              <h3>Accepted answers</h3>
+              <p>Add alternatives that should count as an exact match.</p>
             </div>
-          </UFormField>
-        </div>
 
-        <UButton
-          type="button"
-          label="Add key point"
-          leading-icon="i-lucide-plus"
-          color="neutral"
-          variant="subtle"
-          :disabled="disabled || atExplainKeyPointLimit"
-          class="explain-settings__add"
-          @click="addExplainKeyPoint"
-        />
-      </div>
-
-      <div
-        v-if="problemSelected"
-        class="problem-settings"
-      >
-        <div class="problem-settings__heading">
-          <div>
-            <h3>Solution checkpoints</h3>
-            <p>The Prompt is the problem. The Answer can hold a full worked solution.</p>
+            <span>
+              {{ form.typeAnswerAcceptedAnswers.length }} / {{ MAXIMUM_ACCEPTED_ANSWERS }}
+            </span>
           </div>
 
-          <span>
-            {{ form.problemCheckpoints.length }} / {{ MAXIMUM_PROBLEM_CHECKPOINTS }}
-          </span>
-        </div>
-
-        <div class="problem-checkpoint-list">
-          <UFormField
-            v-for="( checkpoint, index ) in form.problemCheckpoints"
-            :key="index"
-            :label="`Checkpoint ${ index + 1 }`"
-            :error="problemCheckpointErrors[ index ] || false"
-            :hint="`${ problemCheckpointLength( checkpoint ) } / ${ MAXIMUM_PROBLEM_CHECKPOINT_LENGTH }`"
-            required
-          >
-            <div class="problem-checkpoint-row">
-              <UTextarea
-                v-model="form.problemCheckpoints[ index ]"
-                placeholder="Expected step or criterion"
-                :rows="2"
-                autoresize
-                :maxrows="5"
-                class="problem-checkpoint-row__input"
-                :disabled="disabled"
-              />
-
-              <div class="problem-checkpoint-row__actions">
-                <UButton
-                  type="button"
-                  icon="i-lucide-chevron-up"
-                  :aria-label="`Move checkpoint ${ index + 1 } up`"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  square
-                  :disabled="disabled || index === 0"
-                  @click="moveProblemCheckpoint( index, -1 )"
-                />
-
-                <UButton
-                  type="button"
-                  icon="i-lucide-chevron-down"
-                  :aria-label="`Move checkpoint ${ index + 1 } down`"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  square
-                  :disabled="disabled || index === form.problemCheckpoints.length - 1"
-                  @click="moveProblemCheckpoint( index, 1 )"
+          <div class="accepted-answer-list">
+            <UFormField
+              v-for="( answer, index ) in form.typeAnswerAcceptedAnswers"
+              :key="index"
+              :label="index === 0 ? 'Answer' : `Alternative ${ index }`"
+              :error="acceptedAnswerErrors[ index ] || false"
+              :hint="`${ acceptedAnswerLength( answer ) } / ${ MAXIMUM_ACCEPTED_ANSWER_LENGTH }`"
+              required
+            >
+              <div class="accepted-answer-row">
+                <UInput
+                  v-model="form.typeAnswerAcceptedAnswers[ index ]"
+                  :placeholder="index === 0 ? 'Accepted answer' : 'Alternative answer'"
+                  autocomplete="off"
+                  class="accepted-answer-row__input"
+                  size="lg"
+                  :disabled="disabled"
                 />
 
                 <UButton
                   type="button"
                   icon="i-lucide-x"
-                  :aria-label="`Remove checkpoint ${ index + 1 }`"
+                  :aria-label="`Remove ${ index === 0 ? 'answer' : `alternative ${ index }` }`"
                   color="neutral"
                   variant="ghost"
-                  size="sm"
+                  size="lg"
                   square
-                  :disabled="disabled || form.problemCheckpoints.length === 1"
-                  @click="removeProblemCheckpoint( index )"
+                  :disabled="disabled || form.typeAnswerAcceptedAnswers.length === 1"
+                  @click="removeAcceptedAnswer( index )"
                 />
               </div>
-            </div>
-          </UFormField>
+            </UFormField>
+          </div>
+
+          <UButton
+            type="button"
+            label="Add alternative"
+            leading-icon="i-lucide-plus"
+            color="neutral"
+            variant="subtle"
+            :disabled="disabled || atAcceptedAnswerLimit"
+            class="type-answer-settings__add"
+            @click="addAcceptedAnswer"
+          />
         </div>
 
-        <UButton
-          type="button"
-          label="Add checkpoint"
-          leading-icon="i-lucide-plus"
-          color="neutral"
-          variant="subtle"
-          :disabled="disabled || atProblemCheckpointLimit"
-          class="problem-settings__add"
-          @click="addProblemCheckpoint"
+        <div
+          v-if="activeSetupId === EXPLAIN_ID"
+          class="explain-settings"
+        >
+          <div class="explain-settings__heading">
+            <div>
+              <h3>Explanation guide</h3>
+            </div>
+
+            <span>
+              {{ form.explainKeyPoints.length }} / {{ MAXIMUM_EXPLAIN_KEY_POINTS }}
+            </span>
+          </div>
+
+          <UFormField
+            label="Prompt focus"
+            required
+          >
+            <USelect
+              v-model="form.explainFocus"
+              :items="explainFocusItems"
+              value-key="value"
+              class="explain-settings__focus"
+              size="lg"
+              :disabled="disabled"
+            />
+          </UFormField>
+
+          <div class="explain-key-point-list">
+            <UFormField
+              v-for="( keyPoint, index ) in form.explainKeyPoints"
+              :key="index"
+              :label="`Key point ${ index + 1 }`"
+              :error="explainKeyPointErrors[ index ] || false"
+              :hint="`${ explainKeyPointLength( keyPoint ) } / ${ MAXIMUM_EXPLAIN_KEY_POINT_LENGTH }`"
+              required
+            >
+              <div class="explain-key-point-row">
+                <UTextarea
+                  v-model="form.explainKeyPoints[ index ]"
+                  placeholder="Expected idea"
+                  :rows="2"
+                  autoresize
+                  :maxrows="5"
+                  class="explain-key-point-row__input"
+                  :disabled="disabled"
+                />
+
+                <UButton
+                  type="button"
+                  icon="i-lucide-x"
+                  :aria-label="`Remove key point ${ index + 1 }`"
+                  color="neutral"
+                  variant="ghost"
+                  size="lg"
+                  square
+                  :disabled="disabled || form.explainKeyPoints.length === 1"
+                  @click="removeExplainKeyPoint( index )"
+                />
+              </div>
+            </UFormField>
+          </div>
+
+          <UButton
+            type="button"
+            label="Add key point"
+            leading-icon="i-lucide-plus"
+            color="neutral"
+            variant="subtle"
+            :disabled="disabled || atExplainKeyPointLimit"
+            class="explain-settings__add"
+            @click="addExplainKeyPoint"
+          />
+        </div>
+
+        <div
+          v-if="activeSetupId === PROBLEM_ID"
+          class="problem-settings"
+        >
+          <div class="problem-settings__heading">
+            <div>
+              <h3>Solution checkpoints</h3>
+            </div>
+
+            <span>
+              {{ form.problemCheckpoints.length }} / {{ MAXIMUM_PROBLEM_CHECKPOINTS }}
+            </span>
+          </div>
+
+          <div class="problem-checkpoint-list">
+            <UFormField
+              v-for="( checkpoint, index ) in form.problemCheckpoints"
+              :key="index"
+              :label="`Checkpoint ${ index + 1 }`"
+              :error="problemCheckpointErrors[ index ] || false"
+              :hint="`${ problemCheckpointLength( checkpoint ) } / ${ MAXIMUM_PROBLEM_CHECKPOINT_LENGTH }`"
+              required
+            >
+              <div class="problem-checkpoint-row">
+                <UTextarea
+                  v-model="form.problemCheckpoints[ index ]"
+                  placeholder="Expected step or criterion"
+                  :rows="2"
+                  autoresize
+                  :maxrows="5"
+                  class="problem-checkpoint-row__input"
+                  :disabled="disabled"
+                />
+
+                <div class="problem-checkpoint-row__actions">
+                  <UButton
+                    type="button"
+                    icon="i-lucide-chevron-up"
+                    :aria-label="`Move checkpoint ${ index + 1 } up`"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    square
+                    :disabled="disabled || index === 0"
+                    @click="moveProblemCheckpoint( index, -1 )"
+                  />
+
+                  <UButton
+                    type="button"
+                    icon="i-lucide-chevron-down"
+                    :aria-label="`Move checkpoint ${ index + 1 } down`"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    square
+                    :disabled="disabled || index === form.problemCheckpoints.length - 1"
+                    @click="moveProblemCheckpoint( index, 1 )"
+                  />
+
+                  <UButton
+                    type="button"
+                    icon="i-lucide-x"
+                    :aria-label="`Remove checkpoint ${ index + 1 }`"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    square
+                    :disabled="disabled || form.problemCheckpoints.length === 1"
+                    @click="removeProblemCheckpoint( index )"
+                  />
+                </div>
+              </div>
+            </UFormField>
+          </div>
+
+          <UButton
+            type="button"
+            label="Add checkpoint"
+            leading-icon="i-lucide-plus"
+            color="neutral"
+            variant="subtle"
+            :disabled="disabled || atProblemCheckpointLimit"
+            class="problem-settings__add"
+            @click="addProblemCheckpoint"
+          />
+        </div>
+
+        <ConceptCardPreview
+          v-if="activeSetupId !== CLOZE_ID && activeSetupId !== IMAGE_OCCLUSION_ID"
+          :key="activeSetupId"
+          :type-id="activeSetupId"
+          :content="selectedContent"
+          :title="form.title"
+          :media="media"
         />
       </div>
 
-      <UAlert
-        v-if="removedRetrievalForms.length"
-        title="Scheduling progress will be removed"
-        description="Saving will remove the deselected forms and their scheduling progress. Adding a form again starts it as new."
-        icon="i-lucide-calendar-x-2"
-        color="warning"
-        variant="soft"
-      />
+      <div v-if="selectedSetups.length > 1" class="card-setup__navigation">
+        <UButton
+          type="button"
+          color="neutral"
+          variant="ghost"
+          leading-icon="i-lucide-chevron-left"
+          :disabled="disabled || activeSetupIndex === 0"
+          @click="activeSetupId = selectedSetups[ activeSetupIndex - 1 ].value"
+        >
+          Back
+        </UButton>
+        <span>{{ activeSetupIndex + 1 }} / {{ selectedSetups.length }}</span>
+        <UButton
+          type="button"
+          color="neutral"
+          variant="subtle"
+          trailing-icon="i-lucide-chevron-right"
+          :disabled="disabled || activeSetupIndex === selectedSetups.length - 1"
+          @click="activeSetupId = selectedSetups[ activeSetupIndex + 1 ].value"
+        >
+          Next
+        </UButton>
+      </div>
     </section>
 
     <section
@@ -981,7 +1144,6 @@ defineExpose({ submit });
       <div class="editor-section__heading">
         <div>
           <h2>Organization</h2>
-          <p>Use decks for broader groups and tags for labels that can cross decks.</p>
         </div>
 
         <UButton
@@ -1000,13 +1162,15 @@ defineExpose({ submit });
         <div class="editor-selection">
           <h3>Decks</h3>
 
-          <UCheckboxGroup
+          <USelectMenu
             v-if="deckItems.length"
             v-model="form.deckIds"
             :items="deckItems"
             value-key="value"
-            variant="card"
-            class="editor-checkboxes"
+            multiple
+            placeholder="Choose decks"
+            aria-label="Decks"
+            class="w-full"
             :disabled="disabled"
           />
 
@@ -1021,13 +1185,15 @@ defineExpose({ submit });
         <div class="editor-selection">
           <h3>Tags</h3>
 
-          <UCheckboxGroup
+          <USelectMenu
             v-if="tagItems.length"
             v-model="form.tagIds"
             :items="tagItems"
             value-key="value"
-            variant="card"
-            class="editor-checkboxes"
+            multiple
+            placeholder="Choose tags"
+            aria-label="Tags"
+            class="w-full"
             :disabled="disabled"
           />
 
@@ -1067,7 +1233,6 @@ defineExpose({ submit });
         :loading="loading"
         :aria-keyshortcuts="saveCommand.ariaKeyshortcuts"
         :title="saveCommand.tooltip"
-        size="lg"
       >
         {{ submitLabel }}
       </UButton>

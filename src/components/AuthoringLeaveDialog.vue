@@ -49,7 +49,7 @@ const emit = defineEmits([ 'stay', 'keep', 'discard' ]);
           :loading="action === 'discard'"
           @click="emit( 'discard' )"
         >
-          Discard and leave
+          Discard
         </UButton>
 
         <UButton
@@ -58,7 +58,7 @@ const emit = defineEmits([ 'stay', 'keep', 'discard' ]);
           :loading="action === 'keep'"
           @click="emit( 'keep' )"
         >
-          Leave and keep draft
+          Keep draft
         </UButton>
       </div>
     </template>

@@ -50,15 +50,6 @@
   scrollbar-width: thin;
 }
 
-.rich-editor__inserts {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  padding: 0.4rem;
-  gap: 0.15rem;
-  border-left: 1px solid var(--ui-border);
-}
-
 .rich-editor__toolbar button {
   min-width: 2.35rem;
   min-height: 2.35rem;
@@ -98,7 +89,7 @@
 }
 
 .rich-editor-field__error {
-  margin: 0;
+  margin: 0.5rem 0.75rem;
   color: var(--ui-error);
   font-size: 0.82rem;
 }

@@ -726,6 +726,7 @@ useStartupReady( initialLoading );
       :decks="organizations.decks"
       :tags="organizations.tags"
       :templates="templates"
+      :media="concept?.media ?? []"
       :error="error"
       :loading="isPending || saveInProgress"
       :imports-pending="hasPendingImports"
