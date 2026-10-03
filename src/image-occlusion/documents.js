@@ -15,7 +15,8 @@ export function collectImageOcclusionGroups( document ) {
     const image = {
       alt: node.attrs?.alt ?? '',
       mediaId: node.attrs?.mediaId ?? '',
-      title: node.attrs?.title ?? ''
+      title: node.attrs?.title ?? '',
+      width: node.attrs?.width ?? null
     };
 
     for ( const region of imageOcclusionRegions( node ) ) {

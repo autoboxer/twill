@@ -544,7 +544,7 @@ fn validate_media_image(
     let attributes = required_attributes(object, field)?;
     ensure_keys(
         attributes,
-        &["mediaId", "alt", "title", "occlusionRegions"],
+        &["mediaId", "alt", "title", "occlusionRegions", "width"],
         field,
     )?;
 
@@ -567,6 +567,12 @@ fn validate_media_image(
         field,
     )?;
     validate_image_occlusion_regions(attributes, field, state)?;
+
+    if let Some(width) = attributes.get("width").filter(|value| !value.is_null()) {
+        if !width.as_u64().is_some_and(|width| (32..=2048).contains(&width)) {
+            return Err(invalid_content(field, "contains an invalid image display width"));
+        }
+    }
 
     state.media_ids.insert(media_id.to_owned());
 
@@ -835,6 +841,39 @@ mod tests {
     use super::{rich_document_has_content, validate_content};
     use crate::library::models::AnswerFeedback;
     use crate::library::{ConceptContent, LibraryError};
+
+    #[test]
+    fn image_display_width_is_optional_and_bounded_without_changing_media() {
+        let media_id = "018f1e2d-3c4b-7a69-8f10-123456789abc";
+
+        for width in [Value::Null, json!(32), json!(320), json!(2048)] {
+            let mut content = ConceptContent::default();
+            content.prompt = json!({
+                "type": "doc",
+                "content": [{ "type": "mediaImage", "attrs": {
+                    "mediaId": media_id, "width": width
+                }}]
+            });
+
+            let validated = validate_content(content).unwrap();
+
+            assert_eq!(validated.content.prompt["content"][0]["attrs"]["width"], width);
+            assert_eq!(validated.media_ids.len(), 1);
+            assert!(validated.media_ids.contains(media_id));
+        }
+
+        for width in [json!(0), json!(31), json!(2049), json!(-1), json!(100.5), json!("320"), json!(true)] {
+            let mut content = ConceptContent::default();
+            content.answer = json!({
+                "type": "doc",
+                "content": [{ "type": "mediaImage", "attrs": {
+                    "mediaId": media_id, "width": width
+                }}]
+            });
+
+            assert!(validate_content(content).is_err());
+        }
+    }
 
     #[test]
     fn meaningful_content_distinguishes_empty_structure_from_problem_material() {

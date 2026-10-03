@@ -81,6 +81,7 @@ watch( groups, ( currentGroups ) => {
         v-else
         :alt="activeGroup.image.alt"
         :image-url="imageUrl"
+        :width="activeGroup.image.width"
         :regions="activeGroup.regions"
         :visible-group-id="activeGroupId"
       />
