@@ -3,8 +3,8 @@ use uuid::Uuid;
 
 use crate::data::{current_timestamp, LocalDataStore};
 use crate::library::{
-    DeferredConceptEdit, DeferredEditQueue, DeferredEditTargetStatus, LibraryError,
-    LibraryResult, QueueDeferredEditInput,
+    DeferredConceptEdit, DeferredEditQueue, DeferredEditTargetStatus, LibraryError, LibraryResult,
+    QueueDeferredEditInput, UpdateDeferredEditNoteInput,
 };
 
 pub struct DeferredEditLibrary<'store> {
@@ -61,6 +61,34 @@ impl<'store> DeferredEditLibrary<'store> {
             Ok(())
         })
     }
+
+    pub fn update_note(
+        &self,
+        input: UpdateDeferredEditNoteInput,
+    ) -> LibraryResult<DeferredConceptEdit> {
+        let concept_id = normalize_id(input.concept_id, "concept ID")?;
+        let note = input.note.trim();
+
+        if note.chars().count() > 500 {
+            return Err(LibraryError::InvalidDeferredEdit {
+                message: "note must be 500 characters or fewer".to_owned(),
+            });
+        }
+
+        self.store.write_result(|transaction| {
+            let updated = transaction.execute(
+                "UPDATE deferred_concept_edits SET note = ?1
+                WHERE concept_id = ?2 AND position = ?3 AND note = ?4",
+                params![note, concept_id, input.position, input.expected_note],
+            )?;
+
+            if updated != 1 {
+                return Err(LibraryError::DeferredEditChanged);
+            }
+
+            query_item(transaction, &concept_id)?.ok_or(LibraryError::DeferredEditChanged)
+        })
+    }
 }
 
 fn validate_target(
@@ -114,7 +142,8 @@ fn query_queue(connection: &Connection) -> LibraryResult<DeferredEditQueue> {
                     THEN 'changed'
                 ELSE 'current'
             END,
-            deferred_concept_edits.position
+            deferred_concept_edits.position,
+            deferred_concept_edits.note
         FROM deferred_concept_edits
         INNER JOIN concepts
             ON concepts.entity_id = deferred_concept_edits.concept_id
@@ -131,10 +160,19 @@ fn query_queue(connection: &Connection) -> LibraryResult<DeferredEditQueue> {
                 row.get::<_, i64>(3)?,
                 row.get::<_, String>(4)?,
                 row.get::<_, i64>(5)?,
+                row.get::<_, String>(6)?,
             ))
         })?
         .map(|row| {
-            let (concept_id, concept_title, base_change_id, queued_at, target_status, position) = row?;
+            let (
+                concept_id,
+                concept_title,
+                base_change_id,
+                queued_at,
+                target_status,
+                position,
+                note,
+            ) = row?;
 
             Ok(DeferredConceptEdit {
                 position,
@@ -142,6 +180,7 @@ fn query_queue(connection: &Connection) -> LibraryResult<DeferredEditQueue> {
                 concept_title,
                 base_change_id,
                 queued_at,
+                note,
                 target_status: parse_target_status(&target_status)?,
             })
         })
@@ -191,8 +230,8 @@ mod tests {
     use super::DeferredEditLibrary;
     use crate::data::LocalDataStore;
     use crate::library::{
-        ConceptContent, ConceptLibrary, CreateConceptInput, DeferredEditTargetStatus,
-        QueueDeferredEditInput, UpdateConceptInput,
+        ConceptContent, ConceptLibrary, CreateConceptInput, DeferredEditTargetStatus, LibraryError,
+        QueueDeferredEditInput, UpdateConceptInput, UpdateDeferredEditNoteInput,
     };
 
     fn create_concept(library: &ConceptLibrary<'_>, title: &str) -> crate::library::ConceptDetail {
@@ -230,7 +269,15 @@ mod tests {
             let second = create_concept(&concepts, "Second");
             let changes_before = store.changes_after(0, 100).unwrap();
 
-            edits.queue_concept(queue_input(&first)).unwrap();
+            let queued = edits.queue_concept(queue_input(&first)).unwrap();
+            edits
+                .update_note(UpdateDeferredEditNoteInput {
+                    concept_id: first.id.clone(),
+                    position: queued.position,
+                    expected_note: String::new(),
+                    note: "  Add a TCP/IP example\nClarify café 中 🧵  ".to_owned(),
+                })
+                .unwrap();
             edits.queue_concept(queue_input(&first)).unwrap();
             edits.queue_concept(queue_input(&second)).unwrap();
 
@@ -239,6 +286,13 @@ mod tests {
             assert_eq!(queue.items.len(), 2);
             assert_eq!(queue.items[0].concept_id, first.id);
             assert_eq!(queue.items[1].concept_id, second.id);
+            assert_eq!(queue.items[0].position, queued.position);
+            assert_eq!(queue.items[0].queued_at, queued.queued_at);
+            assert_eq!(queue.items[0].base_change_id, queued.base_change_id);
+            assert_eq!(
+                queue.items[0].note,
+                "Add a TCP/IP example\nClarify café 中 🧵"
+            );
             assert_eq!(store.changes_after(0, 100).unwrap(), changes_before);
         }
 
@@ -248,6 +302,72 @@ mod tests {
         assert_eq!(queue.items.len(), 2);
         assert_eq!(queue.items[0].concept_title, "First");
         assert_eq!(queue.items[1].concept_title, "Second");
+        assert_eq!(
+            queue.items[0].note,
+            "Add a TCP/IP example\nClarify café 中 🧵"
+        );
+    }
+
+    #[test]
+    fn deferred_notes_are_bounded_can_be_cleared_and_do_not_change_queue_identity() {
+        let directory = tempdir().unwrap();
+        let store = LocalDataStore::open(directory.path()).unwrap();
+        let concept = create_concept(&ConceptLibrary::new(&store), "Notes");
+        let edits = DeferredEditLibrary::new(&store);
+        let queued = edits.queue_concept(queue_input(&concept)).unwrap();
+        let mut input = UpdateDeferredEditNoteInput {
+            concept_id: concept.id.clone(),
+            position: queued.position,
+            expected_note: String::new(),
+            note: "🧵".repeat(500),
+        };
+        let updated = edits.update_note(input.clone()).unwrap();
+
+        assert_eq!(updated.note.chars().count(), 500);
+        assert_eq!(updated.position, queued.position);
+        input.expected_note = updated.note.clone();
+        input.note.push('x');
+        assert!(matches!(
+            edits.update_note(input.clone()),
+            Err(LibraryError::InvalidDeferredEdit { .. })
+        ));
+        assert_eq!(edits.queue().unwrap().items[0], updated);
+        input.note = " \n\t ".to_owned();
+        assert!(edits.update_note(input).unwrap().note.is_empty());
+    }
+
+    #[test]
+    fn stale_notes_and_replaced_or_removed_queue_items_cannot_be_overwritten() {
+        let directory = tempdir().unwrap();
+        let store = LocalDataStore::open(directory.path()).unwrap();
+        let concept = create_concept(&ConceptLibrary::new(&store), "Notes");
+        let edits = DeferredEditLibrary::new(&store);
+        let queued = edits.queue_concept(queue_input(&concept)).unwrap();
+        let input = UpdateDeferredEditNoteInput {
+            concept_id: concept.id.clone(),
+            position: queued.position,
+            expected_note: String::new(),
+            note: "First reason".to_owned(),
+        };
+        let updated = edits.update_note(input.clone()).unwrap();
+
+        assert!(matches!(
+            edits.update_note(input.clone()),
+            Err(LibraryError::DeferredEditChanged)
+        ));
+        assert_eq!(edits.queue().unwrap().items[0], updated);
+        edits.remove_concept(&concept.id).unwrap();
+        assert!(matches!(
+            edits.update_note(input.clone()),
+            Err(LibraryError::DeferredEditChanged)
+        ));
+        let replacement = edits.queue_concept(queue_input(&concept)).unwrap();
+        assert_ne!(replacement.position, queued.position);
+        assert!(matches!(
+            edits.update_note(input),
+            Err(LibraryError::DeferredEditChanged)
+        ));
+        assert_eq!(edits.queue().unwrap().items[0], replacement);
     }
 
     #[test]

@@ -886,6 +886,31 @@
   font-size: 0.76rem;
 }
 
+.deferred-edit-queue__note {
+  margin: 0.3rem 0 0;
+  color: var(--ui-text-muted);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.deferred-edit-queue .deferred-edit-queue__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.deferred-edit-note {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.deferred-edit-note__length {
+  color: var(--ui-text-muted);
+  font-size: 0.75rem;
+  text-align: right;
+}
+
 .deferred-edit-queue li[data-twill-deferred-status='changed'] > svg,
 .deferred-edit-queue li[data-twill-deferred-status='archived'] > svg {
   color: var(--ui-warning);
@@ -916,4 +941,10 @@
 
 .deferred-edit-context {
   margin-bottom: 1rem;
+}
+
+.study-edit-context {
+  margin: 0 0 0.75rem;
+  color: var(--ui-text-muted);
+  font-size: 0.8rem;
 }

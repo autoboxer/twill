@@ -57,7 +57,15 @@ export function useConceptLibrary() {
     deleteDeck: ( id ) => run( 'delete_deck', { input: { id } }),
     deleteTag: ( id ) => run( 'delete_tag', { input: { id } }),
     error,
-    finalizeConcept: ( input ) => changeConcept( 'finalize_concept', input ),
+    finalizeConcept: async ( input ) => {
+      const saved = await run( 'finalize_concept', { input });
+
+      if ( !input.context.saveAsCopy && saved.lastChangeId !== input.context.expectedChangeId ) {
+        markStudyConceptChanged( saved.id );
+      }
+
+      return saved;
+    },
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
     getLibrary: ( input = {}) => run( 'get_library', { input }),
     getLibraryOrganizations: () => run( 'get_library_organizations' ),

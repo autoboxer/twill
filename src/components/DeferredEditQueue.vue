@@ -16,7 +16,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits([ 'remove', 'start' ]);
+const emit = defineEmits([ 'note', 'remove', 'start' ]);
 
 const firstItemReady = computed( () => (
   props.items[ 0 ]?.targetStatus === 'current'
@@ -75,18 +75,34 @@ function targetDetails( status ) {
         <div>
           <strong>{{ item.conceptTitle }}</strong>
           <span>{{ targetDetails( item.targetStatus ).label }}</span>
+          <p v-if="item.note" class="deferred-edit-queue__note">{{ item.note }}</p>
         </div>
 
-        <UButton
-          color="neutral"
-          variant="link"
-          :disabled="starting || Boolean( pendingConceptId )"
-          :loading="pendingConceptId === item.conceptId"
-          :aria-label="`Remove ${ item.conceptTitle } from queued edits`"
-          @click="emit( 'remove', item.conceptId )"
-        >
-          Remove
-        </UButton>
+        <div class="deferred-edit-queue__actions">
+          <UTooltip :text="item.note ? 'Edit note' : 'Add note'">
+            <UButton
+              leading-icon="i-lucide-notebook-pen"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              :disabled="starting || Boolean( pendingConceptId )"
+              :aria-label="`Edit note for ${ item.conceptTitle }`"
+              @click="emit( 'note', item )"
+            />
+          </UTooltip>
+
+          <UButton
+            color="neutral"
+            variant="link"
+            size="sm"
+            :disabled="starting || Boolean( pendingConceptId )"
+            :loading="pendingConceptId === item.conceptId"
+            :aria-label="`Remove ${ item.conceptTitle } from queued edits`"
+            @click="emit( 'remove', item.conceptId )"
+          >
+            Remove
+          </UButton>
+        </div>
       </li>
     </ol>
 

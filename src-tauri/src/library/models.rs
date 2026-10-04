@@ -12,8 +12,8 @@ mod templates;
 pub use authoring::{
     AuthoringDraft, AuthoringDraftKind, AuthoringDraftLocator, AuthoringDraftTargetStatus,
     AuthoringSaveContext, DeferredConceptEdit, DeferredEditQueue, DeferredEditTargetStatus,
-    FinalizeConceptInput, FinalizeTemplateInput, QueueDeferredEditInput, UpsertAuthoringDraftInput,
-    AUTHORING_DRAFT_SCHEMA_VERSION,
+    FinalizeConceptInput, FinalizeTemplateInput, QueueDeferredEditInput,
+    UpdateDeferredEditNoteInput, UpsertAuthoringDraftInput, AUTHORING_DRAFT_SCHEMA_VERSION,
 };
 pub use card_quality::{
     CardQualityConcern, CardQualityDisposition, CardQualityEvidence, CardQualityKind,

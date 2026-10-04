@@ -40,6 +40,7 @@ pub fn run() {
             library::commands::reverse_review,
             library::commands::get_deferred_edits,
             library::commands::queue_deferred_edit,
+            library::commands::update_deferred_edit_note,
             library::commands::remove_deferred_edit,
             library::commands::get_card_quality_queue,
             library::commands::create_card_quality_concern,

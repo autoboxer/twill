@@ -36,6 +36,14 @@ export function useDeferredEdits() {
     ),
     removeDeferredEdit: ( conceptId ) => run( 'remove_deferred_edit', {
       input: { id: conceptId }
+    }),
+    updateDeferredEditNote: ( item, note ) => run( 'update_deferred_edit_note', {
+      input: {
+        conceptId: item.conceptId,
+        position: item.position,
+        expectedNote: item.note,
+        note
+      }
     })
   };
 }

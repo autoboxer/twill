@@ -3,6 +3,8 @@ import { useRouter } from 'vue-router';
 
 import { conceptLibraryErrorMessage } from './useConceptLibrary';
 import { useDeferredEdits } from './useDeferredEdits';
+import { useActionNotifications } from './useActionNotifications';
+import { useNativeActionGuard } from './useNativeLifecycle';
 
 export function useStudyDeferredEdits( session ) {
   const {
@@ -15,8 +17,10 @@ export function useStudyDeferredEdits( session ) {
   const {
     getDeferredEdits,
     queueDeferredEdit,
-    removeDeferredEdit
+    removeDeferredEdit,
+    updateDeferredEditNote
   } = useDeferredEdits();
+  const { notifySuccess } = useActionNotifications();
 
   const deferredEdits = ref([]);
 
@@ -27,6 +31,18 @@ export function useStudyDeferredEdits( session ) {
   const deferredPendingConceptId = ref( '' );
 
   const deferredStartPending = ref( false );
+  const immediateEditError = ref( '' );
+  const noteTarget = ref( null );
+  const noteError = ref( '' );
+
+  const notePending = computed( () => Boolean(
+    noteTarget.value && deferredPendingConceptId.value === noteTarget.value.conceptId
+  ) );
+
+  useNativeActionGuard({
+    busy: computed( () => Boolean( deferredPendingConceptId.value ) ),
+    flush: () => {}
+  });
 
   let deferredRequestSequence = 0;
 
@@ -48,6 +64,13 @@ export function useStudyDeferredEdits( session ) {
     && !deferredPendingConceptId.value
     && !deferredStartPending.value
     && !pretestPending.value
+  ) );
+
+  const canEditCurrentConcept = computed( () => (
+    Boolean( currentCard.value )
+    && !actionsBlocked.value
+    && !deferredStartPending.value
+    && !deferredPendingConceptId.value
   ) );
 
   onMounted( loadDeferredEditQueue );
@@ -93,6 +116,10 @@ export function useStudyDeferredEdits( session ) {
     try {
       await queueDeferredEdit( card.conceptId, card.conceptLastChangeId );
       await loadDeferredEditQueue();
+
+      if ( viewActive ) {
+        notifySuccess( 'Queued for editing' );
+      }
     } catch ( cause ) {
       if ( viewActive ) {
         deferredError.value = conceptLibraryErrorMessage( cause );
@@ -100,6 +127,99 @@ export function useStudyDeferredEdits( session ) {
     } finally {
       if ( viewActive ) {
         deferredPendingConceptId.value = '';
+      }
+    }
+  }
+
+  function openQueuedNote( item ) {
+    if ( !item || sessionBusy.value || deferredPendingConceptId.value || deferredStartPending.value ) {
+      return;
+    }
+
+    noteError.value = '';
+    noteTarget.value = { ...item };
+  }
+
+  function editCurrentNote() {
+    const item = deferredEdits.value.find( ( item ) => item.conceptId === currentCard.value?.conceptId );
+
+    if ( item ) {
+      openQueuedNote( item );
+    }
+  }
+
+  function closeQueuedNote() {
+    if ( !notePending.value ) {
+      noteTarget.value = null;
+      noteError.value = '';
+    }
+  }
+
+  async function saveQueuedNote( note ) {
+    const target = noteTarget.value;
+
+    if ( !target || deferredPendingConceptId.value || deferredStartPending.value ) {
+      return;
+    }
+
+    noteError.value = '';
+    deferredPendingConceptId.value = target.conceptId;
+
+    try {
+      const updated = await updateDeferredEditNote( target, note );
+
+      if ( viewActive ) {
+        deferredEdits.value = deferredEdits.value.map( ( item ) => (
+          item.conceptId === updated.conceptId ? updated : item
+        ) );
+        noteTarget.value = null;
+        notifySuccess( 'Note saved' );
+      }
+    } catch ( cause ) {
+      if ( viewActive ) {
+        noteError.value = conceptLibraryErrorMessage( cause );
+
+        if ( cause?.code === 'deferredEditChanged' ) {
+          noteError.value = 'This queued edit changed. Close and reopen the note before saving.';
+          await loadDeferredEditQueue();
+        }
+      }
+    } finally {
+      if ( viewActive ) {
+        deferredPendingConceptId.value = '';
+      }
+    }
+  }
+
+  async function editCurrentConcept() {
+    const card = currentCard.value;
+
+    if ( !card || !canEditCurrentConcept.value ) {
+      return;
+    }
+
+    immediateEditError.value = '';
+    deferredStartPending.value = true;
+    session.pauseSession();
+
+    try {
+      const failure = await router.push({
+        name: 'concept-edit',
+        params: { conceptId: card.conceptId },
+        query: { study: '1' }
+      });
+
+      if ( failure && viewActive ) {
+        throw new Error( 'Editing could not be started. Try again.' );
+      }
+    } catch ( cause ) {
+      if ( viewActive ) {
+        immediateEditError.value = conceptLibraryErrorMessage( cause );
+        await session.resumeSession();
+      }
+    } finally {
+      if ( viewActive ) {
+        deferredStartPending.value = false;
       }
     }
   }
@@ -159,6 +279,7 @@ export function useStudyDeferredEdits( session ) {
   }
 
   return {
+    canEditCurrentConcept,
     canQueueCurrentConcept,
     currentConceptQueued,
     deferredEdits,
@@ -166,9 +287,18 @@ export function useStudyDeferredEdits( session ) {
     deferredLoading,
     deferredPendingConceptId,
     deferredStartPending,
+    immediateEditError,
+    noteError,
+    notePending,
+    noteTarget,
+    closeQueuedNote,
+    editCurrentConcept,
+    editCurrentNote,
     loadDeferredEditQueue,
     queueCurrentConcept,
+    openQueuedNote,
     removeQueuedConcept,
+    saveQueuedNote,
     startDeferredEditing
   };
 }

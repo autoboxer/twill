@@ -6,6 +6,7 @@ import { useRoute, useRouter } from 'vue-router';
 import CardQualityAction from '../components/CardQualityAction.vue';
 import ContentState from '../components/ContentState.vue';
 import DeferredEditQueue from '../components/DeferredEditQueue.vue';
+import DeferredEditNoteDialog from '../components/DeferredEditNoteDialog.vue';
 import ExplainResponse from '../components/ExplainResponse.vue';
 import ProblemResponse from '../components/ProblemResponse.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
@@ -125,15 +126,25 @@ const {
   focusFirstGradingAction
 } = useStudyFocus( session );
 const {
+  canEditCurrentConcept,
   deferredEdits,
   deferredError,
   deferredLoading,
   deferredPendingConceptId,
   deferredStartPending,
+  immediateEditError,
+  noteError,
+  notePending,
+  noteTarget,
+  closeQueuedNote,
+  editCurrentConcept,
+  editCurrentNote,
   currentConceptQueued,
   canQueueCurrentConcept,
   queueCurrentConcept,
   removeQueuedConcept,
+  openQueuedNote,
+  saveQueuedNote,
   startDeferredEditing
 } = useStudyDeferredEdits( session );
 
@@ -498,6 +509,16 @@ useStartupReady( initialLoading );
       variant="subtle"
     />
 
+    <UAlert
+      v-if="immediateEditError"
+      class="study-mode-error"
+      title="Editing could not be started"
+      :description="immediateEditError"
+      icon="i-lucide-circle-alert"
+      color="error"
+      variant="subtle"
+    />
+
     <ContentState
       v-if="initialLoading"
       kind="loading"
@@ -706,22 +727,33 @@ useStartupReady( initialLoading );
               :disabled="assessmentPending || gradingModePending || pretestPending || undoPending"
             />
 
-            <UTooltip :text="currentConceptQueued ? 'Queued for editing' : queueEditCommand.tooltip">
+            <UTooltip text="Edit now">
+              <UButton
+                leading-icon="i-lucide-pencil"
+                aria-label="Edit now"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                :disabled="!canEditCurrentConcept"
+                :loading="deferredStartPending"
+                @click="editCurrentConcept"
+              />
+            </UTooltip>
+
+            <UTooltip :text="currentConceptQueued ? 'Queued for editing · Edit note' : queueEditCommand.tooltip">
               <UButton
                 :leading-icon="currentConceptQueued
                   ? 'i-lucide-check'
                   : 'i-lucide-list-plus'"
-                :aria-label="currentConceptQueued ? 'Queued for editing' : 'Edit later'"
+                :aria-label="currentConceptQueued ? 'Edit queued note' : 'Edit later'"
                 color="neutral"
                 :variant="currentConceptQueued ? 'subtle' : 'ghost'"
                 size="sm"
                 class="study-edit-later"
-                :disabled="currentConceptQueued
-                  || deferredLoading
-                  || Boolean( deferredPendingConceptId )"
+                :disabled="actionsBlocked || deferredLoading || deferredStartPending || Boolean( deferredPendingConceptId )"
                 :loading="deferredPendingConceptId === currentCard.conceptId"
-                :aria-keyshortcuts="queueEditCommand.ariaKeyshortcuts"
-                @click="queueCurrentConcept"
+                :aria-keyshortcuts="currentConceptQueued ? undefined : queueEditCommand.ariaKeyshortcuts"
+                @click="currentConceptQueued ? editCurrentNote() : queueCurrentConcept()"
               />
             </UTooltip>
           </div>
@@ -1081,6 +1113,7 @@ useStartupReady( initialLoading );
           :pending-concept-id="deferredPendingConceptId"
           :starting="deferredStartPending"
           @remove="removeQueuedConcept"
+          @note="openQueuedNote"
           @start="startDeferredEditing"
         />
 
@@ -1104,6 +1137,7 @@ useStartupReady( initialLoading );
       :pending-concept-id="deferredPendingConceptId"
       :starting="deferredStartPending"
       @remove="removeQueuedConcept"
+      @note="openQueuedNote"
       @start="startDeferredEditing"
     />
     <StudySessionBuilder
@@ -1113,6 +1147,14 @@ useStartupReady( initialLoading );
       :replacing="hasCards && !isComplete"
       :start-session="startFocusedSession"
       @after:leave="focusCurrentState"
+    />
+
+    <DeferredEditNoteDialog
+      :target="noteTarget"
+      :pending="notePending"
+      :error="noteError"
+      @close="closeQueuedNote"
+      @save="saveQueuedNote"
     />
   </div>
 </template>
