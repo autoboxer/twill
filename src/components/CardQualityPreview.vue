@@ -8,6 +8,7 @@ import {
 } from '../composables/useConceptLibrary';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
 import { richDocumentHasContent } from '../rich-content/schema';
+import CardAnswerDetails from './CardAnswerDetails.vue';
 import ContentState from './ContentState.vue';
 import RichContentRenderer from './RichContentRenderer.vue';
 import StudyCardContent from './StudyCardContent.vue';
@@ -32,21 +33,6 @@ const formName = computed( () => card.value
   ? cardQualityFormName( card.value, card.value.content.prompt )
   : ''
 );
-const answerDetails = computed( () => {
-  if ( card.value?.typeAnswer ) {
-    return { label: 'Accepted answers', items: card.value.typeAnswer.acceptedAnswers };
-  }
-
-  if ( card.value?.explain ) {
-    return { label: 'Key points', items: card.value.explain.keyPoints };
-  }
-
-  if ( card.value?.problem ) {
-    return { label: 'Solution checkpoints', items: card.value.problem.checkpoints };
-  }
-
-  return null;
-});
 const feedbackDocuments = computed( () => [
   { label: 'Explanation and context', document: card.value?.content.feedback?.explanation },
   { label: 'Common mistakes', document: card.value?.content.feedback?.commonMistakes }
@@ -143,15 +129,7 @@ async function loadPreview() {
       <StudyCardContent :card="card" :media="media" :answer-revealed="revealed" />
 
       <template v-if="revealed">
-        <section v-if="answerDetails" class="quality-preview__details">
-          <h4>{{ answerDetails.label }}</h4>
-
-          <ol>
-            <li v-for="( detail, index ) in answerDetails.items" :key="index">
-              {{ detail }}
-            </li>
-          </ol>
-        </section>
+        <CardAnswerDetails :card="card" />
 
         <section
           v-for="document in feedbackDocuments"
@@ -200,13 +178,5 @@ async function loadPreview() {
 .quality-preview__details {
   display: grid;
   gap: 0.5rem;
-}
-
-.quality-preview__details ol {
-  display: grid;
-  gap: 0.35rem;
-  padding-left: 1.5rem;
-  list-style: decimal;
-  white-space: pre-wrap;
 }
 </style>

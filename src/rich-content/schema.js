@@ -7,6 +7,7 @@ import css from 'highlight.js/lib/languages/css';
 import javascript from 'highlight.js/lib/languages/javascript';
 import json from 'highlight.js/lib/languages/json';
 import markdown from 'highlight.js/lib/languages/markdown';
+import plaintext from 'highlight.js/lib/languages/plaintext';
 import python from 'highlight.js/lib/languages/python';
 import rust from 'highlight.js/lib/languages/rust';
 import sql from 'highlight.js/lib/languages/sql';
@@ -14,23 +15,13 @@ import typescript from 'highlight.js/lib/languages/typescript';
 import xml from 'highlight.js/lib/languages/xml';
 import { createLowlight } from 'lowlight';
 
+import { normalizeCodeLanguage } from './codeLanguages';
+
+import RichContentCodeBlock from '../components/RichContentCodeBlock.vue';
 import RichContentImage from '../components/RichContentImage.vue';
+import { imageDisplayWidth } from './images';
 
 export const RICH_CONTENT_SCHEMA_VERSION = 1;
-
-export const codeLanguageItems = [
-  { label: 'Automatic', value: 'auto' },
-  { label: 'Bash', value: 'bash' },
-  { label: 'CSS', value: 'css' },
-  { label: 'HTML / XML', value: 'xml' },
-  { label: 'JavaScript', value: 'javascript' },
-  { label: 'JSON', value: 'json' },
-  { label: 'Markdown', value: 'markdown' },
-  { label: 'Python', value: 'python' },
-  { label: 'Rust', value: 'rust' },
-  { label: 'SQL', value: 'sql' },
-  { label: 'TypeScript', value: 'typescript' }
-];
 
 const lowlight = createLowlight();
 
@@ -40,12 +31,21 @@ lowlight.register({
   javascript,
   json,
   markdown,
+  plaintext,
   python,
   rust,
   sql,
   typescript,
   xml
 });
+
+// Tiptap falls back to highlightAuto for unknown languages; keep that fallback plain
+const codeHighlighter = {
+  ...lowlight,
+  highlight: ( language, code ) => lowlight.highlight( normalizeCodeLanguage( language ), code ),
+  highlightAuto: code => lowlight.highlight( 'plaintext', code ),
+  registered: language => lowlight.registered( normalizeCodeLanguage( language ) )
+};
 
 const MediaImage = Node.create({
   name: 'mediaImage',
@@ -58,6 +58,7 @@ const MediaImage = Node.create({
     return {
       imageOcclusionDocument: null,
       imageOcclusionDisplay: null,
+      imageEditingEnabled: null,
       imageOcclusionEnabled: false
     };
   },
@@ -88,6 +89,13 @@ const MediaImage = Node.create({
       occlusionRegions: {
         default: [],
         rendered: false
+      },
+      width: {
+        default: null,
+        parseHTML: ( element ) => imageDisplayWidth( Number( element.getAttribute( 'data-width' ) ) ),
+        renderHTML: ( attributes ) => imageDisplayWidth( attributes.width )
+          ? { 'data-width': attributes.width }
+          : {}
       }
     };
   },
@@ -229,6 +237,8 @@ export function richDocumentHasContent( document ) {
 }
 
 export function createRichContentExtensions({
+  codeBlockEditingEnabled = null,
+  imageEditingEnabled = null,
   imageOcclusionDocument = null,
   imageOcclusionDisplay = null,
   imageOcclusionEnabled = false,
@@ -250,9 +260,20 @@ export function createRichContentExtensions({
     : undefined;
 
   return [
-    CodeBlockLowlight.configure({
-      defaultLanguage: null,
-      lowlight,
+    CodeBlockLowlight.extend({
+      addOptions() {
+        return {
+          ...this.parent?.(),
+          editingEnabled: codeBlockEditingEnabled
+        };
+      },
+
+      addNodeView() {
+        return codeBlockEditingEnabled ? VueNodeViewRenderer( RichContentCodeBlock ) : null;
+      }
+    }).configure({
+      defaultLanguage: 'plaintext',
+      lowlight: codeHighlighter,
       enableTabIndentation: false
     }),
     Mathematics.configure({
@@ -273,6 +294,7 @@ export function createRichContentExtensions({
     Cloze,
     ClozeBlank,
     MediaImage.configure({
+      imageEditingEnabled,
       imageOcclusionDocument,
       imageOcclusionDisplay,
       imageOcclusionEnabled
@@ -281,11 +303,7 @@ export function createRichContentExtensions({
 }
 
 export function highlightCode( code, language ) {
-  const highlighted = language && lowlight.registered( language )
-    ? lowlight.highlight( language, code )
-    : lowlight.highlightAuto( code );
-
-  return highlighted.children;
+  return codeHighlighter.highlight( language, code ).children;
 }
 
 export function richContentStarterKit( editable = true ) {

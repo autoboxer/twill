@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
+import { imageDisplayWidth } from '../rich-content/images';
 
 import {
   createImageOcclusionId,
@@ -26,6 +27,10 @@ const props = defineProps({
     type: String,
     required: true
   },
+  width: {
+    type: Number,
+    default: null
+  },
   newRegionGroupId: {
     type: String,
     default: ''
@@ -51,6 +56,7 @@ const props = defineProps({
 const emit = defineEmits([ 'update:regions', 'update:selectedRegionId' ]);
 
 const surface = ref( null );
+const displayWidth = computed( () => imageDisplayWidth( props.width ) );
 let pointerAction = null;
 
 const groupNumbers = computed( () => new Map(
@@ -338,8 +344,10 @@ function clamp( value, minimum, maximum ) {
     class="image-occlusion-canvas"
     :class="{
       'image-occlusion-canvas--editable': editable,
+      'image-occlusion-canvas--sized': displayWidth !== null,
       'image-occlusion-canvas--revealed': revealed
     }"
+    :style="displayWidth !== null ? { width: `${ displayWidth }px` } : undefined"
     @pointerdown="startPointerAction"
     @pointermove="updatePointerAction"
     @pointerup="finishPointerAction"

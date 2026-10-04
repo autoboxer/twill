@@ -1,13 +1,31 @@
 .concept-editor {
   display: grid;
-  width: min(100%, 56rem);
+  width: min(100%, 76rem);
   margin: 0 auto;
-  gap: 1.25rem;
+  gap: 0.65rem;
+}
+
+[data-twill-page="concept-editor"] > .page-header {
+  width: min(100%, 76rem);
+  margin-inline: auto;
+  padding-block: 0;
+}
+
+[data-twill-page="concept-editor"] > .page-header h1 {
+  font-size: 1rem;
+}
+
+[data-twill-page="concept-editor"] .page-header__leading {
+  flex-basis: auto;
+}
+
+.card-type-templates {
+  width: min(100%, 16rem);
 }
 
 .draft-persistence {
   display: grid;
-  width: min(100%, 56rem);
+  width: min(100%, 76rem);
   margin: 0 auto;
   gap: 0.75rem;
 }
@@ -92,11 +110,6 @@
   margin-bottom: 0.75rem;
   font-size: 0.9rem;
   font-weight: 650;
-}
-
-.editor-checkboxes {
-  display: grid;
-  gap: 0.5rem;
 }
 
 .retrieval-form-options {
@@ -223,6 +236,11 @@
   padding-top: 0.5rem;
 }
 
+.concept-detail-actions {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
 .dialog-actions--split > span {
   flex: 1;
 }
@@ -230,6 +248,175 @@
 .concept-content-editors {
   display: grid;
   gap: 1.5rem;
+}
+
+.concept-editor .editor-section {
+  padding: 0.65rem 0;
+  gap: 0.65rem;
+}
+
+.concept-editor .editor-section__heading {
+  align-items: center;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.card-type-options {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.card-type-options > div {
+  max-width: 100%;
+}
+
+.card-type-summary,
+.card-setup__navigation {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  color: var(--ui-text-muted);
+  font-size: 0.8rem;
+}
+
+.card-type-summary > :first-child {
+  color: var(--ui-text-highlighted);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-setup__steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.card-setup__steps button {
+  white-space: normal;
+  text-align: left;
+}
+
+.card-setup__count {
+  color: var(--ui-text-muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.card-setup__navigation {
+  justify-content: flex-end;
+}
+
+.card-setup__workspace {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+  align-items: start;
+}
+
+.concept-card-preview {
+  display: grid;
+  min-width: 0;
+  gap: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.concept-card-preview h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.concept-editor .concept-content-editors {
+  gap: 1rem;
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+}
+
+.concept-content-editors > .rich-editor-field {
+  grid-template-rows: auto 1fr;
+}
+
+.concept-content-editors .rich-editor,
+.concept-content-editors .rich-editor__surface,
+.concept-content-editors .rich-editor__surface [data-slot="content"] {
+  display: flex;
+  flex-direction: column;
+}
+
+.concept-content-editors .rich-editor__surface,
+.concept-content-editors .rich-editor__surface [data-slot="content"],
+.concept-content-editors .rich-editor__surface .ProseMirror {
+  flex: 1;
+}
+
+.concept-editor .rich-editor__surface [data-slot="content"],
+.concept-editor .rich-editor__surface .ProseMirror {
+  min-height: 8rem;
+}
+
+.concept-editor .rich-editor__surface .ProseMirror {
+  padding: 0.75rem;
+}
+
+.concept-editor .rich-editor__toolbar {
+  flex-wrap: wrap;
+}
+
+.concept-editor .rich-editor__formatting {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.concept-editor .rich-editor__formatting [role="group"] {
+  flex-wrap: wrap;
+}
+
+.concept-editor .rich-editor__toolbar button {
+  min-width: 1.9rem;
+  min-height: 1.9rem;
+}
+
+.concept-editor .type-answer-settings,
+.concept-editor .explain-settings,
+.concept-editor .problem-settings,
+.concept-editor .cloze-preview,
+.concept-editor .image-occlusion-preview {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+.concept-editor .editor-selection h3 {
+  margin-bottom: 0.4rem;
+}
+
+.concept-editor .editor-selection__empty {
+  padding: 0.5rem 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+@media (min-width: 1100px) {
+  .concept-editor .concept-content-editors,
+  .card-setup__workspace:has(> :nth-child(2)) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (pointer: coarse) {
+  .card-type-options [data-slot="item"] {
+    min-height: 2.5rem;
+    align-items: center;
+  }
+
+  .concept-editor .rich-editor__toolbar button {
+    min-width: 2.65rem;
+    min-height: 2.65rem;
+  }
 }
 
 .answer-feedback-section .editor-section__heading > button {

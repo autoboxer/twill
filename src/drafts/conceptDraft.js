@@ -34,6 +34,7 @@ export function createConceptEditorState( concept = null ) {
     typeAnswerAcceptedAnswers: typeAnswer?.typeAnswer?.acceptedAnswers.length
       ? [ ...typeAnswer.typeAnswer.acceptedAnswers ]
       : [ '' ],
+    typeAnswerInitialized: Boolean( typeAnswer ),
     title: concept?.title ?? ''
   };
 }
@@ -58,6 +59,9 @@ export function cloneConceptEditorState( state ) {
     retrievalFormIds: stringArray( state.retrievalFormIds ),
     tagIds: stringArray( state.tagIds ),
     typeAnswerAcceptedAnswers: stringArray( state.typeAnswerAcceptedAnswers, [ '' ]),
+    typeAnswerInitialized: state.typeAnswerInitialized === true
+      || stringArray( state.retrievalFormIds ).includes( 'type-answer' )
+      || stringArray( state.typeAnswerAcceptedAnswers ).some( ( answer ) => answer.trim() ),
     title: typeof state.title === 'string' ? state.title : ''
   };
 }
@@ -78,6 +82,7 @@ export function captureConceptEditorState( state ) {
     retrievalFormIds: [ ...state.retrievalFormIds ],
     tagIds: [ ...state.tagIds ],
     typeAnswerAcceptedAnswers: [ ...state.typeAnswerAcceptedAnswers ],
+    typeAnswerInitialized: state.typeAnswerInitialized,
     title: state.title
   };
 }

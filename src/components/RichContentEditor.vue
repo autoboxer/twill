@@ -4,13 +4,13 @@ import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useAuthoringMedia } from '../composables/useAuthoringMedia';
 import { isApplePlatform } from '../commands/registry';
+import { changeClozeOmissions, clozeEditingTarget } from '../cloze/editing';
 import {
   collectClozeGroups,
   createClozeGroupId,
   MAXIMUM_CLOZE_GROUPS
 } from '../cloze/documents';
 import {
-  codeLanguageItems,
   createRichContentExtensions,
   richContentStarterKit
 } from '../rich-content/schema';
@@ -47,13 +47,8 @@ const emit = defineEmits([ 'update:modelValue' ]);
 const authoringMedia = useAuthoringMedia();
 const applePlatform = isApplePlatform();
 
-const activeCodeLanguage = ref( 'auto' );
-const clozeDialogOpen = ref( false );
-const clozeExistingGroupId = ref( '' );
-const clozeGroupChoice = ref( 'new' );
-const clozeSelection = ref( null );
-const clozeSelectionAvailable = ref( false );
-const codeBlockActive = ref( false );
+const clozeMenuOpen = ref( false );
+const clozeTarget = shallowRef( null );
 const currentEditor = shallowRef( null );
 const fileInput = ref( null );
 const imageError = ref( '' );
@@ -115,7 +110,7 @@ watch( () => props.disabled, ( disabled ) => {
 
   if ( disabled ) {
     cancelImport();
-    clozeDialogOpen.value = false;
+    clozeMenuOpen.value = false;
     linkDialogOpen.value = false;
     mathDialogOpen.value = false;
   }
@@ -127,16 +122,21 @@ const document = computed({
 });
 
 const clozeGroups = computed( () => collectClozeGroups( document.value ) );
+const clozeActive = computed( () => Boolean( clozeTarget.value?.omissions.length ) );
+const clozeAtLimit = computed( () => clozeGroups.value.length >= MAXIMUM_CLOZE_GROUPS );
+const clozeToggleLabel = computed( () => clozeActive.value
+  ? 'Remove cloze omission'
+  : clozeAtLimit.value ? `Limit of ${ MAXIMUM_CLOZE_GROUPS } cloze cards reached` : 'Add cloze omission' );
 const clozeGroupItems = computed( () => {
   const items = clozeGroups.value.map( ( group, index ) => ({
     label: `Card ${ index + 1 } — ${ clozeGroupSummary( group ) }`,
-    value: group.id
+    onSelect: () => assignClozeGroup( group.id )
   }) );
 
   if ( clozeGroups.value.length < MAXIMUM_CLOZE_GROUPS ) {
     items.unshift({
-      label: 'New card',
-      value: 'new'
+      label: 'Separate card',
+      onSelect: () => assignClozeGroup( createClozeGroupId() )
     });
   }
 
@@ -144,6 +144,8 @@ const clozeGroupItems = computed( () => {
 });
 
 const extensions = createRichContentExtensions({
+  codeBlockEditingEnabled: () => !props.disabled,
+  imageEditingEnabled: () => !props.disabled,
   imageOcclusionDocument: () => document.value,
   imageOcclusionEnabled: () => props.imageOcclusionEnabled,
   onEditMath
@@ -337,15 +339,16 @@ const editorHandlers = {
 
 function syncEditorState({ editor }) {
   currentEditor.value = editor;
-  codeBlockActive.value = editor.isActive( 'codeBlock' );
-  activeCodeLanguage.value = editor.getAttributes( 'codeBlock' ).language ?? 'auto';
-
-  const { from, to } = editor.state.selection;
-  const selectedText = editor.state.doc.textBetween( from, to, ' ' );
-
-  clozeSelectionAvailable.value = editor.isActive( 'cloze' )
-    || Boolean( selectedText.trim() );
+  clozeTarget.value = props.clozeEnabled ? clozeEditingTarget( editor ) : null;
 }
+
+watch( () => props.clozeEnabled, () => {
+  clozeMenuOpen.value = false;
+
+  if ( currentEditor.value ) {
+    syncEditorState({ editor: currentEditor.value });
+  }
+});
 
 function clozeGroupSummary( group ) {
   const summary = group.passages.join( ' + ' );
@@ -356,73 +359,29 @@ function clozeGroupSummary( group ) {
     : summary;
 }
 
-function openClozeDialog( editor ) {
-  currentEditor.value = editor;
-
-  if ( editor.isActive( 'cloze' ) ) {
-    editor.chain().focus().extendMarkRange( 'cloze' ).run();
-  }
-
-  const { from, to } = editor.state.selection;
-  const selectedText = editor.state.doc.textBetween( from, to, ' ' );
-
-  if ( from === to || !selectedText.trim() ) {
+function toggleCloze( editor ) {
+  if ( props.disabled || !props.clozeEnabled ) {
     return;
   }
 
-  clozeSelection.value = { from, to };
-  clozeExistingGroupId.value = editor.getAttributes( 'cloze' ).groupId ?? '';
-  clozeGroupChoice.value = clozeExistingGroupId.value
-    || clozeGroupItems.value[ 0 ]?.value
-    || '';
-  clozeDialogOpen.value = true;
+  const target = clozeEditingTarget( editor );
+
+  if ( target?.omissions.length ) {
+    changeClozeOmissions( editor, target );
+  } else if ( !clozeAtLimit.value ) {
+    changeClozeOmissions( editor, target, createClozeGroupId() );
+  }
 }
 
-function applyCloze() {
-  if ( !currentEditor.value || !clozeSelection.value || !clozeGroupChoice.value ) {
+function assignClozeGroup( groupId ) {
+  const editor = currentEditor.value;
+
+  if ( !editor || props.disabled || !props.clozeEnabled
+    || ( clozeAtLimit.value && !clozeGroups.value.some( group => group.id === groupId ) ) ) {
     return;
   }
 
-  const groupId = clozeGroupChoice.value === 'new'
-    ? createClozeGroupId()
-    : clozeGroupChoice.value;
-
-  currentEditor.value
-    .chain()
-    .focus()
-    .setTextSelection( clozeSelection.value )
-    .unsetMark( 'cloze' )
-    .setMark( 'cloze', { groupId })
-    .run();
-
-  clozeDialogOpen.value = false;
-}
-
-function removeCloze() {
-  if ( !currentEditor.value || !clozeSelection.value ) {
-    return;
-  }
-
-  currentEditor.value
-    .chain()
-    .focus()
-    .setTextSelection( clozeSelection.value )
-    .unsetMark( 'cloze' )
-    .run();
-
-  clozeDialogOpen.value = false;
-}
-
-function setCodeLanguage( editor, language ) {
-  editor
-    .chain()
-    .focus()
-    .updateAttributes( 'codeBlock', {
-      language: language === 'auto' ? null : language
-    })
-    .run();
-
-  activeCodeLanguage.value = language;
+  changeClozeOmissions( editor, clozeEditingTarget( editor ), groupId );
 }
 
 function openLinkDialog( editor ) {
@@ -626,7 +585,7 @@ async function insertImage( event ) {
         :handlers="editorHandlers"
         :image="false"
         :mention="false"
-        :placeholder="placeholder"
+        :placeholder="{ placeholder, mode: 'firstLine' }"
         :starter-kit="starterKit"
         content-type="json"
         class="rich-editor__surface"
@@ -638,68 +597,76 @@ async function insertImage( event ) {
           <div class="rich-editor__toolbar">
             <UEditorToolbar
               :editor="editor"
-              :items="toolbarItems"
+              :items="[ ...toolbarItems, [{ slot: 'inserts' }] ]"
               size="sm"
               class="rich-editor__formatting"
-            />
+            >
+              <template #inserts>
+                <UTooltip text="Equation">
+                  <UButton
+                    type="button"
+                    icon="i-lucide-sigma"
+                    aria-label="Add equation"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    :disabled="disabled"
+                    @click="openMathDialog( editor )"
+                  />
+                </UTooltip>
 
-            <div class="rich-editor__inserts">
-              <USelect
-                v-if="codeBlockActive"
-                :model-value="activeCodeLanguage"
-                :items="codeLanguageItems"
-                value-key="value"
-                aria-label="Code language"
-                leading-icon="i-lucide-braces"
-                size="sm"
-                class="rich-editor__language"
-                :disabled="disabled"
-                @update:model-value="setCodeLanguage( editor, $event )"
-              />
+                <UTooltip
+                  v-if="clozeEnabled"
+                  :text="clozeToggleLabel"
+                >
+                  <UButton
+                    type="button"
+                    icon="i-lucide-text-select"
+                    aria-label="Cloze omission"
+                    :aria-pressed="clozeActive"
+                    :color="clozeActive ? 'primary' : 'neutral'"
+                    :variant="clozeActive ? 'subtle' : 'ghost'"
+                    size="sm"
+                    :disabled="disabled || !clozeTarget || ( clozeAtLimit && !clozeActive )"
+                    @click="toggleCloze( editor )"
+                  />
+                </UTooltip>
 
-              <UTooltip text="Equation">
-                <UButton
-                  type="button"
-                  icon="i-lucide-sigma"
-                  aria-label="Add equation"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  :disabled="disabled"
-                  @click="openMathDialog( editor )"
-                />
-              </UTooltip>
+                <UDropdownMenu
+                  v-if="clozeEnabled"
+                  v-model:open="clozeMenuOpen"
+                  :items="clozeGroupItems"
+                  :content="{ align: 'start' }"
+                >
+                  <UTooltip text="Hide together on a card">
+                    <UButton
+                      type="button"
+                      icon="i-lucide-chevron-down"
+                      aria-label="Group cloze omissions"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      :disabled="disabled || !clozeTarget || !clozeGroups.length"
+                    />
+                  </UTooltip>
+                </UDropdownMenu>
 
-              <UTooltip
-                v-if="clozeEnabled"
-                text="Cloze omission"
-              >
-                <UButton
-                  type="button"
-                  icon="i-lucide-text-select"
-                  aria-label="Mark cloze omission"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  :disabled="disabled || !clozeSelectionAvailable"
-                  @click="openClozeDialog( editor )"
-                />
-              </UTooltip>
-
-              <UTooltip text="Image">
-                <UButton
-                  type="button"
-                  icon="i-lucide-image-plus"
-                  aria-label="Add image"
-                  color="neutral"
-                  variant="ghost"
-                  size="sm"
-                  :disabled="disabled || imageImporting"
-                  :loading="imageImporting"
-                  @click="chooseImage( editor )"
-                />
-              </UTooltip>
-            </div>
+                <UTooltip text="Image">
+                  <UButton
+                    type="button"
+                    icon="i-lucide-image-plus"
+                    aria-label="Add image"
+                    :label="imageOcclusionEnabled ? 'Choose image' : undefined"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    :disabled="disabled || imageImporting"
+                    :loading="imageImporting"
+                    @click="chooseImage( editor )"
+                  />
+                </UTooltip>
+              </template>
+            </UEditorToolbar>
           </div>
         </template>
       </UEditor>
@@ -713,59 +680,15 @@ async function insertImage( event ) {
         :disabled="disabled || imageImporting"
         @change="insertImage"
       >
+
+      <p
+        v-if="imageError"
+        class="rich-editor-field__error"
+        role="alert"
+      >
+        {{ imageError }}
+      </p>
     </div>
-
-    <p
-      v-if="imageError"
-      class="rich-editor-field__error"
-      role="alert"
-    >
-      {{ imageError }}
-    </p>
-
-    <UModal
-      v-model:open="clozeDialogOpen"
-      :title="clozeExistingGroupId ? 'Edit omission' : 'Add omission'"
-      description="Each card hides every passage assigned to its group."
-    >
-      <template #body>
-        <UFormField label="Card">
-          <USelect
-            v-model="clozeGroupChoice"
-            :items="clozeGroupItems"
-            value-key="value"
-            class="w-full"
-          />
-        </UFormField>
-      </template>
-
-      <template #footer>
-        <div class="dialog-actions dialog-actions--split">
-          <UButton
-            v-if="clozeExistingGroupId"
-            color="error"
-            variant="ghost"
-            @click="removeCloze"
-          >
-            Remove omission
-          </UButton>
-
-          <span />
-
-          <UButton
-            color="neutral"
-            variant="link"
-            @click="clozeDialogOpen = false"
-          >
-            Cancel
-          </UButton>
-
-          <UButton @click="applyCloze">
-            {{ clozeExistingGroupId ? 'Save' : 'Add' }}
-          </UButton>
-        </div>
-      </template>
-    </UModal>
 
     <UModal
       v-model:open="linkDialogOpen"
