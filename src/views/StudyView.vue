@@ -7,7 +7,6 @@ import CardQualityAction from '../components/CardQualityAction.vue';
 import ContentState from '../components/ContentState.vue';
 import DeferredEditQueue from '../components/DeferredEditQueue.vue';
 import ExplainResponse from '../components/ExplainResponse.vue';
-import PageHeader from '../components/PageHeader.vue';
 import ProblemResponse from '../components/ProblemResponse.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
@@ -74,7 +73,6 @@ const {
   masteryRecalledCount,
   masteryStarted,
   masteryTotal,
-  matchingDueCards,
   mixedPracticeEnabled,
   nextDueAt,
   navigationNotice,
@@ -195,7 +193,7 @@ const masteryOptions = computed( () => [
     icon: 'i-lucide-rotate-ccw',
     outcome: 'missed',
     recalled: false,
-    variant: 'soft'
+    variant: 'subtle'
   },
 
   {
@@ -204,7 +202,7 @@ const masteryOptions = computed( () => [
     icon: 'i-lucide-check',
     outcome: 'recalled',
     recalled: true,
-    variant: 'solid'
+    variant: 'subtle'
   }
 ].map( ( option ) => ({
   ...option,
@@ -232,32 +230,24 @@ const visibleProgress = computed( () => {
   return visibleCompletedCount.value / visibleTotalCards.value * 100;
 });
 
-const revealActionCopy = computed( () => {
-  if ( pretestActive.value ) {
-    return 'Make your best attempt, then inspect the answer. This does not affect scheduling.';
+const progressLabel = computed( () => {
+  if ( isComplete.value ) {
+    return 'Complete';
   }
 
-  if ( typeAnswerSettings.value ) {
-    return 'Enter an answer before checking it.';
+  if ( masteryReady.value ) {
+    return 'Mastery round ready';
   }
 
-  if ( explainSettings.value ) {
-    return 'Use the scratchpad if useful, then compare your explanation.';
+  if ( masteryActive.value ) {
+    return `Retry ${ masteryCompletedCount.value + 1 } / ${ masteryTotal.value }`;
   }
 
-  if ( problemSettings.value ) {
-    return 'Use the workpad if useful, then check the solution.';
+  if ( pretestActive.value || pretestTeachingActive.value ) {
+    return `Pretest ${ position.value } / ${ totalCards.value }`;
   }
 
-  if ( currentCard.value?.retrievalKind === 'cloze' ) {
-    return 'Recall the missing text before revealing the answer.';
-  }
-
-  if ( currentCard.value?.retrievalKind === 'imageOcclusion' ) {
-    return 'Recall what is hidden before revealing the answer.';
-  }
-
-  return 'Attempt the prompt before revealing the answer.';
+  return `Card ${ position.value } / ${ totalCards.value }`;
 });
 
 const revealActionLabel = computed( () => {
@@ -274,14 +264,6 @@ const revealActionLabel = computed( () => {
   }
 
   return 'Reveal answer';
-});
-
-const assessmentActionCopy = computed( () => {
-  if ( problemSettings.value ) {
-    return 'How did the problem-solving attempt go?';
-  }
-
-  return 'How did the recall attempt go?';
 });
 
 const sessionResultItems = computed( () => {
@@ -414,8 +396,15 @@ useStartupReady( initialLoading );
     class="page study-page"
     data-twill-page="study"
   >
-    <PageHeader title="Study">
-      <template #actions>
+    <header class="study-toolbar">
+      <div class="study-toolbar__summary">
+        <h1>Study</h1>
+        <span v-if="hasCards && !initialLoading && !loadError && !sessionEnded">
+          {{ progressLabel }}
+        </span>
+      </div>
+
+      <div class="study-toolbar__actions">
         <div
           class="grading-mode-control"
           :title="gradingModeLocked
@@ -438,36 +427,38 @@ useStartupReady( initialLoading );
           />
         </div>
 
-        <UButton
-          leading-icon="i-lucide-list-filter"
-          color="neutral"
-          variant="subtle"
-          :disabled="builderDisabled"
-          @click="openBuilder"
-        >
-          Build session
-        </UButton>
+        <UTooltip text="Build session">
+          <UButton
+            leading-icon="i-lucide-list-filter"
+            aria-label="Build session"
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            :disabled="builderDisabled"
+            @click="openBuilder"
+          />
+        </UTooltip>
 
         <UButton
           :to="{ name: 'library' }"
           leading-icon="i-lucide-library"
           color="neutral"
           variant="link"
+          size="sm"
         >
           Library
         </UButton>
-      </template>
-    </PageHeader>
-
-    <StudySessionControls
-      v-if="hasCards && !initialLoading && !loadError"
-      :busy="builderDisabled"
-      :complete="isComplete"
-      :paused="sessionPaused"
-      @pause="pauseSession"
-      @resume="resumeSession"
-      @end="endSession"
-    />
+        <StudySessionControls
+          v-if="hasCards && !initialLoading && !loadError && !sessionEnded"
+          :busy="builderDisabled"
+          :complete="isComplete"
+          :paused="sessionPaused"
+          @pause="pauseSession"
+          @resume="resumeSession"
+          @end="endSession"
+        />
+      </div>
+    </header>
 
     <UAlert
       v-if="navigationNotice && sessionBusy"
@@ -476,16 +467,6 @@ useStartupReady( initialLoading );
       color="neutral"
       variant="subtle"
       role="status"
-    />
-
-    <UAlert
-      v-if="focusedSession && !initialLoading && !loadError && !sessionEnded"
-      class="study-mode-error"
-      title="Focused session"
-      :description="`${ selectedCardCount } of ${ matchingDueCards } matching due cards selected. Only this selection is included.`"
-      icon="i-lucide-list-filter"
-      color="neutral"
-      variant="subtle"
     />
 
     <UAlert
@@ -562,8 +543,8 @@ useStartupReady( initialLoading );
 
     <ContentState
       v-else-if="sessionPaused"
-      title="Session paused"
-      :description="`${visibleCompletedCount} of ${visibleTotalCards} ${masteryPhase ? 'retries' : 'cards'} completed. Your place and responses are kept while Twill is open. Completed reviews survive app restarts.`"
+      title="Paused"
+      :description="`${ visibleCompletedCount } / ${ visibleTotalCards } ${ masteryPhase ? 'retries' : 'cards' } completed`"
     />
 
     <ContentState
@@ -626,30 +607,6 @@ useStartupReady( initialLoading );
       <div class="study-progress">
         <div class="study-progress__row">
           <div class="study-progress__copy">
-            <div class="study-progress__primary">
-              <span v-if="isComplete">Session complete</span>
-              <span v-else-if="masteryReady">Mastery round ready</span>
-              <span v-else-if="masteryActive">
-                Retry {{ masteryCompletedCount + 1 }} of {{ masteryTotal }}
-              </span>
-              <span v-else-if="pretestActive || pretestTeachingActive">
-                Pretest {{ position }} of {{ totalCards }}
-              </span>
-              <span v-else>Card {{ position }} of {{ totalCards }}</span>
-
-              <span
-                v-if="mixedPracticeEnabled"
-                class="study-progress__mode"
-                title="This session mixes small groups of due cards using concept, retrieval form, learning state, and shared-tag signals."
-              >
-                <UIcon
-                  name="i-lucide-shuffle"
-                  aria-hidden="true"
-                />
-                Mixed practice
-              </span>
-            </div>
-
             <span v-if="masteryReady">
               {{ masteryTotal }} {{ masteryTotal === 1 ? 'retry' : 'retries' }}
             </span>
@@ -662,23 +619,38 @@ useStartupReady( initialLoading );
             >
               {{ completedCount }} completed
             </span>
+
+            <span v-if="focusedSession">{{ selectedCardCount }} selected</span>
+
+            <span
+              v-if="mixedPracticeEnabled"
+              class="study-progress__mode"
+              title="Practise different topics and card types together."
+            >
+              <UIcon name="i-lucide-shuffle" aria-hidden="true" />
+              Mixed practice
+            </span>
+
+            <span v-if="deferredEdits.length" class="study-progress__queued" role="status">
+              <UIcon name="i-lucide-list-checks" aria-hidden="true" />
+              {{ deferredEdits.length }} queued {{ deferredEdits.length === 1 ? 'edit' : 'edits' }}
+            </span>
           </div>
 
-          <UButton
-            v-if="canUndoLastGrade || undoPending"
-            leading-icon="i-lucide-undo-2"
-            color="neutral"
-            variant="subtle"
-            size="md"
-            class="study-progress__undo"
-            :disabled="!canUndoLastGrade"
-            :loading="undoPending"
-            :aria-keyshortcuts="undoCommand.ariaKeyshortcuts"
-            :title="undoCommand.tooltip"
-            @click="undoLastGrade"
-          >
-            Undo last grade
-          </UButton>
+          <UTooltip v-if="canUndoLastGrade || undoPending" :text="undoCommand.tooltip">
+            <UButton
+              leading-icon="i-lucide-undo-2"
+              aria-label="Undo last grade"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              class="study-progress__undo"
+              :disabled="!canUndoLastGrade"
+              :loading="undoPending"
+              :aria-keyshortcuts="undoCommand.ariaKeyshortcuts"
+              @click="undoLastGrade"
+            />
+          </UTooltip>
         </div>
 
         <div
@@ -703,18 +675,6 @@ useStartupReady( initialLoading );
         :description="recoveryError"
         icon="i-lucide-circle-alert"
         color="error"
-        variant="subtle"
-      />
-
-      <UAlert
-        v-if="deferredEdits.length && !isComplete"
-        class="study-deferred-notice"
-        :title="`${ deferredEdits.length } ${ deferredEdits.length === 1
-          ? 'concept'
-          : 'concepts' } queued for editing`"
-        description="Queued edits will be ready when this study session ends."
-        icon="i-lucide-list-checks"
-        color="neutral"
         variant="subtle"
       />
 
@@ -746,24 +706,24 @@ useStartupReady( initialLoading );
               :disabled="assessmentPending || gradingModePending || pretestPending || undoPending"
             />
 
-            <UButton
-              :leading-icon="currentConceptQueued
-                ? 'i-lucide-check'
-                : 'i-lucide-list-plus'"
-              color="neutral"
-              :variant="currentConceptQueued ? 'subtle' : 'link'"
-              size="sm"
-              class="study-edit-later"
-              :disabled="currentConceptQueued
-                || deferredLoading
-                || Boolean( deferredPendingConceptId )"
-              :loading="deferredPendingConceptId === currentCard.conceptId"
-              :aria-keyshortcuts="queueEditCommand.ariaKeyshortcuts"
-              :title="queueEditCommand.tooltip"
-              @click="queueCurrentConcept"
-            >
-              {{ currentConceptQueued ? 'Queued' : 'Edit later' }}
-            </UButton>
+            <UTooltip :text="currentConceptQueued ? 'Queued for editing' : queueEditCommand.tooltip">
+              <UButton
+                :leading-icon="currentConceptQueued
+                  ? 'i-lucide-check'
+                  : 'i-lucide-list-plus'"
+                :aria-label="currentConceptQueued ? 'Queued for editing' : 'Edit later'"
+                color="neutral"
+                :variant="currentConceptQueued ? 'subtle' : 'ghost'"
+                size="sm"
+                class="study-edit-later"
+                :disabled="currentConceptQueued
+                  || deferredLoading
+                  || Boolean( deferredPendingConceptId )"
+                :loading="deferredPendingConceptId === currentCard.conceptId"
+                :aria-keyshortcuts="queueEditCommand.ariaKeyshortcuts"
+                @click="queueCurrentConcept"
+              />
+            </UTooltip>
           </div>
         </header>
 
@@ -842,13 +802,12 @@ useStartupReady( initialLoading );
             key="reveal"
             class="study-actions"
           >
-            <p>{{ revealActionCopy }}</p>
-
             <div class="study-actions__primary">
               <UButton
                 ref="revealButton"
                 leading-icon="i-lucide-eye"
-                size="lg"
+                size="sm"
+                variant="subtle"
                 :disabled="!canRevealAnswer || pretestPending"
                 :loading="pretestPending
                   && pendingPretestOutcome === 'attempted'"
@@ -863,7 +822,7 @@ useStartupReady( initialLoading );
                 v-if="pretestActive"
                 color="neutral"
                 variant="link"
-                size="lg"
+                size="sm"
                 :disabled="pretestPending"
                 :loading="pretestPending
                   && pendingPretestOutcome === 'skipped'"
@@ -879,15 +838,10 @@ useStartupReady( initialLoading );
             key="feedback"
             class="study-actions"
           >
-            <p>
-              {{ pretestTeachingActive
-                ? 'Review the answer and feedback before continuing.'
-                : 'Review the feedback before grading.' }}
-            </p>
-
             <UButton
               leading-icon="i-lucide-arrow-right"
-              size="lg"
+              size="sm"
+              variant="subtle"
               @click="continueToGrading"
             >
               {{ pretestTeachingActive ? 'Continue' : 'Continue to grading' }}
@@ -907,7 +861,8 @@ useStartupReady( initialLoading );
 
             <UButton
               leading-icon="i-lucide-arrow-right"
-              size="lg"
+              size="sm"
+              variant="subtle"
               @click="finishCurrentPretest"
             >
               Continue
@@ -921,8 +876,6 @@ useStartupReady( initialLoading );
             key="mastery"
             class="study-actions study-actions--assessment"
           >
-            <p>Did you recall it this time?</p>
-
             <div class="study-actions__buttons">
               <UButton
                 v-for="option in masteryOptions"
@@ -935,7 +888,7 @@ useStartupReady( initialLoading );
                   && pendingAssessment === option.outcome"
                 :aria-keyshortcuts="option.command.ariaKeyshortcuts"
                 :title="option.command.tooltip"
-                size="lg"
+                size="sm"
                 class="study-grade-button"
                 @click="recordMasteryAssessment( option.recalled )"
               >
@@ -958,8 +911,6 @@ useStartupReady( initialLoading );
             key="assess"
             class="study-actions study-actions--assessment"
           >
-            <p>{{ assessmentActionCopy }}</p>
-
             <div class="study-actions__buttons">
               <UButton
                 v-for="option in gradingOptions"
@@ -971,7 +922,7 @@ useStartupReady( initialLoading );
                 :loading="assessmentPending && pendingAssessment === option.rating"
                 :aria-keyshortcuts="option.command.ariaKeyshortcuts"
                 :title="option.command.tooltip"
-                size="lg"
+                size="sm"
                 class="study-grade-button"
                 @click="recordAssessment( option.rating )"
               >

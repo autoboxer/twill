@@ -12,7 +12,7 @@ export const gradingOptionsByMode = {
       commandId: COMMAND_IDS.studyGradeSimpleForgot,
       icon: 'i-lucide-rotate-ccw',
       rating: 'again',
-      variant: 'soft'
+      variant: 'subtle'
     },
 
     {
@@ -20,7 +20,7 @@ export const gradingOptionsByMode = {
       commandId: COMMAND_IDS.studyGradeSimpleRemembered,
       icon: 'i-lucide-check',
       rating: 'good',
-      variant: 'solid'
+      variant: 'subtle'
     }
   ],
   advanced: [
@@ -29,7 +29,7 @@ export const gradingOptionsByMode = {
       commandId: COMMAND_IDS.studyGradeAdvancedAgain,
       icon: 'i-lucide-rotate-ccw',
       rating: 'again',
-      variant: 'soft'
+      variant: 'subtle'
     },
 
     {
@@ -37,7 +37,7 @@ export const gradingOptionsByMode = {
       commandId: COMMAND_IDS.studyGradeAdvancedHard,
       icon: 'i-lucide-gauge',
       rating: 'hard',
-      variant: 'soft'
+      variant: 'subtle'
     },
 
     {
@@ -45,7 +45,7 @@ export const gradingOptionsByMode = {
       commandId: COMMAND_IDS.studyGradeAdvancedGood,
       icon: 'i-lucide-check',
       rating: 'good',
-      variant: 'soft'
+      variant: 'subtle'
     },
 
     {
@@ -53,7 +53,7 @@ export const gradingOptionsByMode = {
       commandId: COMMAND_IDS.studyGradeAdvancedEasy,
       icon: 'i-lucide-sparkles',
       rating: 'easy',
-      variant: 'soft'
+      variant: 'subtle'
     }
   ]
 };

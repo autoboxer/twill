@@ -198,8 +198,7 @@
   }
 
   .grading-mode-control {
-    flex: 1 1 12rem;
-    justify-content: space-between;
+    flex: 0 1 auto;
   }
 
   .grading-mode-control__select {
@@ -211,30 +210,9 @@
     gap: 0.75rem;
   }
 
-  .study-progress__row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .study-progress__undo {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .study-card,
-  .study-complete {
-    min-height: 0;
-    border-radius: 0.65rem;
-  }
-
   .study-card__header {
-    padding: 1rem;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 0.75rem;
-  }
-
-  .study-card__body {
-    padding: 1.5rem 1rem;
   }
 
   .study-card .rich-content-renderer .ProseMirror {
@@ -260,13 +238,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .study-card__footer {
-    padding: 1rem;
-  }
-
   .study-actions {
-    align-items: stretch;
-    flex-direction: column;
+    flex-wrap: wrap;
     gap: 0.85rem;
   }
 
@@ -274,25 +247,14 @@
     text-align: center;
   }
 
-  .study-actions > :last-child:not(.study-actions__buttons, .study-actions__primary) {
-    width: 100%;
-    justify-content: center;
-  }
-
   .study-actions__buttons {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    width: 100%;
+    width: min(100%, 22rem);
   }
 
   .study-actions__primary {
-    width: 100%;
-    flex-direction: column;
-  }
-
-  .study-actions__primary > * {
-    width: 100%;
-    justify-content: center;
+    flex-wrap: wrap;
   }
 
   .study-actions__buttons > * {
@@ -301,10 +263,15 @@
 
   .study-grade-button {
     min-width: 0;
+    min-height: 2.75rem;
+  }
+
+  .study-grade-button__shortcut {
+    display: none;
   }
 
   .study-complete {
-    padding: 2.5rem 1rem;
+    padding: 1.25rem 0;
   }
 
   .study-complete__actions {
@@ -496,12 +463,6 @@
     grid-column: 2;
     justify-content: flex-start;
     margin-left: -0.75rem;
-  }
-}
-
-@media (max-width: 360px) {
-  .study-actions__buttons {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 

@@ -13,20 +13,22 @@ const endOpen = ref( false );
 
 <template>
   <div class="study-session-controls">
-    <UButton
-      v-if="!complete"
-      :leading-icon="paused ? 'i-lucide-play' : 'i-lucide-pause'"
-      color="neutral"
-      variant="subtle"
-      :disabled="busy"
-      @click="emit(paused ? 'resume' : 'pause')"
-    >
-      {{ paused ? 'Resume session' : 'Pause session' }}
-    </UButton>
+    <UTooltip v-if="!complete" :text="paused ? 'Resume session' : 'Pause session'">
+      <UButton
+        :leading-icon="paused ? 'i-lucide-play' : 'i-lucide-pause'"
+        :aria-label="paused ? 'Resume session' : 'Pause session'"
+        color="neutral"
+        variant="ghost"
+        size="sm"
+        :disabled="busy"
+        @click="emit( paused ? 'resume' : 'pause' )"
+      />
+    </UTooltip>
 
     <UButton
       color="neutral"
       variant="link"
+      size="sm"
       :disabled="busy"
       @click="endOpen = true"
     >
@@ -36,7 +38,7 @@ const endOpen = ref( false );
     <UModal
       v-model:open="endOpen"
       title="End this session?"
-      description="Unfinished responses and session progress will be discarded. Completed reviews and pretests remain saved."
+      description="Unfinished responses and session progress will be discarded."
       :ui="{ overlay: 'z-70', content: 'z-71 rounded-md' }"
     >
       <template #footer>
@@ -61,10 +63,7 @@ const endOpen = ref( false );
 <style scoped>
 .study-session-controls {
   display: flex;
-  width: min(100%, 60rem);
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  margin: 0 auto 1rem;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 0.25rem;
 }
 </style>
