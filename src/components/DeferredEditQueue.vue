@@ -55,7 +55,6 @@ function targetDetails( status ) {
     <header>
       <div>
         <h3>Queued edits</h3>
-        <p>Concepts are handled in the order they were queued.</p>
       </div>
 
       <span>{{ items.length }}</span>

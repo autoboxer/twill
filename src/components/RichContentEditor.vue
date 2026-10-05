@@ -3,7 +3,8 @@ import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue
 
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useAuthoringMedia } from '../composables/useAuthoringMedia';
-import { isApplePlatform } from '../commands/registry';
+import { useCommands } from '../composables/useCommands';
+import { COMMAND_IDS, isApplePlatform } from '../commands/registry';
 import { changeClozeOmissions, clozeEditingTarget } from '../cloze/editing';
 import {
   collectClozeGroups,
@@ -46,10 +47,12 @@ const emit = defineEmits([ 'update:modelValue' ]);
 
 const authoringMedia = useAuthoringMedia();
 const applePlatform = isApplePlatform();
+const commands = useCommands();
 
 const clozeMenuOpen = ref( false );
 const clozeTarget = shallowRef( null );
 const currentEditor = shallowRef( null );
+const editorFocused = ref( false );
 const fileInput = ref( null );
 const imageError = ref( '' );
 const imageImporting = ref( false );
@@ -127,6 +130,24 @@ const clozeAtLimit = computed( () => clozeGroups.value.length >= MAXIMUM_CLOZE_G
 const clozeToggleLabel = computed( () => clozeActive.value
   ? 'Remove cloze omission'
   : clozeAtLimit.value ? `Limit of ${ MAXIMUM_CLOZE_GROUPS } cloze cards reached` : 'Add cloze omission' );
+const clozeCommand = computed( () => commands.command( COMMAND_IDS.conceptToggleCloze ) );
+
+watch( () => props.clozeEnabled, ( enabled, previous, onCleanup ) => {
+  if ( !enabled ) {
+    return;
+  }
+
+  const unregister = commands.register( COMMAND_IDS.conceptToggleCloze, {
+    enabled: computed( () => (
+      editorFocused.value && !props.disabled && Boolean( clozeTarget.value )
+      && ( clozeActive.value || !clozeAtLimit.value )
+    ) ),
+    execute: () => toggleCloze( currentEditor.value )
+  });
+
+  onCleanup( unregister );
+}, { immediate: true });
+
 const clozeGroupItems = computed( () => {
   const items = clozeGroups.value.map( ( group, index ) => ({
     label: `Card ${ index + 1 } — ${ clozeGroupSummary( group ) }`,
@@ -574,6 +595,8 @@ async function insertImage( event ) {
 
     <div
       class="rich-editor"
+      @focusin="editorFocused = true"
+      @focusout="editorFocused = $event.currentTarget.contains( $event.relatedTarget )"
       @keydown="preserveHistoryBoundary"
       @beforeinput="preserveHistoryBoundary"
     >
@@ -617,12 +640,13 @@ async function insertImage( event ) {
 
                 <UTooltip
                   v-if="clozeEnabled"
-                  :text="clozeToggleLabel"
+                  :text="`${ clozeToggleLabel } (${ clozeCommand.shortcutLabel })`"
                 >
                   <UButton
                     type="button"
                     icon="i-lucide-text-select"
                     aria-label="Cloze omission"
+                    :aria-keyshortcuts="clozeCommand.ariaKeyshortcuts"
                     :aria-pressed="clozeActive"
                     :color="clozeActive ? 'primary' : 'neutral'"
                     :variant="clozeActive ? 'subtle' : 'ghost'"

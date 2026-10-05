@@ -186,15 +186,9 @@ const completedReviewCount = computed( () => (
 ) );
 
 const completionDescription = computed( () => {
-  if ( completedReviewCount.value && pretestTotal.value ) {
-    return 'Reviews and pretests saved locally.';
-  }
-
-  if ( pretestTotal.value ) {
-    return 'Pretests saved locally. Attempted concepts will return as ordinary reviews next time.';
-  }
-
-  return 'Reviews saved locally.';
+  return pretestAttemptedCount.value
+    ? 'Attempted concepts will return as ordinary reviews in a later session.'
+    : '';
 });
 
 const masteryOptions = computed( () => [
@@ -492,7 +486,7 @@ useStartupReady( initialLoading );
     <UAlert
       v-if="sessionResumeNotice"
       class="study-mode-error"
-      title="Study session restored"
+      title="Session updated"
       :description="sessionResumeNotice"
       icon="i-lucide-history"
       color="primary"
@@ -553,7 +547,6 @@ useStartupReady( initialLoading );
     <ContentState
       v-else-if="sessionEnded"
       title="Session ended"
-      description="Completed reviews and pretests remain saved. Start another session when you're ready."
     >
       <template #actions>
         <UButton variant="subtle" :disabled="sessionBusy" @click="loadStudyQueue()">
@@ -597,7 +590,7 @@ useStartupReady( initialLoading );
     <ContentState
       v-else-if="!hasCards"
       :title="sessionResumeNotice ? 'No cards remain in this session' : focusedSession ? 'No matching cards due' : 'Nothing due'"
-      :description="sessionResumeNotice ? 'Start a new session to load current cards matching your selection.' : focusedSession ? 'Change your session filters or check again later. Cards that are not due are excluded.' : nextReviewDescription"
+      :description="sessionResumeNotice ? 'Start a new session to study updated cards.' : focusedSession ? 'Change your filters or check again later.' : nextReviewDescription"
     >
       <template #actions>
         <UButton
@@ -996,7 +989,7 @@ useStartupReady( initialLoading );
             {{ masteryTotal === 1 ? 'card needs' : 'cards need' }}
             one more retrieval.
           </p>
-          <p>Retries do not change saved schedules.</p>
+          <p>Retries do not change review dates.</p>
         </div>
 
         <div class="study-complete__actions">
@@ -1038,7 +1031,7 @@ useStartupReady( initialLoading );
           >
             Session complete
           </h2>
-          <p>{{ completionDescription }}</p>
+          <p v-if="completionDescription">{{ completionDescription }}</p>
         </div>
 
         <dl
@@ -1064,7 +1057,7 @@ useStartupReady( initialLoading );
         >
           <div>
             <h3 id="pretest-results-heading">Pretesting</h3>
-            <p>Recorded separately from review grades.</p>
+            <p>Not graded.</p>
           </div>
 
           <dl class="study-results">
@@ -1103,7 +1096,7 @@ useStartupReady( initialLoading );
           </dl>
 
           <p v-if="masteryMissedCount">
-            Still-learning cards remain on their saved review schedules.
+            Missed cards will return when due.
           </p>
         </section>
 

@@ -231,9 +231,9 @@
   border-radius: 0.65rem;
 }
 
-.study-answer-feedback:focus {
+.study-answer-feedback:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--ui-primary) 72%, transparent);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
 
 .study-answer-feedback > h3,
@@ -413,7 +413,7 @@
 .explain-comparison:focus-visible,
 .problem-comparison:focus-visible {
   outline: 2px solid var(--ui-primary);
-  outline-offset: 0.5rem;
+  outline-offset: 3px;
   border-radius: 0.35rem;
 }
 
@@ -522,7 +522,7 @@
 
 .type-answer-comparison:focus-visible {
   outline: 2px solid var(--ui-primary);
-  outline-offset: 0.5rem;
+  outline-offset: 3px;
   border-radius: 0.35rem;
 }
 

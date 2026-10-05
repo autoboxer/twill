@@ -188,7 +188,7 @@ export function useStudySession({
       restoreStudySession( resumableSession );
       initialLoading.value = false;
       sessionResumeNotice.value = resumableSession.changedConceptIds?.length
-        ? 'Changed or removed concepts were excluded from the remaining session. Completed work is kept; earlier grades for those concepts cannot be undone here. Start a new session to study updated content.'
+        ? 'Changed or removed concepts were skipped. Their earlier grades cannot be undone in this session. Start a new session to study updated cards.'
         : '';
       await nextTick();
       onStateChanged();
