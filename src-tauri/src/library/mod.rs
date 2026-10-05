@@ -15,6 +15,7 @@ mod preferences;
 mod retrieval_forms;
 mod search_query;
 mod service;
+mod snapshot;
 mod study;
 mod templates;
 
@@ -57,3 +58,5 @@ pub use models::{
 };
 pub use service::ConceptLibrary;
 pub use templates::TemplateLibrary;
+
+pub(crate) use snapshot::validate_restored_content;

@@ -216,7 +216,7 @@ fn normalize_name(name: String) -> LibraryResult<String> {
     Ok(name)
 }
 
-fn validate_template_content(
+pub(super) fn validate_template_content(
     mut content: TemplateContent,
 ) -> LibraryResult<TemplateContent> {
     if content.schema_version != TEMPLATE_SCHEMA_VERSION {

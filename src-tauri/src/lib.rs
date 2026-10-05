@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod data;
 mod library;
 mod lifecycle;
@@ -8,6 +9,7 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(lifecycle::NativeLifecycle::default())
         .manage(runtime::RuntimeRecoveryState::from_args(std::env::args_os()));
 
@@ -20,17 +22,31 @@ pub fn run() {
     builder
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;
-            let local_data = data::LocalDataStore::open(data_directory)?;
+            app.manage(backup::recovery::StorageRecovery::new(data_directory));
+            let handle = app.handle().clone();
 
-            library::AuthoringMediaLibrary::new(&local_data).release_abandoned_sessions()?;
-
-            app.manage(local_data);
+            tauri::async_runtime::spawn_blocking(move || {
+                let _ = handle
+                    .state::<backup::recovery::StorageRecovery>()
+                    .open(|store| {
+                        handle.manage(store);
+                    });
+            });
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             lifecycle::native_lifecycle_ready,
             lifecycle::complete_native_action,
+            lifecycle::restart_application,
+            backup::dialogs::choose_archive_file,
+            backup::commands::create_backup,
+            backup::commands::export_library,
+            backup::commands::inspect_backup,
+            backup::commands::prepare_restore,
+            backup::commands::cancel_restore,
+            backup::commands::get_storage_status,
+            backup::commands::retry_storage,
             library::commands::get_library,
             library::commands::get_library_organizations,
             library::commands::get_concept,

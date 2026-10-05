@@ -74,7 +74,7 @@ pub(super) fn normalize_template_ids(ids: Vec<String>) -> LibraryResult<BTreeSet
         .collect()
 }
 
-pub(super) fn validate_retrieval_form_selection(
+pub(in crate::library) fn validate_retrieval_form_selection(
     include_standard_recall: bool,
     template_ids: &BTreeSet<String>,
     include_explain: bool,
@@ -97,7 +97,7 @@ pub(super) fn validate_retrieval_form_selection(
     Ok(())
 }
 
-pub(super) fn validate_template_selections(
+pub(in crate::library) fn validate_template_selections(
     connection: &Connection,
     ids: &BTreeSet<String>,
 ) -> LibraryResult<()> {
