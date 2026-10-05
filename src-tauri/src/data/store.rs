@@ -157,6 +157,10 @@ impl LocalDataStore {
         self.data_directory.join(MEDIA_DIRECTORY_NAME)
     }
 
+    pub(crate) fn data_directory(&self) -> &Path {
+        &self.data_directory
+    }
+
     pub(crate) fn cleanup_media_files(&self) -> DataResult<()> {
         let connection = self.connection()?;
 

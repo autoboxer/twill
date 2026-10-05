@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod data;
 mod library;
 mod lifecycle;
@@ -31,6 +32,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             lifecycle::native_lifecycle_ready,
             lifecycle::complete_native_action,
+            backup::commands::create_backup,
+            backup::commands::export_library,
             library::commands::get_library,
             library::commands::get_library_organizations,
             library::commands::get_concept,
