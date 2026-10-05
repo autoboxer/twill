@@ -1,7 +1,7 @@
 use std::fs;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
@@ -20,7 +20,7 @@ const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct LocalDataStore {
     connection: Mutex<Connection>,
     data_directory: PathBuf,
-    _profile_lock: Option<fs::File>,
+    _profile_lock: Option<Arc<fs::File>>,
 }
 
 pub struct WriteTransaction<'connection> {
@@ -30,8 +30,13 @@ pub struct WriteTransaction<'connection> {
 impl LocalDataStore {
     pub fn open(data_directory: impl AsRef<Path>) -> DataResult<Self> {
         let data_directory = data_directory.as_ref().to_path_buf();
+        let profile_lock = Self::lock_profile(&data_directory)?;
 
-        fs::create_dir_all(&data_directory)?;
+        Self::open_locked(data_directory, profile_lock)
+    }
+
+    pub(crate) fn lock_profile(data_directory: &Path) -> DataResult<Arc<fs::File>> {
+        fs::create_dir_all(data_directory)?;
 
         // Startup recovery must not release another running instance's media
         let profile_lock = fs::OpenOptions::new()
@@ -47,6 +52,14 @@ impl LocalDataStore {
                 "Twill's data directory is already in use or could not be locked: {error}"
             )))?;
 
+        Ok(Arc::new(profile_lock))
+    }
+
+    pub(crate) fn open_locked(
+        data_directory: impl AsRef<Path>,
+        profile_lock: Arc<fs::File>,
+    ) -> DataResult<Self> {
+        let data_directory = data_directory.as_ref().to_path_buf();
         let database_path = data_directory.join(DATABASE_FILENAME);
         let connection = Connection::open(database_path)?;
 
@@ -170,7 +183,7 @@ impl LocalDataStore {
     fn from_connection(
         mut connection: Connection,
         data_directory: PathBuf,
-        profile_lock: Option<fs::File>,
+        profile_lock: Option<Arc<fs::File>>,
     ) -> DataResult<Self> {
         configure_connection(&connection)?;
         schema::ensure_current(&mut connection)?;

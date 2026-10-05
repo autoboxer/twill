@@ -162,11 +162,11 @@ fn perform_action<R: Runtime>(app: &AppHandle<R>, action: NativeAction) -> Resul
     match action {
         NativeAction::Close => window.destroy().map_err(|error| error.to_string()),
         NativeAction::Reload => {
-            let local_data = app.state::<LocalDataStore>();
-
-            CssSnippetLibrary::new(local_data.inner())
-                .disable_all()
-                .map_err(|error| error.to_string())?;
+            if let Some(local_data) = app.try_state::<LocalDataStore>() {
+                CssSnippetLibrary::new(local_data.inner())
+                    .disable_all()
+                    .map_err(|error| error.to_string())?;
+            }
 
             window.reload().map_err(|error| error.to_string())
         }

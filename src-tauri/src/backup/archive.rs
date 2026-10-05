@@ -133,8 +133,16 @@ fn create_archive(
         files,
     };
 
+    super::validation::check_size_limits(&manifest.files)?;
+
+    let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
+
+    if manifest_bytes.len() as u64 > super::validation::MAX_MANIFEST_BYTES {
+        return Err(BackupError::ArchiveLimit);
+    }
+
     archive.start_file(MANIFEST_PATH, file_options(CompressionMethod::Deflated, 0))?;
-    serde_json::to_writer_pretty(&mut archive, &manifest)?;
+    archive.write_all(&manifest_bytes)?;
     archive.finish()?.sync_all()?;
 
     let byte_size = output.as_file().metadata()?.len();

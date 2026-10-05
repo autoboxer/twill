@@ -31,6 +31,15 @@ pub struct ArchiveSummary {
     pub counts: LibraryCounts,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupPreview {
+    pub created_at: i64,
+    pub app_version: String,
+    pub counts: LibraryCounts,
+    pub fingerprint: String,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(super) struct ArchiveManifest {

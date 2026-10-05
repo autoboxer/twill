@@ -21,11 +21,13 @@ pub fn run() {
     builder
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;
-            let local_data = data::LocalDataStore::open(data_directory)?;
+            let recovery = backup::recovery::StorageRecovery::new(data_directory);
 
-            library::AuthoringMediaLibrary::new(&local_data).release_abandoned_sessions()?;
+            let _ = recovery.open(|local_data| {
+                app.manage(local_data);
+            });
 
-            app.manage(local_data);
+            app.manage(recovery);
 
             Ok(())
         })
@@ -34,6 +36,11 @@ pub fn run() {
             lifecycle::complete_native_action,
             backup::commands::create_backup,
             backup::commands::export_library,
+            backup::commands::inspect_backup,
+            backup::commands::prepare_restore,
+            backup::commands::cancel_restore,
+            backup::commands::get_storage_status,
+            backup::commands::retry_storage,
             library::commands::get_library,
             library::commands::get_library_organizations,
             library::commands::get_concept,

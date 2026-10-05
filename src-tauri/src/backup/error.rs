@@ -14,6 +14,21 @@ pub enum BackupError {
     #[error("That file already exists. Choose a new filename")]
     DestinationExists,
 
+    #[error("This is not a valid Twill backup: {0}")]
+    InvalidArchive(&'static str),
+
+    #[error("This backup is not compatible with this version of Twill")]
+    IncompatibleArchive,
+
+    #[error("A restore is already pending. Cancel it before choosing another backup")]
+    RestorePending,
+
+    #[error("The interrupted restore was rolled back. Retry opening your library")]
+    RestoreInterrupted,
+
+    #[error("This library exceeds the supported archive size")]
+    ArchiveLimit,
+
     #[error("Local data failed its integrity check: {0}")]
     Integrity(&'static str),
 

@@ -168,7 +168,7 @@ fn normalize_name(name: String) -> LibraryResult<String> {
     Ok(name)
 }
 
-fn validate_content(mut content: CssSnippetContent) -> LibraryResult<CssSnippetContent> {
+pub(super) fn validate_content(mut content: CssSnippetContent) -> LibraryResult<CssSnippetContent> {
     if content.schema_version != CSS_SNIPPET_SCHEMA_VERSION {
         return Err(invalid_css("uses an unsupported schema version"));
     }
