@@ -29,7 +29,8 @@
 
 .settings-panel {
   display: grid;
-  overflow: hidden;
+  min-width: 0;
+  overflow: visible;
   padding: 1rem 0;
   gap: 1.25rem;
   scroll-margin-top: 1.5rem;
@@ -306,9 +307,9 @@
   transform: scale(0.99);
 }
 
-.appearance-theme-option:focus-within {
+.appearance-theme-option:has(> input:focus-visible) {
   outline: 2px solid var(--ui-primary);
-  outline-offset: 2px;
+  outline-offset: -3px;
 }
 
 .appearance-theme-option--selected {

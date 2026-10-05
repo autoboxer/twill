@@ -525,7 +525,7 @@
   z-index: 2;
   border-color: white;
   outline: 3px solid color-mix(in srgb, var(--ui-primary) 65%, transparent);
-  outline-offset: 2px;
+  outline-offset: -3px;
 }
 
 .image-occlusion-canvas--revealed .image-occlusion-region {

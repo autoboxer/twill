@@ -119,7 +119,7 @@ async function start() {
   <UModal
     v-model:open="open"
     title="Build a study session"
-    description="Only active cards that are due now are included. All selected filters must match."
+    description="Study due cards matching your filters."
     :dismissible="!starting"
     :close="!starting"
     :ui="{ overlay: 'z-70', content: 'z-71 rounded-md', body: 'min-h-0' }"
@@ -227,13 +227,13 @@ async function start() {
               aria-describedby="session-limit-help"
             />
             <p id="session-limit-help" :class="{ 'text-error': limitError }">
-              {{ limitError || 'Leave blank for all. The earliest due cards are selected before mixing.' }}
+              {{ limitError || 'Leave blank for all. Earliest due cards come first.' }}
             </p>
           </div>
         </fieldset>
 
         <p v-if="replacing" class="session-builder__notice">
-          Starting replaces the current queue and unsaved responses. Completed reviews remain saved.
+          Starting a new session ends the current session and discards unfinished responses.
         </p>
 
         <div class="session-builder__actions">

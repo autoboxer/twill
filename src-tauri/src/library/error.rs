@@ -63,7 +63,7 @@ pub enum LibraryError {
     #[error("the saved item was removed while you were editing")]
     AuthoringTargetMissing,
 
-    #[error("the queued edit changed; reopen queued editing before saving")]
+    #[error("the queued edit changed; reopen it before trying again")]
     DeferredEditChanged,
 
     #[error("the image editing session has ended; reopen the editor before importing")]

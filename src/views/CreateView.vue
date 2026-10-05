@@ -105,8 +105,9 @@ let loadRequestSequence = 0;
 
 const conceptId = computed( () => route.params.conceptId ?? '' );
 const isEditing = computed( () => Boolean( conceptId.value ) );
+const isStudyEdit = computed( () => isEditing.value && route.query.study === '1' );
 const isDeferredEdit = computed( () => (
-  isEditing.value && route.query.deferred === '1'
+  isEditing.value && !isStudyEdit.value && route.query.deferred === '1'
 ) );
 const deferredTargetUnavailable = computed( () => (
   isDeferredEdit.value
@@ -232,7 +233,7 @@ const saveCommand = useCommandHandler( COMMAND_IDS.conceptSave, {
   execute: () => conceptForm.value?.submit()
 });
 
-watch( conceptId, loadData, { immediate: true });
+watch([ conceptId, () => route.query.deferred, () => route.query.study ], loadData, { immediate: true });
 
 onBeforeUnmount( () => {
   loadRequestSequence += 1;
@@ -241,9 +242,8 @@ onBeforeUnmount( () => {
 async function loadData() {
   const request = ++loadRequestSequence;
   const requestedConceptId = conceptId.value;
-  const requestedDeferredEdit = Boolean(
-    requestedConceptId && route.query.deferred === '1'
-  );
+  const requestedDeferredEdit = isDeferredEdit.value;
+  const requestedStudyEdit = isStudyEdit.value;
 
   allowNavigation.value = false;
   clearError();
@@ -277,7 +277,7 @@ async function loadData() {
         .then( ( value ) => ({ value }) )
         .catch( ( cause ) => ({ cause }) )
       : Promise.resolve({ value: null });
-    const deferredQueueRequest = requestedDeferredEdit
+    const deferredQueueRequest = requestedDeferredEdit || requestedStudyEdit
       ? getDeferredEdits()
       : Promise.resolve({ items: [] });
     const [
@@ -298,19 +298,19 @@ async function loadData() {
       return;
     }
 
-    if ( requestedDeferredEdit ) {
+    if ( requestedDeferredEdit || requestedStudyEdit ) {
       deferredEditQueue.value = queuedEdits.items;
       deferredEditItem.value = queuedEdits.items.find( ( item ) => (
         item.conceptId === requestedConceptId
       ) ) ?? null;
 
-      if ( !deferredEditItem.value ) {
+      if ( requestedDeferredEdit && !deferredEditItem.value ) {
         allowNavigation.value = true;
         await router.replace({ name: 'study' });
         return;
       }
 
-      if ( deferredEditItem.value.targetStatus !== 'current' ) {
+      if ( requestedDeferredEdit && deferredEditItem.value.targetStatus !== 'current' ) {
         return;
       }
     }
@@ -388,7 +388,9 @@ async function saveConcept( input ) {
     const saved = await finalizeDraft( ( context ) => finalizeConcept({
       context: { ...context, saveAsCopy: saveAsCopy.value },
       concept: input,
-      deferredEditPosition: isDeferredEdit.value ? deferredEditItem.value.position : null
+      deferredEditPosition: isDeferredEdit.value || ( isStudyEdit.value && !saveAsCopy.value )
+        ? deferredEditItem.value?.position ?? null
+        : null
     }) );
 
     savedConcept.value = saved;
@@ -422,6 +424,27 @@ async function finishSavedConcept() {
   }
 
   isModified.value = false;
+
+  if ( isStudyEdit.value ) {
+    deferredWorkflowError.value = '';
+    deferredWorkflowPending.value = true;
+    allowNavigation.value = true;
+
+    try {
+      const failure = await router.replace({ name: 'study' });
+
+      if ( failure ) {
+        throw new Error( 'Return to study could not be completed. Try again.' );
+      }
+    } catch ( cause ) {
+      allowNavigation.value = false;
+      deferredWorkflowError.value = conceptLibraryErrorMessage( cause );
+    } finally {
+      deferredWorkflowPending.value = false;
+    }
+
+    return;
+  }
 
   if ( isDeferredEdit.value ) {
     await continueDeferredEditing();
@@ -554,6 +577,11 @@ async function discardRecoveryDraft() {
 }
 
 function cancel() {
+  if ( isStudyEdit.value ) {
+    void router.push({ name: 'study' });
+    return;
+  }
+
   if ( isDeferredEdit.value ) {
     void skipDeferredEdit();
     return;
@@ -589,10 +617,21 @@ useStartupReady( initialLoading );
           :disabled="deferredWorkflowPending || ( isDeferredEdit && hasPendingImports )"
           @click="cancel"
         >
-          {{ isDeferredEdit ? 'Skip' : 'Back' }}
+          {{ isStudyEdit ? 'Back to study' : isDeferredEdit ? 'Skip' : 'Back' }}
         </UButton>
       </template>
     </PageHeader>
+
+    <p v-if="isStudyEdit && !initialLoading && !loadError" class="study-edit-context">
+      Saving changes skips this concept's remaining cards and response in this session.
+    </p>
+
+    <p
+      v-if="deferredEditItem?.note && !initialLoading && !loadError"
+      class="deferred-edit-queue__note deferred-edit-context"
+    >
+      {{ deferredEditItem.note }}
+    </p>
 
     <ContentState
       v-if="initialLoading"
@@ -645,7 +684,7 @@ useStartupReady( initialLoading );
     <UAlert
       v-if="deferredWorkflowError"
       class="deferred-edit-context"
-      title="Queued editing needs attention"
+      :title="isStudyEdit ? 'Return to study needs attention' : 'Queued editing needs attention'"
       :description="deferredWorkflowError"
       icon="i-lucide-circle-alert"
       color="error"

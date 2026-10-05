@@ -234,9 +234,8 @@ async function restoreStudyDefaults() {
       <div>
         <label for="settings-pretesting">Optional pretesting</label>
         <p id="settings-pretesting-description">
-          Before the first review of a new concept, attempt one prompt and
-          then see its answer. Attempts stay separate from review grading
-          and FSRS scheduling.
+          Try a new concept before seeing its answer. Pretests are not graded
+          and do not change review dates.
         </p>
       </div>
 
@@ -262,9 +261,8 @@ async function restoreStudyDefaults() {
       <div>
         <label for="settings-mixed-practice">Mixed practice</label>
         <p id="settings-mixed-practice-description">
-          Reorder small groups of due cards to separate forms of one
-          concept and vary retrieval forms. Shared tags can place related
-          concepts together for contrast. Scheduling does not change.
+          Mix related concepts and card types instead of studying them in blocks.
+          Review dates are unchanged.
         </p>
       </div>
 

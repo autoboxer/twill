@@ -50,7 +50,8 @@ pub use models::{
     StartupDestination, StudyCard, StudyConcept, StudyQuery, StudyQueue, StudyTemplate, TemplateBlock,
     TemplateCatalog, TemplateContent, TemplateDetail, TemplateSummary,
     TypeAnswerSettings, UpdateConceptInput, UpdateCssSnippetInput,
-    UpdateSchedulingSettingsInput, UpdateTemplateInput, UpsertAuthoringDraftInput,
+    UpdateDeferredEditNoteInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
+    UpsertAuthoringDraftInput,
     AUTHORING_DRAFT_SCHEMA_VERSION, CSS_SNIPPET_SCHEMA_VERSION,
     RICH_CONTENT_SCHEMA_VERSION, TEMPLATE_SCHEMA_VERSION,
 };

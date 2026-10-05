@@ -23,7 +23,8 @@ use crate::library::{
     SetPretestingEnabledInput,
     SetStartupDestinationInput, StudyQuery, StudyQueue, TemplateCatalog,
     TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
-    UpdateCssSnippetInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
+    UpdateCssSnippetInput, UpdateDeferredEditNoteInput,
+    UpdateSchedulingSettingsInput, UpdateTemplateInput,
     UpsertAuthoringDraftInput,
 };
 
@@ -246,6 +247,16 @@ pub(crate) fn remove_deferred_edit(
 ) -> CommandResult<()> {
     DeferredEditLibrary::new(local_data.inner())
         .remove_concept(&input.id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn update_deferred_edit_note(
+    local_data: State<'_, LocalDataStore>,
+    input: UpdateDeferredEditNoteInput,
+) -> CommandResult<DeferredConceptEdit> {
+    DeferredEditLibrary::new(local_data.inner())
+        .update_note(input)
         .map_err(Into::into)
 }
 

@@ -3,6 +3,7 @@ export const COMMAND_IDS = Object.freeze({
   commandReferenceOpen: 'command.reference.open',
   conceptCreate: 'concept.create',
   conceptSave: 'concept.save',
+  conceptToggleCloze: 'concept.toggle-cloze',
   navigateLibrary: 'navigate.library',
   navigateSettings: 'navigate.settings',
   navigateStudy: 'navigate.study',
@@ -81,6 +82,16 @@ export const commandRegistry = Object.freeze([
     icon: 'i-lucide-save',
     label: 'Save concept',
     shortcut: 'Mod+S'
+  }),
+  localCommand({
+    id: COMMAND_IDS.conceptToggleCloze,
+    allowInEditable: true,
+    context: 'Prompt editor, with Cloze enabled',
+    description: 'Add or remove an omission at the cursor or selection.',
+    group: 'Authoring',
+    icon: 'i-lucide-text-select',
+    label: 'Toggle cloze omission',
+    shortcut: 'Mod+Shift+C'
   }),
   localCommand({
     id: COMMAND_IDS.templateSave,

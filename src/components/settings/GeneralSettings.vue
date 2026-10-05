@@ -105,7 +105,6 @@ async function updateStartupDestination(
     <div class="settings-preference-row">
       <div>
         <label for="startup-destination">Startup destination</label>
-        <p>Deep links still open their requested page.</p>
       </div>
 
       <USelect

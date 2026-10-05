@@ -22,6 +22,7 @@ pub struct DeferredConceptEdit {
     pub concept_title: String,
     pub base_change_id: String,
     pub queued_at: i64,
+    pub note: String,
     pub target_status: DeferredEditTargetStatus,
 }
 
@@ -36,6 +37,15 @@ pub struct DeferredEditQueue {
 pub struct QueueDeferredEditInput {
     pub concept_id: String,
     pub base_change_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UpdateDeferredEditNoteInput {
+    pub concept_id: String,
+    pub position: i64,
+    pub expected_note: String,
+    pub note: String,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]

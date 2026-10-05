@@ -364,6 +364,14 @@ mod tests {
             base_change_id: concept.last_change_id.clone(),
         };
         let first = queue.queue_concept(queue_input.clone()).unwrap();
+        queue
+            .update_note(crate::library::UpdateDeferredEditNoteInput {
+                concept_id: concept.id.clone(),
+                position: first.position,
+                expected_note: String::new(),
+                note: "Add a worked example".to_owned(),
+            })
+            .unwrap();
         let draft = save_draft(
             &store,
             AuthoringDraftKind::Concept,
@@ -376,6 +384,7 @@ mod tests {
         assert!(finalize_concept(&store, input.clone()).is_err());
         assert_eq!(library.concept(&concept.id).unwrap(), concept);
         assert_eq!(queue.queue().unwrap().items[0].position, first.position);
+        assert_eq!(queue.queue().unwrap().items[0].note, "Add a worked example");
         assert_eq!(count(&store, "change_log"), before_changes);
         allow_draft_deletion(&store);
 
