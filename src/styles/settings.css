@@ -94,6 +94,102 @@
   font-weight: 650;
 }
 
+.settings-preference-row strong {
+  color: var(--ui-text-highlighted);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.backup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.backup-pending,
+.backup-preview {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+}
+
+.backup-pending p,
+.backup-preview p {
+  margin: 0;
+  color: var(--ui-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.backup-preview .backup-preview__filename {
+  color: var(--ui-text-highlighted);
+  font-weight: 650;
+}
+
+.backup-preview__counts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+}
+
+.backup-preview__counts > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+
+.backup-preview__counts dt {
+  color: var(--ui-text-muted);
+  text-transform: capitalize;
+}
+
+.backup-preview__counts dd {
+  font-weight: 650;
+}
+
+.storage-recovery {
+  display: grid;
+  min-height: 100dvh;
+  padding: 1.5rem;
+  place-items: center;
+  overflow-y: auto;
+}
+
+.storage-recovery__content {
+  display: grid;
+  width: min(100%, 30rem);
+  min-width: 0;
+  gap: 1rem;
+}
+
+.storage-recovery__icon {
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--ui-primary);
+}
+
+.storage-recovery h1 {
+  margin: 0;
+  color: var(--ui-text-highlighted);
+  font-size: 1.3rem;
+  font-weight: 650;
+}
+
+.storage-recovery p {
+  margin: 0;
+  color: var(--ui-text-muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.storage-recovery__diagnostics {
+  justify-self: start;
+  padding-left: 0;
+}
+
 .settings-preference-row p {
   margin: 0.3rem 0 0;
   color: var(--ui-text-muted);

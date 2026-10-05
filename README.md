@@ -43,6 +43,16 @@ Browser mode is useful for frontend work, but native persistence and other Tauri
 Themes, fonts, and motion preferences are available in Settings. For
 validated local CSS overrides, see the [CSS snippet guide](docs/css-snippets.md).
 
+## Back up and export
+
+Use Settings → Backups to create a `.twill` backup or export readable JSON and
+images as a ZIP file. Backups include your library, settings, saved drafts and
+learning history. These files are not encrypted; store them somewhere private.
+
+Restoring a compatible `.twill` backup replaces this device's library and restarts
+Twill. Export ZIP files are for data portability, not restoration. A recovery
+screen offers retry and restore if the library cannot be opened.
+
 ## Test and check
 
 Run the Rust test suite:

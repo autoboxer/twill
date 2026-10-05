@@ -9,6 +9,7 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(lifecycle::NativeLifecycle::default())
         .manage(runtime::RuntimeRecoveryState::from_args(std::env::args_os()));
 
@@ -21,19 +22,24 @@ pub fn run() {
     builder
         .setup(|app| {
             let data_directory = app.path().app_data_dir()?;
-            let recovery = backup::recovery::StorageRecovery::new(data_directory);
+            app.manage(backup::recovery::StorageRecovery::new(data_directory));
+            let handle = app.handle().clone();
 
-            let _ = recovery.open(|local_data| {
-                app.manage(local_data);
+            tauri::async_runtime::spawn_blocking(move || {
+                let _ = handle
+                    .state::<backup::recovery::StorageRecovery>()
+                    .open(|store| {
+                        handle.manage(store);
+                    });
             });
-
-            app.manage(recovery);
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             lifecycle::native_lifecycle_ready,
             lifecycle::complete_native_action,
+            lifecycle::restart_application,
+            backup::dialogs::choose_archive_file,
             backup::commands::create_backup,
             backup::commands::export_library,
             backup::commands::inspect_backup,

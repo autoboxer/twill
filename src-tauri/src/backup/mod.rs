@@ -1,6 +1,7 @@
 mod archive;
 mod checksum;
 pub(crate) mod commands;
+pub(crate) mod dialogs;
 mod error;
 mod models;
 mod portable;

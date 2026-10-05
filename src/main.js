@@ -11,8 +11,6 @@ import '@fontsource-variable/source-serif-4/wght.css';
 import '@fontsource-variable/source-serif-4/wght-italic.css';
 
 import App from './App.vue';
-import { initializeAppearance } from './composables/useAppearance';
-import { initializeCssSnippets } from './composables/useCssSnippets';
 import { initializeNativeLifecycle } from './composables/useNativeLifecycle';
 import router from './router';
 import { isStartupPending } from './startup';
@@ -25,9 +23,7 @@ export async function startApplication() {
   app.use( ui );
 
   await Promise.all([
-    initializeAppearance(),
     initializeNativeLifecycle(),
-    initializeCssSnippets(),
     router.isReady()
   ]);
 

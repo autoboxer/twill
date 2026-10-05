@@ -4,7 +4,10 @@ import { computed } from 'vue';
 import { useNativeLifecycle } from '../composables/useNativeLifecycle';
 
 const { completing, confirming, error, pending, request, retry, stay, working } = useNativeLifecycle();
-const actionLabel = computed( () => request.value?.action === 'reload' ? 'reloading' : 'closing' );
+const actionLabel = computed( () => ({
+  reload: 'reloading',
+  restart: 'restarting'
+}[ request.value?.action ] ?? 'closing' ) );
 </script>
 
 <template>

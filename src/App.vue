@@ -1,5 +1,5 @@
 <script setup>
-import AppShell from './components/AppShell.vue';
+import StorageGate from './components/StorageGate.vue';
 import NativeActionDialog from './components/NativeActionDialog.vue';
 import { useNativeLifecycle } from './composables/useNativeLifecycle';
 import { useNotificationViewport } from './composables/useNotificationViewport';
@@ -14,7 +14,7 @@ const { position } = useNotificationViewport();
       class="contents"
       :inert="pending"
     >
-      <AppShell />
+      <StorageGate />
     </div>
 
     <NativeActionDialog />

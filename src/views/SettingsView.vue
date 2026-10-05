@@ -6,6 +6,7 @@ import ContentState from '../components/ContentState.vue';
 import CssSnippetManager from '../components/CssSnippetManager.vue';
 import PageHeader from '../components/PageHeader.vue';
 import AppearanceSettings from '../components/settings/AppearanceSettings.vue';
+import BackupSettings from '../components/settings/BackupSettings.vue';
 import GeneralSettings from '../components/settings/GeneralSettings.vue';
 import SchedulingSettings from '../components/settings/SchedulingSettings.vue';
 import { useStartupReady } from '../composables/useStartupReady';
@@ -19,7 +20,8 @@ const settingsSections = [
   { id: 'appearance', icon: 'i-lucide-palette', label: 'Appearance' },
   { id: 'snippets', icon: 'i-lucide-braces', label: 'Snippets' },
   { id: 'study', icon: 'i-lucide-graduation-cap', label: 'Study' },
-  { id: 'scheduling', icon: 'i-lucide-calendar-sync', label: 'Scheduling' }
+  { id: 'scheduling', icon: 'i-lucide-calendar-sync', label: 'Scheduling' },
+  { id: 'backups', icon: 'i-lucide-archive', label: 'Backups' }
 ];
 
 const panelTransition = {
@@ -176,6 +178,8 @@ useStartupReady( initialLoading );
           :initial-settings="schedulingSettings"
           :panel-transition="panelTransition"
         />
+
+        <BackupSettings />
       </div>
     </div>
   </div>

@@ -12,6 +12,7 @@ pub(crate) enum NativeAction {
     Close,
     Quit,
     Reload,
+    Restart,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -74,8 +75,8 @@ pub(crate) fn complete_native_action<R: Runtime>(
         return Ok(());
     }
 
-    state.approved_exit = request.action == NativeAction::Quit;
-    state.ready = request.action != NativeAction::Reload;
+    state.approved_exit = matches!(request.action, NativeAction::Quit | NativeAction::Restart);
+    state.ready = !matches!(request.action, NativeAction::Reload | NativeAction::Restart);
     drop(state);
 
     if let Err(error) = perform_action(&app, request.action) {
@@ -89,6 +90,11 @@ pub(crate) fn complete_native_action<R: Runtime>(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn restart_application<R: Runtime>(app: AppHandle<R>) {
+    request_action(&app, NativeAction::Restart);
 }
 
 pub(crate) fn request_action<R: Runtime>(app: &AppHandle<R>, action: NativeAction) {
@@ -150,6 +156,11 @@ pub(crate) fn handle_run_event<R: Runtime>(app: &AppHandle<R>, event: tauri::Run
 }
 
 fn perform_action<R: Runtime>(app: &AppHandle<R>, action: NativeAction) -> Result<(), String> {
+    if action == NativeAction::Restart {
+        app.request_restart();
+        return Ok(());
+    }
+
     if action == NativeAction::Quit {
         app.exit(0);
         return Ok(());
@@ -170,7 +181,7 @@ fn perform_action<R: Runtime>(app: &AppHandle<R>, action: NativeAction) -> Resul
 
             window.reload().map_err(|error| error.to_string())
         }
-        NativeAction::Quit => unreachable!(),
+        NativeAction::Quit | NativeAction::Restart => unreachable!(),
     }
 }
 
@@ -185,6 +196,7 @@ mod tests {
 
         assert!(state.begin(NativeAction::Quit).is_none());
         assert!(state.begin(NativeAction::Reload).is_none());
+        assert!(state.begin(NativeAction::Restart).is_none());
         assert_eq!(state.take(&request.id).unwrap().action, NativeAction::Close);
         assert!(state.take(&request.id).is_err());
     }
@@ -201,5 +213,19 @@ mod tests {
         assert_ne!(first.id, second.id);
         assert!(state.take(&first.id).is_err());
         assert_eq!(state.take(&second.id).unwrap().action, NativeAction::Reload);
+    }
+
+    #[test]
+    fn restart_requests_use_the_same_pending_action_contract() {
+        let mut state = LifecycleState::default();
+        let request = state.begin(NativeAction::Restart).unwrap();
+        let payload = serde_json::to_value(&request).unwrap();
+
+        assert_eq!(payload["action"], "restart");
+        assert_eq!(payload["id"], request.id);
+        assert!(!state.approved_exit);
+        assert!(state.begin(NativeAction::Close).is_none());
+        assert_eq!(state.take(&request.id).unwrap().action, NativeAction::Restart);
+        assert!(state.begin(NativeAction::Close).is_some());
     }
 }
