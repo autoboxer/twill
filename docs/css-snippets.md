@@ -86,11 +86,11 @@ classes are implementation details and may change.
 
 Supported destination values are `study`, `library`, `create`, and `settings`.
 Supported page values are `study`, `library`, `concept-editor`, `concept-detail`,
-`templates`, `template-editor`, `settings`, and `startup`. Editor-section values
+`templates`, `template-editor`, `settings`, `guide`, and `startup`. Editor-section values
 are `concept-basics`, `concept-content`, `concept-retrieval-forms`,
 `concept-organization`, `template-basics`, and `template-design`.
-Settings-section values are `general`, `appearance`, `snippets`, `study`, and
-`scheduling`.
+Settings-section values are `general`, `appearance`, `snippets`, `study`,
+`scheduling`, and `backups`.
 
 For example:
 

@@ -56,8 +56,25 @@ const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
       </UButton>
     </nav>
 
-    <div v-if="!drawer" class="command-center-navigation">
+    <div class="command-center-navigation">
       <UButton
+        :to="{ name: 'guide' }"
+        aria-label="Using Twill"
+        title="Using Twill"
+        leading-icon="i-lucide-circle-help"
+        color="neutral"
+        active-color="primary"
+        variant="ghost"
+        active-variant="subtle"
+        class="command-entry"
+        block
+        @click="$emit( 'navigate' )"
+      >
+        <span class="command-entry__label">Using Twill</span>
+      </UButton>
+
+      <UButton
+        v-if="!drawer"
         :aria-label="paletteCommand.label"
         :aria-keyshortcuts="paletteCommand.ariaKeyshortcuts"
         :title="paletteCommand.tooltip"
@@ -72,6 +89,7 @@ const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
       </UButton>
 
       <UButton
+        v-if="!drawer"
         :aria-label="referenceCommand.label"
         :aria-keyshortcuts="referenceCommand.ariaKeyshortcuts"
         :title="referenceCommand.tooltip"

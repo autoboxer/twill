@@ -105,6 +105,15 @@ const routes = [
   },
 
   {
+    path: '/guide/:topicId?',
+    name: 'guide',
+    component: loadStudyGuideView,
+    meta: {
+      title: 'Using Twill'
+    }
+  },
+
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/study'
   }
@@ -145,4 +154,8 @@ function loadTemplateEditorView() {
 
 function loadTemplatesView() {
   return import( '../views/TemplatesView.vue' );
+}
+
+function loadStudyGuideView() {
+  return import( '../views/StudyGuideView.vue' );
 }
