@@ -38,6 +38,32 @@
   border-radius: var(--ui-radius);
 }
 
+button.study-guide-topic-link {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.study-help-dialog__content {
+  width: min(46rem, calc(100vw - 2rem));
+  max-width: 46rem;
+}
+
+.study-help-topics {
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.study-help-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.settings-panel__header > [data-twill-help] {
+  margin-left: auto;
+}
+
 .study-guide-topic-link:hover,
 .study-guide-topic-link[aria-current="page"] {
   color: var(--ui-text-highlighted);

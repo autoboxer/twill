@@ -2,6 +2,10 @@
 import { ref } from 'vue';
 
 defineProps({
+  headingPrefix: {
+    type: String,
+    default: 'guide-topic'
+  },
   topic: {
     type: Object,
     required: true
@@ -18,12 +22,12 @@ defineExpose({
 <template>
   <article
     class="study-guide-content"
-    :aria-labelledby="`guide-topic-${ topic.id }`"
+    :aria-labelledby="`${ headingPrefix }-${ topic.id }`"
     data-twill-guide-topic
     :data-twill-topic="topic.id"
   >
     <h2
-      :id="`guide-topic-${ topic.id }`"
+      :id="`${ headingPrefix }-${ topic.id }`"
       ref="heading"
       tabindex="-1"
     >

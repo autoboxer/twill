@@ -7,6 +7,7 @@ import ClozePreview from './ClozePreview.vue';
 import ImageOcclusionPreview from './ImageOcclusionPreview.vue';
 import RichContentEditor from './RichContentEditor.vue';
 import ConceptCardPreview from './ConceptCardPreview.vue';
+import StudyHelpButton from './StudyHelpButton.vue';
 import {
   collectClozeGroups,
   removeAllClozeMarks
@@ -203,6 +204,15 @@ const activeSetup = computed( () => selectedSetups.value.find( ( item ) => (
   item.value === activeSetupId.value
 ) ) );
 const activeSetupIndex = computed( () => selectedSetups.value.indexOf( activeSetup.value ) );
+const activeSetupTopic = computed( () => {
+  if ( activeSetupId.value === STANDARD_RECALL_ID ) {
+    return 'recall';
+  }
+
+  return builtInRetrievalFormItems.some( ( item ) => item.value === activeSetupId.value )
+    ? activeSetupId.value
+    : 'cards';
+});
 const generatedCardCount = computed( () => selectedSetups.value.reduce( ( sum, item ) => (
   sum + item.count
 ), 0 ) );
@@ -717,7 +727,10 @@ defineExpose({ submit });
 
     <section class="editor-section card-type-picker" aria-label="Card types">
       <div class="editor-section__heading">
-        <h2>Card types</h2>
+        <div class="study-help-heading">
+          <h2>Card types</h2>
+          <StudyHelpButton topic="cards" label="Help with card types" />
+        </div>
 
         <UButton
           type="button"
@@ -881,6 +894,10 @@ defineExpose({ submit });
       <div class="editor-section__heading">
         <h2>{{ activeSetup.label }}</h2>
         <span class="card-setup__count">{{ activeSetup.count }} {{ activeSetup.count === 1 ? 'card' : 'cards' }}</span>
+        <StudyHelpButton
+          :topic="activeSetupTopic"
+          :label="`Help with ${ activeSetup.label.toLowerCase() }`"
+        />
       </div>
 
       <p

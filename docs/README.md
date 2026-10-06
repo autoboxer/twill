@@ -1,8 +1,11 @@
 # Twill documentation
 
 For installation, development, and build commands, see the [main README](../README.md).
-For concise instructions about current controls, open **Using Twill** inside the
-app. Its topics and examples are bundled locally and do not need a connection.
+Open **Using Twill** in the app for short instructions about cards, grading,
+and saved work. You can also open **Commands** and choose **Using Twill** to read
+help without leaving your current screen. Select the Help button beside card
+setup, grading, or Study settings to read about that feature. The guide and its
+examples work offline.
 
 - Read [Studying effectively](studying-effectively.md) to choose activities for
   your goal, address learning difficulties, and prepare accurate content.

@@ -7,6 +7,7 @@ import { useCommandHandler } from '../../composables/useCommands';
 import { conceptLibraryErrorMessage } from '../../composables/useConceptLibrary';
 import { useSchedulingSettings } from '../../composables/useSchedulingSettings';
 import { useActionNotifications } from '../../composables/useActionNotifications';
+import StudyHelpButton from '../StudyHelpButton.vue';
 
 const props = defineProps({
   initialSettings: {
@@ -259,6 +260,8 @@ async function persistSchedulingSettings(
         </p>
         <h2>Scheduling</h2>
       </div>
+
+      <StudyHelpButton topic="sessions" label="Help with scheduling" />
     </header>
 
     <UAlert

@@ -7,18 +7,24 @@ import {
   useCommandHandler,
   useCommands
 } from '../composables/useCommands';
+import { useStudyHelp } from '../composables/useStudyHelp';
 
 const commands = useCommands();
-const openReferenceAfterPalette = ref( false );
+const help = useStudyHelp();
+const dialogAfterPalette = ref( null );
 const paletteOpen = ref( false );
 const paletteSearch = ref( '' );
 const referenceOpen = ref( false );
+let paletteOrigin = null;
 
 useCommandHandler( COMMAND_IDS.commandPaletteOpen, {
   execute: openPalette
 });
 useCommandHandler( COMMAND_IDS.commandReferenceOpen, {
   execute: openReference
+});
+useCommandHandler( COMMAND_IDS.studyGuideOpen, {
+  execute: () => help.show( 'start', paletteOrigin ?? document.activeElement )
 });
 
 const paletteGroups = computed( () => {
@@ -41,7 +47,9 @@ const paletteGroups = computed( () => {
   }) );
 });
 
-const referenceGroups = computed( () => groupCommands( commands.list() ) );
+const referenceGroups = computed( () => groupCommands(
+  commands.list().filter( ( command ) => command.shortcut )
+) );
 
 function groupCommands( availableCommands ) {
   const groups = new Map();
@@ -62,6 +70,7 @@ function groupCommands( availableCommands ) {
 }
 
 function openPalette() {
+  paletteOrigin = document.activeElement;
   paletteSearch.value = '';
   paletteOpen.value = true;
 }
@@ -71,8 +80,8 @@ function openReference() {
 }
 
 function selectCommand( commandId ) {
-  if ( commandId === COMMAND_IDS.commandReferenceOpen ) {
-    openReferenceAfterPalette.value = true;
+  if ([ COMMAND_IDS.commandReferenceOpen, COMMAND_IDS.studyGuideOpen ].includes( commandId ) ) {
+    dialogAfterPalette.value = commandId;
     paletteOpen.value = false;
     return;
   }
@@ -82,12 +91,14 @@ function selectCommand( commandId ) {
 }
 
 function finishPaletteClose() {
-  if ( !openReferenceAfterPalette.value ) {
+  if ( !dialogAfterPalette.value ) {
     return;
   }
 
-  openReferenceAfterPalette.value = false;
-  commands.execute( COMMAND_IDS.commandReferenceOpen );
+  const commandId = dialogAfterPalette.value;
+
+  dialogAfterPalette.value = null;
+  commands.execute( commandId );
 }
 </script>
 

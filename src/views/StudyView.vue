@@ -11,6 +11,7 @@ import ExplainResponse from '../components/ExplainResponse.vue';
 import ProblemResponse from '../components/ProblemResponse.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
+import StudyHelpButton from '../components/StudyHelpButton.vue';
 import StudySessionBuilder from '../components/StudySessionBuilder.vue';
 import StudySessionControls from '../components/StudySessionControls.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
@@ -430,6 +431,8 @@ useStartupReady( initialLoading );
             class="grading-mode-control__select"
             @update:model-value="updateGradingMode"
           />
+
+          <StudyHelpButton topic="grading" label="Help with grading" />
         </div>
 
         <UTooltip text="Build session">
