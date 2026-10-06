@@ -38,6 +38,13 @@ npm run dev
 
 Browser mode is useful for frontend work, but native persistence and other Tauri commands are unavailable outside the desktop application.
 
+## Using Twill
+
+Open **Using Twill** in the app to learn how to choose cards, grade answers,
+use feedback, manage sessions, and save your work. The guide works offline.
+For detailed study guidance, content preparation, and supporting research,
+see the [documentation index](docs/README.md).
+
 ## Customize appearance
 
 Themes, fonts, and motion preferences are available in Settings. For

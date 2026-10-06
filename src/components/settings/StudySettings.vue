@@ -5,6 +5,7 @@ import { onBeforeUnmount, ref } from 'vue';
 import { conceptLibraryErrorMessage } from '../../composables/useConceptLibrary';
 import { useDevicePreferences } from '../../composables/useDevicePreferences';
 import { useActionNotifications } from '../../composables/useActionNotifications';
+import StudyHelpButton from '../StudyHelpButton.vue';
 
 const props = defineProps({
   initialPreferences: {
@@ -228,6 +229,8 @@ async function restoreStudyDefaults() {
       <div>
         <h2>Study</h2>
       </div>
+
+      <StudyHelpButton topic="sessions" label="Help with Study settings" />
     </header>
 
     <div class="settings-preference-row">

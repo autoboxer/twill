@@ -5,7 +5,7 @@ import {
   m,
   MotionConfig
 } from 'motion-v';
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import AppNavigation from './AppNavigation.vue';
@@ -13,6 +13,9 @@ import CommandCenter from './CommandCenter.vue';
 import { COMMAND_IDS } from '../commands/registry';
 import { useAppearance } from '../composables/useAppearance';
 import { provideCommands } from '../composables/useCommands';
+import { provideStudyHelp } from '../composables/useStudyHelp';
+
+const StudyHelpDialog = defineAsyncComponent( () => import( './StudyHelpDialog.vue' ) );
 
 const routeTransition = {
   duration: 0.18,
@@ -26,6 +29,7 @@ const phoneLayout = window.matchMedia( '(max-width: 700px)' );
 const currentRoute = useRoute();
 const router = useRouter();
 const commands = provideCommands( router );
+const help = provideStudyHelp();
 const { motionConfigPreference, resolvedMotion } = useAppearance();
 const paletteCommand = commands.command( COMMAND_IDS.commandPaletteOpen );
 const referenceCommand = commands.command( COMMAND_IDS.commandReferenceOpen );
@@ -160,6 +164,7 @@ function skipToContent() {
       </div>
 
       <CommandCenter />
+      <StudyHelpDialog v-if="help.requested.value" />
     </LazyMotion>
   </MotionConfig>
 </template>

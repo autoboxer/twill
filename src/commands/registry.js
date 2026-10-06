@@ -1,6 +1,7 @@
 export const COMMAND_IDS = Object.freeze({
   commandPaletteOpen: 'command.palette.open',
   commandReferenceOpen: 'command.reference.open',
+  studyGuideOpen: 'guide.open',
   conceptCreate: 'concept.create',
   conceptSave: 'concept.save',
   conceptToggleCloze: 'concept.toggle-cloze',
@@ -40,6 +41,14 @@ export const commandRegistry = Object.freeze([
     icon: 'i-lucide-keyboard',
     label: 'Keyboard shortcuts',
     shortcut: 'Mod+/'
+  }),
+  localCommand({
+    id: COMMAND_IDS.studyGuideOpen,
+    context: 'Command palette',
+    description: 'Learn how to create cards and study in Twill.',
+    group: 'Application',
+    icon: 'i-lucide-circle-help',
+    label: 'Using Twill'
   }),
   navigationCommand({
     id: COMMAND_IDS.navigateStudy,
@@ -223,12 +232,20 @@ export function commandShortcutLabel( command, applePlatform = isApplePlatform()
 }
 
 export function commandShortcutParts( command, applePlatform = isApplePlatform() ) {
+  if ( !command.shortcut ) {
+    return [];
+  }
+
   return command.shortcut
     .split( '+' )
     .map( ( part ) => shortcutPartLabel( part, applePlatform ) );
 }
 
 export function commandAriaShortcut( command, applePlatform = isApplePlatform() ) {
+  if ( !command.shortcut ) {
+    return undefined;
+  }
+
   return command.shortcut
     .split( '+' )
     .map( ( part ) => ariaShortcutPart( part, applePlatform ) )
@@ -240,6 +257,10 @@ export function commandMatchesKeyboardEvent(
   event,
   applePlatform = isApplePlatform()
 ) {
+  if ( !command.shortcut ) {
+    return false;
+  }
+
   const parts = command.shortcut.split( '+' );
   const key = parts.at( -1 );
   const modifiers = new Set( parts.slice( 0, -1 ) );

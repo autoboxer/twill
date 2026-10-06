@@ -98,7 +98,9 @@ function createCommandRuntime( router ) {
       enabled: isEnabled( definition ),
       shortcutLabel,
       shortcutParts,
-      tooltip: `${ definition.label } (${ shortcutLabel })`
+      tooltip: shortcutLabel
+        ? `${ definition.label } (${ shortcutLabel })`
+        : definition.label
     };
   }
 
