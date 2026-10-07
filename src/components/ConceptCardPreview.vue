@@ -2,12 +2,14 @@
 import { computed, ref, shallowRef, watch } from 'vue';
 
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
+import { useStudyComparison } from '../composables/useStudyComparison';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import CardAnswerDetails from './CardAnswerDetails.vue';
 import StudyCardContent from './StudyCardContent.vue';
 import StudyAssistance from './StudyAssistance.vue';
 import StudyAnswerParts from './StudyAnswerParts.vue';
 import { supportsAnswerParts } from '../answer-parts/documents';
+import { usesAnswerPartComparison } from '../study/comparison';
 
 const props = defineProps({
   content: { type: Object, required: true },
@@ -60,6 +62,13 @@ const card = computed( () => ({
   template: template.value
 }) );
 const selectiveAnswer = computed( () => supportsAnswerParts( card.value ) );
+const { comparisonChecks, restoreComparison, setComparison } = useStudyComparison({
+  currentCard: card,
+  answerRevealed: revealed,
+  actionsBlocked: loading
+});
+
+watch([ previewContent, () => props.typeSettings ], () => restoreComparison(), { deep: true });
 
 watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
   let current = true;
@@ -73,6 +82,7 @@ watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
   revealed.value = false;
   revealedAssistance.value = [];
   revealedAnswerParts.value = [];
+  restoreComparison();
 
   if ( !loading.value ) {
     return;
@@ -141,9 +151,19 @@ function toggleAnswerParts( ids ) {
         :document="previewContent.answer"
         :full-answer-revealed="revealed"
         :revealed="revealedAnswerParts"
+        :comparison-enabled="usesAnswerPartComparison( card )"
+        :written-response="card.retrievalKind === 'typeAnswer'"
+        :checks="comparisonChecks"
         @toggle="toggleAnswerParts"
+        @compare="setComparison"
       />
-      <CardAnswerDetails v-if="revealed" :card="card" />
+      <CardAnswerDetails
+        v-if="revealed"
+        :card="card"
+        comparison-enabled
+        :checks="comparisonChecks"
+        @compare="setComparison"
+      />
       <StudyAssistance
         :content="previewContent"
         :revealed="revealedAssistance"

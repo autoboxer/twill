@@ -2,7 +2,9 @@
 import { computed } from 'vue';
 
 import { answerPartRevealGroups, answerPartSections } from '../answer-parts/documents';
+import { richDocumentHasContent } from '../rich-content/schema';
 import RichContentRenderer from './RichContentRenderer.vue';
+import StudyIdeaCheck from './StudyIdeaCheck.vue';
 
 const props = defineProps({
   document: {
@@ -20,10 +22,22 @@ const props = defineProps({
   disabled: {
     type: Boolean,
     default: false
+  },
+  comparisonEnabled: {
+    type: Boolean,
+    default: false
+  },
+  writtenResponse: {
+    type: Boolean,
+    default: false
+  },
+  checks: {
+    type: Object,
+    default: () => ({})
   }
 });
 
-const emit = defineEmits([ 'toggle' ]);
+const emit = defineEmits([ 'toggle', 'compare' ]);
 const groups = computed( () => answerPartRevealGroups( props.document ) );
 const sections = computed( () => answerPartSections( props.document ) );
 
@@ -135,6 +149,14 @@ function startsGroup( index ) {
               {{ groupControlLabel( section ) }}
             </UButton>
           </template>
+          <StudyIdeaCheck
+            v-else-if="comparisonEnabled"
+            :label="section.label.toLowerCase()"
+            :model-value="checks[ `part:${ section.id }` ]"
+            :written-response="writtenResponse"
+            :disabled="disabled"
+            @update:model-value="emit( 'compare', `part:${ section.id }`, $event )"
+          />
         </div>
         <div
           v-if="fullAnswerRevealed || revealed.includes( section.id )"
@@ -147,7 +169,7 @@ function startsGroup( index ) {
         </div>
       </section>
       <RichContentRenderer
-        v-else-if="fullAnswerRevealed"
+        v-else-if="fullAnswerRevealed && richDocumentHasContent( section.document )"
         :document="section.document"
         label="Answer"
       />

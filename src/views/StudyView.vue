@@ -31,6 +31,7 @@ import { gradingModeItems, gradingOptionsByMode } from '../study/grading';
 import { emptyStudySelection, studySelectionFromLibrary } from '../study/selection';
 import { retrievalFormLabel as studyCardName } from '../retrieval-forms/catalog';
 import { supportsAnswerParts } from '../answer-parts/documents';
+import { usesAnswerPartComparison } from '../study/comparison';
 
 const commands = useCommands();
 const { resolvedMotion } = useAppearance();
@@ -54,6 +55,7 @@ const {
   canRevealAnswer,
   canUndoLastGrade,
   completedCount,
+  comparisonChecks,
   continueToGrading,
   correctionPending,
   currentAnswerFeedback,
@@ -108,6 +110,7 @@ const {
   selectedCardCount,
   sessionResumeNotice,
   sessionSelection,
+  setComparison,
   showAnswer,
   skipCurrentPretest,
   studyMedia,
@@ -160,6 +163,31 @@ const {
 
 const builderDisabled = computed( () => sessionBusy.value || deferredStartPending.value );
 const selectiveAnswer = computed( () => supportsAnswerParts( currentCard.value ) );
+const comparisonResponse = computed( () => (
+  answerRevealed.value && assisted.value ? responseBeforeAssistance.value : studyResponse.value
+) );
+const writtenComparison = computed( () => (
+  Boolean( typeAnswerSettings.value || comparisonResponse.value.trim() )
+) );
+const comparisonGuidance = computed( () => {
+  if ( !answerRevealed.value ) {
+    return '';
+  }
+
+  const judgments = Object.values( comparisonChecks.value );
+
+  if ( judgments.includes( 'missing' ) || judgments.includes( 'partial' ) ) {
+    if ( pretestTeachingActive.value ) {
+      return 'Review any required ideas you missed or only partly recalled before continuing.';
+    }
+
+    const grade = masteryActive.value ? 'Still missed' : gradingMode.value === 'advanced' ? 'Again' : 'Forgot';
+
+    return `Choose ${ grade } if a required idea was missing or incomplete.`;
+  }
+
+  return '';
+});
 
 watch( () => route.fullPath, () => {
   if ( route.name === 'study' && route.query.build === '1' ) {
@@ -787,7 +815,7 @@ useStartupReady( initialLoading );
           <TypeAnswerResponse
             v-if="typeAnswerSettings"
             ref="typeAnswerResponse"
-            :model-value="answerRevealed && assisted ? responseBeforeAssistance : studyResponse"
+            :model-value="comparisonResponse"
             :accepted-answers="typeAnswerSettings.acceptedAnswers"
             :revealed="answerRevealed"
             @update:model-value="studyResponse = $event"
@@ -797,19 +825,25 @@ useStartupReady( initialLoading );
           <ExplainResponse
             v-if="explainSettings"
             ref="explainResponse"
-            :model-value="answerRevealed && assisted ? responseBeforeAssistance : studyResponse"
+            :model-value="comparisonResponse"
             :settings="explainSettings"
             :revealed="answerRevealed"
+            :checks="comparisonChecks"
+            :disabled="actionsBlocked"
             @update:model-value="studyResponse = $event"
+            @compare="setComparison"
           />
 
           <ProblemResponse
             v-if="problemSettings"
             ref="problemResponse"
-            :model-value="answerRevealed && assisted ? responseBeforeAssistance : studyResponse"
+            :model-value="comparisonResponse"
             :settings="problemSettings"
             :revealed="answerRevealed"
+            :checks="comparisonChecks"
+            :disabled="actionsBlocked"
             @update:model-value="studyResponse = $event"
+            @compare="setComparison"
           />
 
           <StudyAssistance
@@ -826,7 +860,11 @@ useStartupReady( initialLoading );
             :full-answer-revealed="answerRevealed"
             :revealed="revealedAnswerParts"
             :disabled="actionsBlocked"
+            :comparison-enabled="usesAnswerPartComparison( currentCard )"
+            :written-response="writtenComparison"
+            :checks="comparisonChecks"
             @toggle="toggleAnswerParts"
+            @compare="setComparison"
           />
 
           <div
@@ -851,6 +889,10 @@ useStartupReady( initialLoading );
         </div>
 
         <footer class="study-card__footer">
+          <p v-if="comparisonGuidance" class="study-comparison-guidance" role="status">
+            {{ comparisonGuidance }}
+          </p>
+
           <UAlert
             v-if="correctionPending"
             class="study-correction-notice"

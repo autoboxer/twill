@@ -122,7 +122,7 @@ export function useRecallSession() {
     }
   }
 
-  function assess({ rating, response, reviewId, assistance }) {
+  function assess({ rating, response, reviewId, assistance, comparison }) {
     if (
       masteryStarted.value
       || pretestTeachingActive.value
@@ -149,6 +149,7 @@ export function useRecallSession() {
       rating,
       response,
       assistance,
+      comparison,
       reviewId
     });
 
@@ -266,7 +267,7 @@ export function useRecallSession() {
     return true;
   }
 
-  function assessMastery({ recalled, response, assistance }) {
+  function assessMastery({ recalled, response, assistance, comparison }) {
     const item = masteryItems.value[ masteryIndex.value ];
 
     if (
@@ -283,7 +284,8 @@ export function useRecallSession() {
       conceptId: item.card.conceptId,
       recalled,
       response,
-      assistance
+      assistance,
+      comparison
     });
     masteryIndex.value += 1;
     answerRevealed.value = false;

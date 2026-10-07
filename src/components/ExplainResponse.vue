@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import StudyIdeaList from './StudyIdeaList.vue';
 
 const props = defineProps({
   modelValue: {
@@ -12,13 +13,23 @@ const props = defineProps({
     required: true
   },
 
+  checks: {
+    type: Object,
+    default: () => ({})
+  },
+
+  disabled: {
+    type: Boolean,
+    default: false
+  },
+
   settings: {
     type: Object,
     required: true
   }
 });
 
-const emit = defineEmits([ 'update:modelValue' ]);
+const emit = defineEmits([ 'update:modelValue', 'compare' ]);
 
 const result = ref( null );
 const root = ref( null );
@@ -55,7 +66,6 @@ function focus() {
 
       <div>
         <strong>{{ focusInstruction }}</strong>
-        <p>Use the Prompt as the topic. Scratchpad text is optional and is not saved.</p>
       </div>
     </header>
 
@@ -78,49 +88,37 @@ function focus() {
       v-else
       ref="result"
       class="explain-comparison"
-      role="status"
+      role="group"
+      aria-label="Compare your explanation"
       tabindex="-1"
     >
       <div class="explain-comparison__heading">
         <strong>Compare your explanation</strong>
-        <p>Check your attempt against the key points, then grade your recall.</p>
       </div>
 
-      <div class="explain-comparison__content">
-        <div>
+      <div
+        class="explain-comparison__content"
+        :class="{ 'explain-comparison__content--written': hasResponse }"
+      >
+        <div v-if="hasResponse">
           <span>Your explanation</span>
 
-          <p
-            v-if="hasResponse"
-            class="explain-comparison__attempt"
-          >
+          <p class="explain-comparison__attempt">
             {{ modelValue }}
-          </p>
-
-          <p
-            v-else
-            class="explain-comparison__empty"
-          >
-            No scratchpad response.
           </p>
         </div>
 
         <div>
           <span>Key points</span>
 
-          <ul>
-            <li
-              v-for="keyPoint in settings.keyPoints"
-              :key="keyPoint"
-            >
-              <UIcon
-                name="i-lucide-check"
-                aria-hidden="true"
-              />
-
-              <span>{{ keyPoint }}</span>
-            </li>
-          </ul>
+          <StudyIdeaList
+            :items="settings.keyPoints"
+            kind="idea"
+            :checks="checks"
+            :written-response="hasResponse"
+            :disabled="disabled"
+            @compare="( id, value ) => emit( 'compare', id, value )"
+          />
         </div>
       </div>
     </div>

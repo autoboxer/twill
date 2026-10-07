@@ -519,17 +519,50 @@ Put formulas or other context that should always be visible in Prompt.
 Try the whole question before revealing parts. If you reveal a part early,
 Twill marks the review as assisted and preserves your response from before
 help. Grade that whole attempt. A part you missed still matters even if you
-remembered the others. If targets need separate schedules, use separate cards
+remembered the others, if the question required that part. If targets need
+separate schedules, use separate cards
 or concepts. Answer parts do not create schedules or inferred grades.
 
 Parts and their groups remain available while you pause or visit another view.
 Undo restores the previous attempt. These disclosure states and written
 responses remain session only. First pretest attempts withhold selective reveal.
 
+### Compare the important ideas
+
+After revealing the full answer, Explain cards use their key points for optional
+checks. Problem cards use their checkpoints. On other built-in cards, you can
+check the answer parts themselves. You do not need to check both a rubric and
+the parts that express it.
+
+For mental recall, use Remembered, Partially remembered or Forgot. If you wrote
+your response, use Present, Incomplete or Missing. Compare the response you made
+before opening help. Later writing does not change that original attempt.
+Leave a check at Not checked if you do not need it. These checks are optional,
+and you can grade without completing them.
+
+Compare meaning rather than exact wording. A different correct explanation or
+valid solution method can satisfy the question. An answer part can contain extra
+explanation rather than a requirement. Make the requirements clear in Prompt.
+Use the Answer and feedback as a reference, including a complete example when
+the quality of the whole response matters more than a list of separate ideas.
+Accepted alternatives in Type answer are not separate required ideas.
+
+Review incomplete ideas and any important omissions. Choose Forgot or Again
+if a required idea was missing or incomplete. Hard means a correct answer that
+was difficult to recall, not a partly correct answer. One grade assesses the
+whole card. Twill does
+not add up these checks, decide a grade, or schedule parts independently. If you
+used help, compare the attempt you made before that help.
+
+Checks stay with an attempt when you pause, visit another view or undo a grade.
+They clear for a fresh attempt or mastery retry and are not saved after an app
+restart. You can also use them while reading pretest feedback without creating
+a review grade.
+
 ## Current boundaries
 
 The examples use Standard recall, Type answer, Cloze, Image occlusion, Explain,
-Problem, optional answer feedback, hints, references, answer parts, pretesting, mixed
+Problem, optional answer feedback, hints, references, answer parts, idea checks, pretesting, mixed
 practice, and mastery retries. Focused sessions include only cards that are due.
 Linked applications, choice authoring, guided sequences,
 image labeling, reconstruction controls, tools for creating examples, and records

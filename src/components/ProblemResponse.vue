@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
+import StudyIdeaList from './StudyIdeaList.vue';
 
 const props = defineProps({
   modelValue: {
@@ -12,13 +13,23 @@ const props = defineProps({
     required: true
   },
 
+  checks: {
+    type: Object,
+    default: () => ({})
+  },
+
+  disabled: {
+    type: Boolean,
+    default: false
+  },
+
   settings: {
     type: Object,
     required: true
   }
 });
 
-const emit = defineEmits([ 'update:modelValue' ]);
+const emit = defineEmits([ 'update:modelValue', 'compare' ]);
 
 const result = ref( null );
 const root = ref( null );
@@ -49,7 +60,6 @@ function focus() {
 
       <div>
         <strong>Work through the problem</strong>
-        <p>Workpad text is optional and is not saved.</p>
       </div>
     </header>
 
@@ -72,44 +82,37 @@ function focus() {
       v-else
       ref="result"
       class="problem-comparison"
-      role="status"
+      role="group"
+      aria-label="Check your solution"
       tabindex="-1"
     >
       <div class="problem-comparison__heading">
         <strong>Check your solution</strong>
-        <p>Compare your work with the solution checkpoints, then grade your recall.</p>
       </div>
 
-      <div class="problem-comparison__content">
-        <div>
+      <div
+        class="problem-comparison__content"
+        :class="{ 'problem-comparison__content--written': hasResponse }"
+      >
+        <div v-if="hasResponse">
           <span>Your work</span>
 
-          <p
-            v-if="hasResponse"
-            class="problem-comparison__attempt"
-          >
+          <p class="problem-comparison__attempt">
             {{ modelValue }}
-          </p>
-
-          <p
-            v-else
-            class="problem-comparison__empty"
-          >
-            No workpad response.
           </p>
         </div>
 
         <div>
           <span>Solution checkpoints</span>
 
-          <ol>
-            <li
-              v-for="checkpoint in settings.checkpoints"
-              :key="checkpoint"
-            >
-              <span>{{ checkpoint }}</span>
-            </li>
-          </ol>
+          <StudyIdeaList
+            :items="settings.checkpoints"
+            kind="checkpoint"
+            :checks="checks"
+            :written-response="hasResponse"
+            :disabled="disabled"
+            @compare="( id, value ) => emit( 'compare', id, value )"
+          />
         </div>
       </div>
     </div>

@@ -145,6 +145,7 @@ export const guideTopics = [
         title: 'Define a good explanation',
         paragraphs: [
           'Choose Why, How, Cause and effect, or Compare and contrast. Add the key points that a correct explanation should include. During Study, explain mentally or use the scratchpad. Compare the meaning of your explanation with the key points.',
+          'After revealing the answer, you can mark each key point as Remembered, Partially remembered, or Forgot. If you wrote an explanation, the choices are Present, Incomplete, and Missing. Different wording can express the same idea. Checks are optional, and you still choose one grade for the whole card.',
           'Ask about a specific relationship or process. If you cannot explain it, review a clear example or any background knowledge you need before trying again.'
         ],
         example: 'Prompt: Why can packet loss delay later TCP data even when those later packets arrive? Key point: The ordered byte stream waits for missing earlier data to be recovered.',
@@ -162,6 +163,7 @@ export const guideTopics = [
         title: 'Practice the ability you need',
         paragraphs: [
           'Write the problem and verify its solution. Add checkpoints for important steps. During Study, attempt the problem in the workpad or on paper. Compare your result and any required reasoning with the solution.',
+          'After revealing the answer, you can mark each checkpoint as Remembered, Partially remembered, or Forgot. If you wrote in the workpad, the choices are Present, Incomplete, and Missing. Accept another valid method when the question allows it. These optional checks do not choose a grade.',
           'Study a worked example first if the method is unfamiliar. Leave a formula in Prompt when you want to practice applying it. Ask for the formula from memory only if you also need to recall it. Allow enough time to work through the problem.'
         ],
         example: 'A rate rises from 10% to 15%. State the increase in percentage points and relative percent. Answer: The rate increases by 5 percentage points. The relative increase is 50%, calculated using the original 10% as the denominator.',
@@ -227,7 +229,8 @@ export const guideTopics = [
         ],
         paragraphs: [
           'Keep context that should always be visible in Prompt. Other Answer content stays hidden until you reveal the full answer. Template cards use their own layouts and show parts as ordinary answer content.',
-          'Revealing a part early marks the review as assisted. Grade your whole original attempt, not just the parts you remembered. Parts do not receive separate grades or review schedules.'
+          'Revealing a part early marks the review as assisted. Grade your whole original attempt, not just the parts you remembered. Parts do not receive separate grades or review schedules.',
+          'After full reveal, Explain and Problem cards use their key points or checkpoints for optional checks. Other built-in cards let you check the parts themselves. Use Remembered, Partially remembered, or Forgot for mental recall. Written answers use Present, Incomplete, and Missing. A part may provide extra explanation rather than a requirement. If a required idea was missing or incomplete, choose Forgot or Again for the whole answer. Checks remain available when you pause or visit another view, but not after you restart the app.'
         ]
       },
       {
