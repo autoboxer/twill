@@ -24,6 +24,11 @@ const props = defineProps({
   media: {
     type: Array,
     required: true
+  },
+
+  hideAnswer: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -66,7 +71,7 @@ const visibleBlocks = computed( () => {
     const blocks = [{ type: 'field', field: 'prompt' }];
 
     if (
-      props.answerRevealed
+      props.answerRevealed && !props.hideAnswer
       && (
         ( !isExplain.value && !isProblem.value )
         || richDocumentHasContent( props.card.content.answer )

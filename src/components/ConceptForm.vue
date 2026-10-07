@@ -827,6 +827,7 @@ defineExpose({ submit });
           v-model="form.content.answer"
           label="Answer"
           placeholder="Write an answer"
+          answer-parts-enabled
           :disabled="disabled"
         />
       </div>

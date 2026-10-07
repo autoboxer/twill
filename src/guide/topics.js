@@ -219,6 +219,18 @@ export const guideTopics = [
         ]
       },
       {
+        title: 'Reveal an answer in parts',
+        steps: [
+          'In Answer, place the cursor in a block or select several blocks. Select Answer part in the toolbar to make those blocks a part. Select it again inside a part to remove the part without deleting its content.',
+          'Below the editor, group a part with another part when you want to reveal them together. Without authored groups, all parts belong to the default reveal group.',
+          'On a built-in study card, try the whole question first. Select Reveal for one part or use its group control to reveal the named parts together. Without authored groups, select Reveal all parts. You can still reveal the full answer at any time.'
+        ],
+        paragraphs: [
+          'Keep context that should always be visible in Prompt. Other Answer content stays hidden until you reveal the full answer. Template cards use their own layouts and show parts as ordinary answer content.',
+          'Revealing a part early marks the review as assisted. Grade your whole original attempt, not just the parts you remembered. Parts do not receive separate grades or review schedules.'
+        ]
+      },
+      {
         title: 'Optional pretesting',
         paragraphs: [
           'To try a question before studying its explanation, open Settings, select Study, and enable pretesting. For eligible concepts you have not studied, Twill offers a first attempt or Skip. After an attempt, Twill shows the explanation. The ordinary review takes place in a later session.',

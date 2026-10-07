@@ -113,6 +113,8 @@ export function useStudySession({
     responseBeforeAssistance,
     restoreAssistance,
     revealedAssistance,
+    revealedAnswerParts,
+    toggleAnswerParts,
     toggleAssistance
   } = useStudyAssistance({
     currentCard,
@@ -761,6 +763,7 @@ export function useStudySession({
     resumeSession,
     responseBeforeAssistance,
     revealedAssistance,
+    revealedAnswerParts,
     sessionBusy,
     sessionEnded,
     sessionPaused,
@@ -775,6 +778,7 @@ export function useStudySession({
     totalAvailableCards,
     totalCards,
     toggleAssistance,
+    toggleAnswerParts,
     typeAnswerSettings,
     undoLastGrade,
     undoPending,

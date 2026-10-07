@@ -6,6 +6,8 @@ import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import CardAnswerDetails from './CardAnswerDetails.vue';
 import StudyCardContent from './StudyCardContent.vue';
 import StudyAssistance from './StudyAssistance.vue';
+import StudyAnswerParts from './StudyAnswerParts.vue';
+import { supportsAnswerParts } from '../answer-parts/documents';
 
 const props = defineProps({
   content: { type: Object, required: true },
@@ -27,6 +29,7 @@ const error = ref( '' );
 const loading = ref( false );
 const revealed = ref( false );
 const revealedAssistance = ref([]);
+const revealedAnswerParts = ref([]);
 const retry = ref( 0 );
 const previewContent = shallowRef({ ...props.content });
 const previewTitle = ref( props.title );
@@ -56,6 +59,7 @@ const card = computed( () => ({
   problem: props.typeId === 'problem' ? props.typeSettings : null,
   template: template.value
 }) );
+const selectiveAnswer = computed( () => supportsAnswerParts( card.value ) );
 
 watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
   let current = true;
@@ -68,6 +72,7 @@ watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
   loading.value = !builtInKinds[ id ];
   revealed.value = false;
   revealedAssistance.value = [];
+  revealedAnswerParts.value = [];
 
   if ( !loading.value ) {
     return;
@@ -95,6 +100,12 @@ function toggleAssistance( id ) {
     ? revealedAssistance.value.filter( ( value ) => value !== id )
     : [ ...revealedAssistance.value, id ];
 }
+
+function toggleAnswerParts( ids ) {
+  revealedAnswerParts.value = ids.every( ( id ) => revealedAnswerParts.value.includes( id ) )
+    ? revealedAnswerParts.value.filter( ( id ) => !ids.includes( id ) )
+    : [ ...new Set([ ...revealedAnswerParts.value, ...ids ]) ];
+}
 </script>
 
 <template>
@@ -119,7 +130,19 @@ function toggleAssistance( id ) {
       <UButton type="button" variant="subtle" @click="retry += 1">Retry preview</UButton>
     </template>
     <template v-else>
-      <StudyCardContent :card="card" :media="media" :answer-revealed="revealed" />
+      <StudyCardContent
+        :card="card"
+        :media="media"
+        :answer-revealed="revealed"
+        :hide-answer="selectiveAnswer"
+      />
+      <StudyAnswerParts
+        v-if="selectiveAnswer"
+        :document="previewContent.answer"
+        :full-answer-revealed="revealed"
+        :revealed="revealedAnswerParts"
+        @toggle="toggleAnswerParts"
+      />
       <CardAnswerDetails v-if="revealed" :card="card" />
       <StudyAssistance
         :content="previewContent"

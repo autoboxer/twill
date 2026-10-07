@@ -10,6 +10,7 @@ import DeferredEditNoteDialog from '../components/DeferredEditNoteDialog.vue';
 import ExplainResponse from '../components/ExplainResponse.vue';
 import ProblemResponse from '../components/ProblemResponse.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
+import StudyAnswerParts from '../components/StudyAnswerParts.vue';
 import StudyAssistance from '../components/StudyAssistance.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import StudyHelpButton from '../components/StudyHelpButton.vue';
@@ -29,6 +30,7 @@ import { useStartupReady } from '../composables/useStartupReady';
 import { gradingModeItems, gradingOptionsByMode } from '../study/grading';
 import { emptyStudySelection, studySelectionFromLibrary } from '../study/selection';
 import { retrievalFormLabel as studyCardName } from '../retrieval-forms/catalog';
+import { supportsAnswerParts } from '../answer-parts/documents';
 
 const commands = useCommands();
 const { resolvedMotion } = useAppearance();
@@ -98,6 +100,7 @@ const {
   resumeSession,
   responseBeforeAssistance,
   revealedAssistance,
+  revealedAnswerParts,
   sessionBusy,
   sessionEnded,
   sessionPaused,
@@ -112,6 +115,7 @@ const {
   totalAvailableCards,
   totalCards,
   toggleAssistance,
+  toggleAnswerParts,
   typeAnswerSettings,
   undoLastGrade,
   undoPending,
@@ -155,6 +159,7 @@ const {
 } = useStudyDeferredEdits( session );
 
 const builderDisabled = computed( () => sessionBusy.value || deferredStartPending.value );
+const selectiveAnswer = computed( () => supportsAnswerParts( currentCard.value ) );
 
 watch( () => route.fullPath, () => {
   if ( route.name === 'study' && route.query.build === '1' ) {
@@ -776,6 +781,7 @@ useStartupReady( initialLoading );
             :card="currentCard"
             :answer-revealed="answerRevealed"
             :media="studyMedia"
+            :hide-answer="selectiveAnswer"
           />
 
           <TypeAnswerResponse
@@ -812,6 +818,15 @@ useStartupReady( initialLoading );
             :revealed="revealedAssistance"
             :disabled="actionsBlocked"
             @toggle="toggleAssistance"
+          />
+
+          <StudyAnswerParts
+            v-if="selectiveAnswer && !pretestActive"
+            :document="currentCard.content.answer"
+            :full-answer-revealed="answerRevealed"
+            :revealed="revealedAnswerParts"
+            :disabled="actionsBlocked"
+            @toggle="toggleAnswerParts"
           />
 
           <div

@@ -30,6 +30,9 @@ function renderNode( node, mediaUrls ) {
   case 'blockquote':
     return `<blockquote>${ renderChildren( node, mediaUrls ) }</blockquote>`;
 
+  case 'answerPart':
+    return renderChildren( node, mediaUrls );
+
   case 'bulletList':
     return renderBulletList( node, mediaUrls );
 

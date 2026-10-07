@@ -968,3 +968,32 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.study-answer-parts {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.study-answer-part {
+  min-width: 0;
+}
+
+.study-answer-part--group-start {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ui-border);
+}
+
+.study-answer-part__heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.65rem;
+  color: var(--ui-text-muted);
+  font-size: 0.82rem;
+}
+
+.study-answer-part__group-label {
+  color: var(--ui-text-dimmed);
+  font-size: 0.75rem;
+}

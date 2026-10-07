@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 
 import { assistanceDocuments } from '../study/assistance';
+import { collectAnswerParts, supportsAnswerParts } from '../answer-parts/documents';
 
 export function useStudyAssistance({
   currentCard,
@@ -10,12 +11,14 @@ export function useStudyAssistance({
   response
 }) {
   const revealedAssistance = ref([]);
+  const revealedAnswerParts = ref([]);
   const assisted = ref( false );
   const responseBeforeAssistance = ref( '' );
 
   function assistanceSnapshot() {
     return {
       revealed: [ ...revealedAssistance.value ],
+      parts: [ ...revealedAnswerParts.value ],
       used: assisted.value,
       response: responseBeforeAssistance.value
     };
@@ -23,8 +26,35 @@ export function useStudyAssistance({
 
   function restoreAssistance( saved = null ) {
     revealedAssistance.value = [ ...( saved?.revealed ?? []) ];
+    const parts = collectAnswerParts( currentCard.value?.content.answer );
+
+    revealedAnswerParts.value = ( saved?.parts ?? []).filter( ( id ) => parts.some( ( part ) => part.id === id ) );
     assisted.value = saved?.used === true;
     responseBeforeAssistance.value = saved?.response ?? '';
+  }
+
+  function markAssistance() {
+    if ( !answerRevealed.value && !assisted.value ) {
+      assisted.value = true;
+      responseBeforeAssistance.value = response.value;
+    }
+  }
+
+  function toggleAnswerParts( ids ) {
+    const parts = collectAnswerParts( currentCard.value?.content.answer );
+
+    if ( actionsBlocked.value || pretestActive.value || answerRevealed.value
+      || !supportsAnswerParts( currentCard.value ) || !Array.isArray( ids ) || !ids.length
+      || ids.some( ( id ) => !parts.some( ( part ) => part.id === id ) ) ) {
+      return;
+    }
+
+    if ( ids.every( ( id ) => revealedAnswerParts.value.includes( id ) ) ) {
+      revealedAnswerParts.value = revealedAnswerParts.value.filter( ( id ) => !ids.includes( id ) );
+    } else {
+      markAssistance();
+      revealedAnswerParts.value = [ ...new Set([ ...revealedAnswerParts.value, ...ids ]) ];
+    }
   }
 
   function toggleAssistance( id ) {
@@ -38,10 +68,7 @@ export function useStudyAssistance({
       return;
     }
 
-    if ( !answerRevealed.value && !assisted.value ) {
-      assisted.value = true;
-      responseBeforeAssistance.value = response.value;
-    }
+    markAssistance();
 
     revealedAssistance.value = [ ...revealedAssistance.value, id ];
   }
@@ -52,6 +79,8 @@ export function useStudyAssistance({
     responseBeforeAssistance,
     restoreAssistance,
     revealedAssistance,
+    revealedAnswerParts,
+    toggleAnswerParts,
     toggleAssistance
   };
 }

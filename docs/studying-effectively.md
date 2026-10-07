@@ -274,9 +274,9 @@ a long streak of immediate repetitions.
 - Information included in the question is allowed context. An extra hint that
   supplies part of the answer is assistance. Judge what you could answer before
   you received that help.
-- You choose the current grades yourself. More hint controls and separate results
-  for individual answer parts are planned. There is no current rule that maps
-  each hint to a particular grade.
+- You choose the current grades yourself. Revealing a hint, reference or answer
+  part before full comparison marks the review as assisted. There is no rule
+  that maps each hint to a particular grade. One grade assesses the whole card.
 - Correct an accidental grade with Undo last grade when it is available. Do not
   change grades to force a desired due date or claim that one answer proves
   every related card is known.
@@ -494,12 +494,44 @@ An assisted flag does not automatically change a grade or calculate a penalty.
 The learner still chooses the grade for the original attempt. Help is withheld
 during the initial pretest attempt, then becomes available during feedback.
 
+### Reveal meaningful answer parts
+
+Use answer parts when checking one part at a time helps you understand a larger
+answer. For example, a solution can contain the chosen method, its calculation,
+and its interpretation. Keep each part in the existing Answer document. Parts
+can include text, equations, lists, code or images.
+
+In the Answer editor, place the cursor in a block or select several blocks.
+Select **Answer part** in the toolbar. To remove a part without deleting its
+content, place the cursor inside it and select the same button. The controls
+below Answer let you group a part with another part. Without authored groups,
+all parts belong to one default reveal group.
+
+On built-in study cards, **Reveal** shows one part. A group control names the
+parts it reveals together. When there are no authored groups, **Reveal all
+parts** shows every part. Individual reveal remains available. Hiding a group
+hides only its members, regardless of which parts you revealed earlier. These
+controls do not show other Answer content. You can reveal the full answer
+directly. Template cards keep their authored layouts
+and display parts as ordinary answer content instead of selective controls.
+Put formulas or other context that should always be visible in Prompt.
+
+Try the whole question before revealing parts. If you reveal a part early,
+Twill marks the review as assisted and preserves your response from before
+help. Grade that whole attempt. A part you missed still matters even if you
+remembered the others. If targets need separate schedules, use separate cards
+or concepts. Answer parts do not create schedules or inferred grades.
+
+Parts and their groups remain available while you pause or visit another view.
+Undo restores the previous attempt. These disclosure states and written
+responses remain session only. First pretest attempts withhold selective reveal.
+
 ## Current boundaries
 
 The examples use Standard recall, Type answer, Cloze, Image occlusion, Explain,
-Problem, optional answer feedback, hints and references, pretesting, mixed
+Problem, optional answer feedback, hints, references, answer parts, pretesting, mixed
 practice, and mastery retries. Focused sessions include only cards that are due.
-Selective answer parts, linked applications, choice authoring, guided sequences,
+Linked applications, choice authoring, guided sequences,
 image labeling, reconstruction controls, tools for creating examples, and records
 of learning across sessions are planned.
 They are not available controls. References to them above describe future

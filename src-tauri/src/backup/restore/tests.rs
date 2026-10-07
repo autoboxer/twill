@@ -26,7 +26,7 @@ fn concept_input(title: &str) -> CreateConceptInput {
 }
 
 #[test]
-fn backup_round_trip_preserves_assistance_media_and_assisted_reviews() {
+fn backup_round_trip_preserves_assistance_answer_parts_media_and_assisted_reviews() {
     let root = tempdir().unwrap();
     let source = LocalDataStore::open(root.path().join("source")).unwrap();
     let library = ConceptLibrary::new(&source);
@@ -36,6 +36,13 @@ fn backup_round_trip_preserves_assistance_media_and_assisted_reviews() {
 
     let media = library.import_image(image.get_ref()).unwrap();
     let mut input = concept_input("Help round trip");
+    let group_id = uuid::Uuid::now_v7().to_string();
+    input.content.answer = json!({ "type": "doc", "content": [
+        { "type": "answerPart", "attrs": { "id": uuid::Uuid::now_v7().to_string(), "groupId": group_id },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "First target" }] }] },
+        { "type": "answerPart", "attrs": { "id": uuid::Uuid::now_v7().to_string(), "groupId": group_id },
+            "content": [{ "type": "mediaImage", "attrs": { "mediaId": media.id } }] }
+    ] });
     input.content.assistance.hint = json!({ "type": "doc", "content": [{
         "type": "paragraph", "content": [{ "type": "text", "text": "Think of the denominator." }]
     }] });
@@ -67,6 +74,7 @@ fn backup_round_trip_preserves_assistance_media_and_assisted_reviews() {
     }).unwrap();
 
     assert_eq!(saved.content.assistance, concept.content.assistance);
+    assert_eq!(saved.content.answer, concept.content.answer);
     assert_eq!(saved.media[0].id, media.id);
     assert!(assisted);
     assert_eq!(fs::read_dir(restored.media_directory()).unwrap().count(), 1);

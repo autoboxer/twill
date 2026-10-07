@@ -37,6 +37,63 @@ fn png_bytes() -> Vec<u8> {
 }
 
 #[test]
+fn answer_part_edits_keep_card_identity_and_manage_media_in_the_answer() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let media = library.import_image(&png_bytes()).unwrap();
+    let part_id = uuid::Uuid::now_v7().to_string();
+    let group_id = uuid::Uuid::now_v7().to_string();
+    let input: CreateConceptInput = serde_json::from_value(json!({
+        "title": "Answer sections", "content": {
+            "schemaVersion": 1,
+            "prompt": { "type": "doc", "content": [{ "type": "paragraph" }] },
+            "answer": { "type": "doc", "content": [{
+                "type": "answerPart", "attrs": { "id": part_id, "groupId": group_id },
+                "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Target café" }] },
+                    { "type": "mediaImage", "attrs": { "mediaId": media.id } }]
+            }] }
+        }
+    })).unwrap();
+    let concept = library.create_concept(input).unwrap();
+
+    assert_eq!(concept.cards.len(), 1);
+    assert_eq!(concept.media[0].id, media.id);
+    assert_eq!(library.study_queue().unwrap().concepts[0].content, concept.content);
+    let matching = library.search(LibraryQuery {
+        query: "Target café".to_owned(),
+        ..Default::default()
+    }).unwrap();
+
+    assert_eq!(matching.concepts[0].id, concept.id);
+
+    let mut edit: UpdateConceptInput = serde_json::from_value(json!({
+        "id": concept.id, "title": concept.title, "content": concept.content
+    })).unwrap();
+    edit.content.answer["content"][0]["content"][0]["content"][0]["text"] = json!("Updated target");
+    let updated = library.update_concept(edit.clone()).unwrap();
+
+    assert_eq!(updated.content.answer["content"][0]["attrs"]["id"], part_id);
+    assert_eq!(updated.content.answer["content"][0]["attrs"]["groupId"], group_id);
+    assert_eq!(updated.cards, concept.cards);
+    assert_ne!(updated.last_change_id, concept.last_change_id);
+
+    let changes_before = store.changes_after(0, 100).unwrap().len();
+    let duplicate = edit.content.answer["content"][0].clone();
+    edit.content.answer["content"].as_array_mut().unwrap().push(duplicate);
+
+    assert!(library.update_concept(edit.clone()).is_err());
+    assert_eq!(store.changes_after(0, 100).unwrap().len(), changes_before);
+    assert_eq!(library.concept(&concept.id).unwrap().content, updated.content);
+
+    edit.content.answer = ConceptContent::default().answer;
+    let removed = library.update_concept(edit).unwrap();
+
+    assert!(removed.media.is_empty());
+    assert_eq!(removed.cards, concept.cards);
+    assert_ne!(removed.last_change_id, updated.last_change_id);
+}
+
+#[test]
 fn assistance_is_validated_indexed_and_retains_its_media() {
     let (_directory, store) = test_store();
     let library = ConceptLibrary::new(&store);
