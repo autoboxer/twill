@@ -10,6 +10,7 @@ import DeferredEditNoteDialog from '../components/DeferredEditNoteDialog.vue';
 import ExplainResponse from '../components/ExplainResponse.vue';
 import ProblemResponse from '../components/ProblemResponse.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
+import StudyAssistance from '../components/StudyAssistance.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import StudyHelpButton from '../components/StudyHelpButton.vue';
 import StudySessionBuilder from '../components/StudySessionBuilder.vue';
@@ -44,6 +45,7 @@ const {
   actionsBlocked,
   answerFeedbackPending,
   answerRevealed,
+  assisted,
   assessmentError,
   assessmentPending,
   beginMasteryRound,
@@ -94,6 +96,8 @@ const {
   recordMasteryAssessment,
   recoveryError,
   resumeSession,
+  responseBeforeAssistance,
+  revealedAssistance,
   sessionBusy,
   sessionEnded,
   sessionPaused,
@@ -107,6 +111,7 @@ const {
   studyResponse,
   totalAvailableCards,
   totalCards,
+  toggleAssistance,
   typeAnswerSettings,
   undoLastGrade,
   undoPending,
@@ -776,27 +781,52 @@ useStartupReady( initialLoading );
           <TypeAnswerResponse
             v-if="typeAnswerSettings"
             ref="typeAnswerResponse"
-            v-model="studyResponse"
+            :model-value="answerRevealed && assisted ? responseBeforeAssistance : studyResponse"
             :accepted-answers="typeAnswerSettings.acceptedAnswers"
             :revealed="answerRevealed"
+            @update:model-value="studyResponse = $event"
             @submit="showAnswer"
           />
 
           <ExplainResponse
             v-if="explainSettings"
             ref="explainResponse"
-            v-model="studyResponse"
+            :model-value="answerRevealed && assisted ? responseBeforeAssistance : studyResponse"
             :settings="explainSettings"
             :revealed="answerRevealed"
+            @update:model-value="studyResponse = $event"
           />
 
           <ProblemResponse
             v-if="problemSettings"
             ref="problemResponse"
-            v-model="studyResponse"
+            :model-value="answerRevealed && assisted ? responseBeforeAssistance : studyResponse"
             :settings="problemSettings"
             :revealed="answerRevealed"
+            @update:model-value="studyResponse = $event"
           />
+
+          <StudyAssistance
+            v-if="!pretestActive"
+            :content="currentCard.content"
+            :revealed="revealedAssistance"
+            :disabled="actionsBlocked"
+            @toggle="toggleAssistance"
+          />
+
+          <div
+            v-if="assisted"
+            class="study-assistance-notice"
+            data-twill-assisted
+            role="status"
+          >
+            <strong>Help used</strong>
+            <span>Grade your answer before help.</span>
+            <div v-if="answerRevealed && studyResponse && studyResponse !== responseBeforeAssistance" class="study-assisted-response">
+              <span>Your response after help</span>
+              <p>{{ studyResponse }}</p>
+            </div>
+          </div>
 
           <StudyAnswerFeedback
             v-if="answerRevealed && currentAnswerFeedback"

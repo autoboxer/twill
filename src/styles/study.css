@@ -948,3 +948,23 @@
   color: var(--ui-text-muted);
   font-size: 0.8rem;
 }
+.study-assistance-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  color: var(--ui-text-muted);
+}
+
+.study-assisted-response {
+  display: grid;
+  flex-basis: 100%;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.study-assisted-response p {
+  color: var(--ui-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

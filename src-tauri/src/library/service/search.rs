@@ -251,6 +251,8 @@ pub(super) fn index_concept(
         &concept.content.answer,
         &concept.content.feedback.explanation,
         &concept.content.feedback.common_mistakes,
+        &concept.content.assistance.hint,
+        &concept.content.assistance.reference,
     ] {
         append_document_text(document, &mut body);
         body.push('\n');

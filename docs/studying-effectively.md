@@ -472,13 +472,36 @@ For now, create these distinct prompts as separate Problem or Explain concepts
 with a shared tag. Planned linked practice can make their relationship explicit. In
 either case, succeeding on one question is not an automatic pass on the others.
 
+### Use a hint or reference when you need help
+
+When creating or editing a concept, select **Add help** to add a Hint or
+Reference. Use a hint for a useful cue or memory association. Use a reference
+for a formula, source passage or supporting example. Both are optional and
+shared by the concept’s card types. Put information that should always be
+available in Prompt instead.
+
+Try the question before opening help. You can reveal the full answer without
+opening either field. Opening help before revealing the answer marks the review
+as assisted, even if you hide it afterward. Grade the original attempt. Choose
+Forgot or Again if help was needed to produce the answer. Opening help after
+the final reveal is feedback, not assistance for that original attempt.
+
+If you write a response, Twill keeps its state at the first help request for
+comparison. You can continue writing, and that later response appears separately
+after reveal. These responses last only while the app remains open. The saved
+review records whether help was used, not the response text or a detailed log.
+An assisted flag does not automatically change a grade or calculate a penalty.
+The learner still chooses the grade for the original attempt. Help is withheld
+during the initial pretest attempt, then becomes available during feedback.
+
 ## Current boundaries
 
 The examples use Standard recall, Type answer, Cloze, Image occlusion, Explain,
-Problem, optional answer feedback, pretesting, mixed practice, and mastery
-retries. Focused sessions include only cards that are due. More hint controls,
-linked applications, choice authoring, guided sequences, image labeling, reconstruction controls,
-tools for creating examples, and records of learning across sessions are planned.
+Problem, optional answer feedback, hints and references, pretesting, mixed
+practice, and mastery retries. Focused sessions include only cards that are due.
+Selective answer parts, linked applications, choice authoring, guided sequences,
+image labeling, reconstruction controls, tools for creating examples, and records
+of learning across sessions are planned.
 They are not available controls. References to them above describe future
 possibilities.
 

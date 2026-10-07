@@ -27,6 +27,7 @@ CREATE TABLE reviews (
     entity_id TEXT PRIMARY KEY NOT NULL,
     card_id TEXT NOT NULL,
     rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 4),
+    assisted INTEGER NOT NULL DEFAULT 0 CHECK (assisted IN (0, 1)),
     reviewed_at INTEGER NOT NULL CHECK (reviewed_at >= 0),
     elapsed_days INTEGER NOT NULL CHECK (elapsed_days >= 0),
     scheduled_interval_days REAL NOT NULL CHECK (scheduled_interval_days > 0.0),

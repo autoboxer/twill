@@ -4,6 +4,7 @@ import { onBeforeRouteLeave, useRoute } from 'vue-router';
 import { conceptLibraryErrorMessage, useConceptLibrary } from './useConceptLibrary';
 import { useDevicePreferences } from './useDevicePreferences';
 import { useRecallSession } from './useRecallSession';
+import { useStudyAssistance } from './useStudyAssistance';
 import { useNativeActionGuard } from './useNativeLifecycle';
 import { richDocumentHasContent } from '../rich-content/schema';
 import { gradingOptionsByMode } from '../study/grading';
@@ -105,7 +106,21 @@ export function useStudySession({
 
   const answerFeedbackReviewed = ref( false );
   const studyResponse = ref( '' );
-  const pausedResponses = new Map();
+  const pausedAttempts = new Map();
+  const {
+    assisted,
+    assistanceSnapshot,
+    responseBeforeAssistance,
+    restoreAssistance,
+    revealedAssistance,
+    toggleAssistance
+  } = useStudyAssistance({
+    currentCard,
+    answerRevealed,
+    actionsBlocked,
+    pretestActive,
+    response: studyResponse
+  });
 
   const studyMedia = ref([]);
   const mixedPracticeEnabled = ref( false );
@@ -242,7 +257,8 @@ export function useStudySession({
     sessionStatus.value = 'ended';
     studyResponse.value = '';
     studyMedia.value = [];
-    pausedResponses.clear();
+    restoreAssistance();
+    pausedAttempts.clear();
     sessionResumeNotice.value = '';
     navigationNotice.value = '';
     assessmentError.value = '';
@@ -284,10 +300,11 @@ export function useStudySession({
       });
       sessionStatus.value = 'active';
       navigationNotice.value = '';
-      pausedResponses.clear();
+      pausedAttempts.clear();
       sessionChangedConceptIds.value = new Set();
       studyResponse.value = '';
       answerFeedbackReviewed.value = false;
+      restoreAssistance();
       gradingMode.value = preferences.gradingMode;
       nextDueAt.value = queue.nextDueAt;
       sessionGradingMode.value = preferences.gradingMode;
@@ -403,7 +420,7 @@ export function useStudySession({
     }
 
     answerFeedbackReviewed.value = false;
-    studyResponse.value = takePausedResponse( currentCard.value?.id );
+    restorePausedAttempt( currentCard.value?.id );
     await nextTick();
     onStateChanged();
   }
@@ -426,6 +443,7 @@ export function useStudySession({
 
     const cardId = currentCard.value.id;
     const response = studyResponse.value;
+    const assistance = assistanceSnapshot();
 
     assessmentError.value = '';
     recoveryError.value = '';
@@ -437,7 +455,7 @@ export function useStudySession({
     }
 
     try {
-      const review = await recordReview( cardId, rating );
+      const review = await recordReview( cardId, rating, assistance.used );
 
       if ( !viewActive || currentCard.value?.id !== cardId ) {
         return;
@@ -446,10 +464,11 @@ export function useStudySession({
       assess({
         rating,
         response,
+        assistance,
         reviewId: review.reviewId
       });
       answerFeedbackReviewed.value = false;
-      studyResponse.value = takePausedResponse( currentCard.value?.id );
+      restorePausedAttempt( currentCard.value?.id );
       await nextTick();
 
       onStateChanged();
@@ -472,6 +491,7 @@ export function useStudySession({
 
     answerFeedbackReviewed.value = false;
     studyResponse.value = '';
+    restoreAssistance();
     await nextTick();
     onStateChanged();
   }
@@ -488,12 +508,13 @@ export function useStudySession({
     pendingAssessment.value = outcome;
 
     try {
-      if ( !assessMastery({ recalled, response }) ) {
+      if ( !assessMastery({ recalled, response, assistance: assistanceSnapshot() }) ) {
         return;
       }
 
       answerFeedbackReviewed.value = false;
       studyResponse.value = '';
+      restoreAssistance();
       await nextTick();
       onStateChanged();
     } finally {
@@ -514,7 +535,10 @@ export function useStudySession({
     const visibleCard = currentCard.value;
 
     if ( visibleCard ) {
-      pausedResponses.set( visibleCard.id, studyResponse.value );
+      pausedAttempts.set( visibleCard.id, {
+        response: studyResponse.value,
+        assistance: assistanceSnapshot()
+      });
     }
 
     assessmentError.value = '';
@@ -538,6 +562,7 @@ export function useStudySession({
       }
 
       studyResponse.value = restored.response ?? '';
+      restoreAssistance( restored.assistance );
       answerFeedbackReviewed.value = true;
     } catch ( cause ) {
       if ( viewActive ) {
@@ -609,16 +634,12 @@ export function useStudySession({
     onFeedbackContinued();
   }
 
-  function takePausedResponse( cardId ) {
-    if ( !cardId ) {
-      return '';
-    }
+  function restorePausedAttempt( cardId ) {
+    const saved = pausedAttempts.get( cardId );
 
-    const response = pausedResponses.get( cardId ) ?? '';
-
-    pausedResponses.delete( cardId );
-
-    return response;
+    studyResponse.value = saved?.response ?? '';
+    restoreAssistance( saved?.assistance );
+    pausedAttempts.delete( cardId );
   }
 
   function createStudySessionSnapshot() {
@@ -630,9 +651,10 @@ export function useStudySession({
       gradingMode: gradingMode.value,
       mixedPracticeEnabled: mixedPracticeEnabled.value,
       nextDueAt: nextDueAt.value,
-      pausedResponses: [ ...pausedResponses.entries() ],
+      pausedAttempts: [ ...pausedAttempts.entries() ],
       recall: createSnapshot(),
       answerFeedbackReviewed: answerFeedbackReviewed.value,
+      assistance: assistanceSnapshot(),
       sessionGradingMode: sessionGradingMode.value,
       studyMedia: [ ...studyMedia.value ],
       totalAvailableCards: totalAvailableCards.value,
@@ -660,15 +682,17 @@ export function useStudySession({
     selectedCardCount.value = session.selectedCardCount ?? session.recall.cards.length;
     sessionSelection.value = { ...emptyStudySelection(), ...session.selection };
     studyResponse.value = session.response ?? '';
-    pausedResponses.clear();
+    restoreAssistance( session.assistance );
+    pausedAttempts.clear();
 
-    for ( const [ cardId, response ] of session.pausedResponses ) {
-      pausedResponses.set( cardId, response );
+    for ( const [ cardId, attempt ] of session.pausedAttempts ) {
+      pausedAttempts.set( cardId, attempt );
     }
 
     if ( excludeConcepts( sessionChangedConceptIds.value ) ) {
       answerFeedbackReviewed.value = false;
       studyResponse.value = '';
+      restoreAssistance();
       assessmentError.value = '';
     }
 
@@ -682,6 +706,7 @@ export function useStudySession({
     answerFeedbackPending,
     answerFeedbackReviewed,
     answerRevealed,
+    assisted,
     assessmentError,
     assessmentPending,
     beginMasteryRound,
@@ -734,6 +759,8 @@ export function useStudySession({
     recordMasteryAssessment,
     recoveryError,
     resumeSession,
+    responseBeforeAssistance,
+    revealedAssistance,
     sessionBusy,
     sessionEnded,
     sessionPaused,
@@ -747,6 +774,7 @@ export function useStudySession({
     studyResponse,
     totalAvailableCards,
     totalCards,
+    toggleAssistance,
     typeAnswerSettings,
     undoLastGrade,
     undoPending,

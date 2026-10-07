@@ -37,6 +37,137 @@ fn png_bytes() -> Vec<u8> {
 }
 
 #[test]
+fn assistance_is_validated_indexed_and_retains_its_media() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let media = library.import_image(&png_bytes()).unwrap();
+    let mut input: CreateConceptInput = serde_json::from_value(json!({
+        "title": "Optional help",
+        "content": {
+            "schemaVersion": 1,
+            "prompt": { "type": "doc", "content": [{ "type": "paragraph" }] },
+            "answer": { "type": "doc", "content": [{ "type": "paragraph" }] },
+            "assistance": {
+                "hint": { "type": "doc", "content": [{
+                    "type": "paragraph", "content": [{ "type": "text", "text": "Mnemonic café" }]
+                }] },
+                "reference": { "type": "doc", "content": [{
+                    "type": "mediaImage", "attrs": { "mediaId": media.id }
+                }] }
+            }
+        }
+    }))
+    .unwrap();
+    let concept = library.create_concept(input.clone()).unwrap();
+
+    assert_eq!(concept.content.assistance, input.content.assistance);
+    assert_eq!(concept.media[0].id, media.id);
+    assert_eq!(concept.cards.len(), 1);
+    assert_eq!(library.study_queue().unwrap().concepts[0].content, concept.content);
+    let matching = library
+        .search(LibraryQuery {
+            query: "Mnemonic".to_owned(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert_eq!(matching.concepts[0].id, concept.id);
+
+    let changes_before = store.changes_after(0, 100).unwrap().len();
+    input.content.assistance.hint = json!({ "type": "doc", "content": [{
+        "type": "paragraph", "content": [{ "type": "text", "text": "Invalid", "marks": [{
+            "type": "link", "attrs": { "href": "javascript:alert(1)" }
+        }] }]
+    }] });
+
+    assert!(library.create_concept(input).is_err());
+    assert_eq!(store.changes_after(0, 100).unwrap().len(), changes_before);
+
+    let mut edit: UpdateConceptInput = serde_json::from_value(json!({
+        "id": concept.id, "title": concept.title, "content": concept.content
+    }))
+    .unwrap();
+    edit.content.assistance = Default::default();
+    let updated = library.update_concept(edit).unwrap();
+
+    assert!(updated.media.is_empty());
+    assert_ne!(updated.last_change_id, concept.last_change_id);
+    assert!(library
+        .search(LibraryQuery {
+            query: "Mnemonic".to_owned(),
+            ..Default::default()
+        })
+        .unwrap()
+        .concepts
+        .is_empty());
+}
+
+#[test]
+fn assisted_reviews_keep_the_chosen_rating_and_survive_undo() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let create = |title| {
+        library
+            .create_concept(serde_json::from_value(json!({ "title": title })).unwrap())
+            .unwrap()
+    };
+    let independent = create("Independent");
+    let assisted = create("Assisted");
+    let now = independent.cards[0].due_at.max(assisted.cards[0].due_at);
+    let review = |concept: &crate::library::ConceptDetail, assisted| {
+        library
+            .record_review_at(
+                RecordReviewInput {
+                    card_id: concept.cards[0].id.clone(),
+                    rating: ReviewRating::Good,
+                    assisted,
+                },
+                now,
+            )
+            .unwrap()
+    };
+    let unaided = review(&independent, false);
+    let supported = review(&assisted, true);
+
+    assert!(!unaided.assisted);
+    assert!(supported.assisted);
+    assert_eq!(unaided.rating, supported.rating);
+    assert_eq!(unaided.scheduled_interval_days, supported.scheduled_interval_days);
+    assert_eq!(unaided.due_at, supported.due_at);
+
+    library
+        .reverse_review_at(
+            ReverseReviewInput {
+                review_id: supported.review_id.clone(),
+            },
+            now,
+        )
+        .unwrap();
+    let corrected = review(&assisted, true);
+    let flags: Vec<bool> = store
+        .read_result(|connection| -> DataResult<_> {
+            let mut statement = connection.prepare(
+                "SELECT assisted FROM reviews WHERE card_id = ?1 ORDER BY entity_id",
+            )?;
+            let rows = statement.query_map([&assisted.cards[0].id], |row| row.get(0))?;
+
+            Ok(rows.collect::<Result<_, _>>()?)
+        })
+        .unwrap();
+
+    assert_eq!(flags, vec![true, true]);
+    assert!(corrected.assisted);
+    assert_eq!(library.concept(&assisted.id).unwrap().cards[0].review_count, 1);
+
+    let default_input: RecordReviewInput = serde_json::from_value(json!({
+        "cardId": independent.cards[0].id, "rating": "good"
+    }))
+    .unwrap();
+
+    assert!(!default_input.assisted);
+}
+
+#[test]
 fn organization_catalog_retains_counts_and_order_without_concept_payloads() {
     let (_directory, store) = test_store();
     let library = ConceptLibrary::new(&store);
@@ -379,6 +510,7 @@ fn rich_content_and_media_references_update_transactionally() {
     let image_bytes = png_bytes();
     let media = library.import_image(&image_bytes).unwrap();
     let content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: json!({
             "type": "doc",
@@ -446,6 +578,7 @@ fn rich_content_and_media_references_update_transactionally() {
 
     let revision = store.entity(&concept.id).unwrap().unwrap().revision;
     let invalid_content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: ConceptContent::default().prompt,
         answer: ConceptContent::default().answer,
@@ -652,6 +785,7 @@ fn retrieval_forms_are_selected_without_duplicates_and_schedule_independently() 
             deck_ids: Vec::new(),
             tag_ids: Vec::new(),
             content: ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: json!({
                     "type": "doc",
@@ -699,6 +833,7 @@ fn retrieval_forms_are_selected_without_duplicates_and_schedule_independently() 
     library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: reviewed_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -822,6 +957,7 @@ fn type_answer_edits_keep_schedules_and_readded_forms_start_fresh() {
     let review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: original_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -1004,6 +1140,7 @@ fn explain_edits_keep_schedules_and_readded_forms_start_fresh() {
     let review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: original_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -1101,6 +1238,7 @@ fn problem_checkpoints_are_validated_normalized_and_queued() {
     let library = ConceptLibrary::new(&store);
     let media = library.import_image(&png_bytes()).unwrap();
     let content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: json!({
             "type": "doc",
@@ -1223,6 +1361,7 @@ fn problem_edits_keep_schedules_and_readded_forms_start_fresh() {
     let (_directory, store) = test_store();
     let library = ConceptLibrary::new(&store);
     let content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: json!({
             "type": "doc",
@@ -1256,6 +1395,7 @@ fn problem_edits_keep_schedules_and_readded_forms_start_fresh() {
     let review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: original_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -1369,6 +1509,7 @@ fn cloze_groups_schedule_independently_and_reconcile_by_identity() {
         })
     };
     let initial_content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: prompt(vec![
             json!({ "type": "text", "text": "The " }),
@@ -1417,6 +1558,7 @@ fn cloze_groups_schedule_independently_and_reconcile_by_identity() {
     let review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: first_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -1424,6 +1566,7 @@ fn cloze_groups_schedule_independently_and_reconcile_by_identity() {
         )
         .unwrap();
     let updated_content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: prompt(vec![
             json!({ "type": "text", "text": "Most " }),
@@ -1472,6 +1615,7 @@ fn cloze_groups_schedule_independently_and_reconcile_by_identity() {
         .is_some());
 
     let readded_content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: prompt(vec![
             cloze_text("ATP", first_group),
@@ -1544,6 +1688,7 @@ fn image_occlusion_groups_schedule_independently_and_include_source_media() {
         })
     };
     let initial_content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: prompt(vec![
             region(first_region, first_group, 0.05, 0.1),
@@ -1598,6 +1743,7 @@ fn image_occlusion_groups_schedule_independently_and_include_source_media() {
     let review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: first_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -1605,6 +1751,7 @@ fn image_occlusion_groups_schedule_independently_and_include_source_media() {
         )
         .unwrap();
     let updated_content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: prompt(vec![
             region(first_region, first_group, 0.15, 0.15),
@@ -1651,6 +1798,7 @@ fn image_occlusion_groups_schedule_independently_and_include_source_media() {
         .is_some());
 
     let readded_content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: prompt(vec![
             region(first_region, first_group, 0.15, 0.15),
@@ -1799,6 +1947,7 @@ fn study_cards_include_only_active_unarchived_recall_cards() {
     let (_directory, store) = test_store();
     let library = ConceptLibrary::new(&store);
     let content = ConceptContent {
+        assistance: Default::default(),
         schema_version: 1,
         prompt: json!({
             "type": "doc",
@@ -2289,6 +2438,7 @@ fn reviewed_concepts_do_not_become_pretest_eligible_after_undo() {
     let review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -2473,6 +2623,7 @@ fn scheduling_changes_leave_existing_due_dates_and_cap_future_intervals() {
     let first_review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -2502,6 +2653,7 @@ fn scheduling_changes_leave_existing_due_dates_and_cap_future_intervals() {
     let second_review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Easy,
             },
@@ -2597,6 +2749,7 @@ fn reviews_persist_fsrs_scheduling_and_only_due_cards_are_queued() {
     let first_review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -2621,6 +2774,7 @@ fn reviews_persist_fsrs_scheduling_and_only_due_cards_are_queued() {
     let changes_before_duplicate = store.changes_after(0, 100).unwrap();
     let duplicate = library.record_review_at(
         RecordReviewInput {
+            assisted: false,
             card_id: card.id.clone(),
             rating: ReviewRating::Good,
         },
@@ -2641,6 +2795,7 @@ fn reviews_persist_fsrs_scheduling_and_only_due_cards_are_queued() {
     let lapse = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Again,
             },
@@ -2733,6 +2888,7 @@ fn reversing_a_review_restores_the_schedule_and_is_idempotent() {
     let review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -2823,6 +2979,7 @@ fn reversing_a_review_restores_the_schedule_and_is_idempotent() {
     let replacement = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Easy,
             },
@@ -2872,6 +3029,7 @@ fn only_the_latest_effective_review_can_be_reversed() {
     let first_review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -2881,6 +3039,7 @@ fn only_the_latest_effective_review_can_be_reversed() {
     let second_review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Again,
             },
@@ -2975,6 +3134,7 @@ fn a_failed_reversal_rolls_back_the_event_and_schedule() {
     let review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -3057,6 +3217,7 @@ fn a_failed_new_card_enters_learning_without_counting_a_lapse() {
     let review = library
         .record_review_at(
             RecordReviewInput {
+                assisted: false,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Again,
             },
@@ -3119,6 +3280,7 @@ fn a_failed_review_write_rolls_back_the_event_and_schedule() {
     let changes_before = store.changes_after(0, 100).unwrap();
     let result = library.record_review_at(
         RecordReviewInput {
+            assisted: false,
             card_id: card.id.clone(),
             rating: ReviewRating::Good,
         },

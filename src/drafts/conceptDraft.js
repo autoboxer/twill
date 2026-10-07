@@ -73,7 +73,8 @@ export function captureConceptEditorState( state ) {
       schemaVersion: state.content.schemaVersion,
       prompt: state.content.prompt,
       answer: state.content.answer,
-      feedback: { ...state.content.feedback }
+      feedback: { ...state.content.feedback },
+      assistance: { ...state.content.assistance }
     },
     deckIds: [ ...state.deckIds ],
     explainFocus: state.explainFocus,
@@ -98,6 +99,8 @@ export function conceptDraftMediaIds( state ) {
   collectMediaIds( state?.content?.answer, mediaIds );
   collectMediaIds( state?.content?.feedback?.explanation, mediaIds );
   collectMediaIds( state?.content?.feedback?.commonMistakes, mediaIds );
+  collectMediaIds( state?.content?.assistance?.hint, mediaIds );
+  collectMediaIds( state?.content?.assistance?.reference, mediaIds );
 
   return [ ...mediaIds ].sort();
 }

@@ -99,6 +99,7 @@ pub fn record_review(
     transaction: &WriteTransaction<'_>,
     card_id: &str,
     rating: ReviewRating,
+    assisted: bool,
     now: i64,
 ) -> LibraryResult<ReviewOutcome> {
     let schedule = query_schedule(transaction, card_id)?;
@@ -142,6 +143,7 @@ pub fn record_review(
             entity_id,
             card_id,
             rating,
+            assisted,
             reviewed_at,
             elapsed_days,
             scheduled_interval_days,
@@ -153,12 +155,13 @@ pub fn record_review(
             scheduler_configuration_id,
             last_change_id
         ) VALUES (
-            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13
+            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14
         )",
         params![
             review.id,
             card_id,
             rating.value(),
+            assisted,
             now,
             elapsed_days,
             scheduled_interval_days,
@@ -200,6 +203,7 @@ pub fn record_review(
         review_id: review.id,
         card_id: card_id.to_owned(),
         rating,
+        assisted,
         scheduling_state,
         reviewed_at: now,
         due_at,

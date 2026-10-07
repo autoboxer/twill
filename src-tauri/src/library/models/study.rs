@@ -101,6 +101,8 @@ pub struct UpdateSchedulingSettingsInput {
 pub struct RecordReviewInput {
     pub card_id: String,
     pub rating: ReviewRating,
+    #[serde(default)]
+    pub assisted: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -139,6 +141,7 @@ pub struct ReviewOutcome {
     pub review_id: String,
     pub card_id: String,
     pub rating: ReviewRating,
+    pub assisted: bool,
     pub scheduling_state: SchedulingState,
     pub reviewed_at: i64,
     pub due_at: i64,

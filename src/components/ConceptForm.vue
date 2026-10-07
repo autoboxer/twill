@@ -129,6 +129,8 @@ const form = reactive({
 
 const feedbackFieldsOpen = ref( false );
 const feedbackFieldsMounted = ref( false );
+const assistanceFieldsOpen = ref( false );
+const assistanceFieldsMounted = ref( false );
 const editorSession = ref( 0 );
 const submitted = ref( false );
 const descriptionsOpen = ref( false );
@@ -471,6 +473,9 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
   editorSession.value += 1;
   feedbackFieldsOpen.value = answerFeedbackHasContent( state.content.feedback );
   feedbackFieldsMounted.value = feedbackFieldsOpen.value;
+  assistanceFieldsOpen.value = richDocumentHasContent( state.content.assistance.hint )
+    || richDocumentHasContent( state.content.assistance.reference );
+  assistanceFieldsMounted.value = assistanceFieldsOpen.value;
   form.title = state.title;
   form.deckIds = state.deckIds;
   form.explainFocus = state.explainFocus;
@@ -488,6 +493,12 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
 watch( feedbackFieldsOpen, ( open ) => {
   if ( open ) {
     feedbackFieldsMounted.value = true;
+  }
+});
+
+watch( assistanceFieldsOpen, ( open ) => {
+  if ( open ) {
+    assistanceFieldsMounted.value = true;
   }
 });
 
@@ -866,6 +877,46 @@ defineExpose({ submit });
           v-model="form.content.feedback.commonMistakes"
           label="Common mistakes"
           placeholder="Describe likely mistakes or misconceptions"
+          :disabled="disabled"
+        />
+      </div>
+    </section>
+
+    <section class="editor-section" data-twill-editor-section="assistance" data-twill-hints>
+      <div class="editor-section__heading">
+        <UButton
+          type="button"
+          leading-icon="i-lucide-lightbulb"
+          color="neutral"
+          variant="subtle"
+          :disabled="disabled"
+          :aria-expanded="assistanceFieldsOpen"
+          aria-controls="answer-assistance-fields"
+          @click="assistanceFieldsOpen = !assistanceFieldsOpen"
+        >
+          {{ assistanceFieldsOpen ? 'Hide help' : assistanceFieldsMounted ? 'Show help' : 'Add help' }}
+        </UButton>
+        <StudyHelpButton topic="feedback" label="Help with hints and references" />
+      </div>
+
+      <div
+        v-if="assistanceFieldsMounted"
+        v-show="assistanceFieldsOpen"
+        id="answer-assistance-fields"
+        class="concept-content-editors"
+      >
+        <RichContentEditor
+          :key="`hint-${ editorSession }`"
+          v-model="form.content.assistance.hint"
+          label="Hint"
+          placeholder="Add a useful cue or memory association"
+          :disabled="disabled"
+        />
+        <RichContentEditor
+          :key="`reference-${ editorSession }`"
+          v-model="form.content.assistance.reference"
+          label="Reference"
+          placeholder="Add a formula, source or supporting example"
           :disabled="disabled"
         />
       </div>

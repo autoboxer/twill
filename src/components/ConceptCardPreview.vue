@@ -5,6 +5,7 @@ import { useTemplateLibrary } from '../composables/useTemplateLibrary';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import CardAnswerDetails from './CardAnswerDetails.vue';
 import StudyCardContent from './StudyCardContent.vue';
+import StudyAssistance from './StudyAssistance.vue';
 
 const props = defineProps({
   content: { type: Object, required: true },
@@ -25,11 +26,18 @@ const template = ref( null );
 const error = ref( '' );
 const loading = ref( false );
 const revealed = ref( false );
+const revealedAssistance = ref([]);
 const retry = ref( 0 );
 const previewContent = shallowRef({ ...props.content });
 const previewTitle = ref( props.title );
 
-watch([ () => props.content.prompt, () => props.content.answer, () => props.title ], ( values, previous, onCleanup ) => {
+watch([
+  () => props.content.prompt,
+  () => props.content.answer,
+  () => props.content.assistance?.hint,
+  () => props.content.assistance?.reference,
+  () => props.title
+], ( values, previous, onCleanup ) => {
   const timer = setTimeout( () => {
     previewContent.value = { ...props.content };
     previewTitle.value = props.title;
@@ -59,6 +67,7 @@ watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
   error.value = '';
   loading.value = !builtInKinds[ id ];
   revealed.value = false;
+  revealedAssistance.value = [];
 
   if ( !loading.value ) {
     return;
@@ -80,6 +89,12 @@ watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
     }
   }
 }, { immediate: true });
+
+function toggleAssistance( id ) {
+  revealedAssistance.value = revealedAssistance.value.includes( id )
+    ? revealedAssistance.value.filter( ( value ) => value !== id )
+    : [ ...revealedAssistance.value, id ];
+}
 </script>
 
 <template>
@@ -106,6 +121,11 @@ watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
     <template v-else>
       <StudyCardContent :card="card" :media="media" :answer-revealed="revealed" />
       <CardAnswerDetails v-if="revealed" :card="card" />
+      <StudyAssistance
+        :content="previewContent"
+        :revealed="revealedAssistance"
+        @toggle="toggleAssistance"
+      />
       <UInput
         v-if="typeId === 'type-answer' && !revealed"
         placeholder="Type your answer"

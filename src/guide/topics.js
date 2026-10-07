@@ -183,7 +183,8 @@ export const guideTopics = [
         ],
         paragraphs: [
           'Use Hard only for a correct answer. Decide what a correct response should include before reviewing, such as required reasoning or units. Different wording is fine if it meets those requirements.',
-          'Information included in the question is allowed context. If you need to look at the answer or an extra hint to finish, judge what you could answer before that help. Use Undo last grade to correct an accidental grade when the command is available.'
+          'Information included in the question is allowed context. If you need to look at the answer or an extra hint to finish, judge what you could answer before that help. Use Undo last grade to correct an accidental grade when the command is available.',
+          'If you open Hint or Reference before revealing the answer, Twill marks the review as assisted. Grade your original attempt, not what you could answer afterward. Choose Forgot or Again if you needed help to answer.'
         ],
         example: 'If you needed the revealed answer to finish your response, choose Forgot or Again. Being able to repeat the answer afterward does not change that attempt.',
         avoid: 'Choose a grade that reflects your attempt. If a card repeatedly causes difficulty, inspect the question or revisit the material rather than choose Easy to delay it.'
@@ -204,6 +205,18 @@ export const guideTopics = [
         ],
         example: 'After confusing percent with percentage points, inspect the denominator in a worked correction, then attempt another case without it.',
         avoid: 'An immediate retry can help you practice a correction, but the answer may still be fresh in your mind. Check it again later and practice related questions separately.'
+      },
+      {
+        title: 'Use optional help',
+        steps: [
+          'When creating or editing a concept, select Add help. Write a Hint for a useful cue or memory association, or add a Reference with a formula, source or example.',
+          'Try the question first. Select Hint or Reference when you need it, or reveal the full answer without opening either.',
+          'After revealing the answer, compare your response from before help. If you continued writing after opening help, that later response appears separately.'
+        ],
+        paragraphs: [
+          'Help is shared by the concept’s card types. Put context that should always be available in Prompt instead. Hint and Reference are withheld during a first pretest attempt.',
+          'Opening help before the answer marks the review as assisted. Hiding it does not remove that mark. Opening a reference after revealing the answer is feedback for that attempt.'
+        ]
       },
       {
         title: 'Optional pretesting',

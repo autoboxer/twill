@@ -189,7 +189,11 @@ export function createEmptyConceptContent() {
     schemaVersion: RICH_CONTENT_SCHEMA_VERSION,
     prompt: createEmptyRichDocument(),
     answer: createEmptyRichDocument(),
-    feedback: createEmptyAnswerFeedback()
+    feedback: createEmptyAnswerFeedback(),
+    assistance: {
+      hint: createEmptyRichDocument(),
+      reference: createEmptyRichDocument()
+    }
   };
 }
 
@@ -207,6 +211,10 @@ export function cloneConceptContent( content ) {
       commonMistakes: cloneRichDocument(
         content?.feedback?.commonMistakes ?? fallback.feedback.commonMistakes
       )
+    },
+    assistance: {
+      hint: cloneRichDocument( content?.assistance?.hint ?? fallback.assistance.hint ),
+      reference: cloneRichDocument( content?.assistance?.reference ?? fallback.assistance.reference )
     }
   };
 }

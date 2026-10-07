@@ -8,7 +8,7 @@ use crate::library::{
 };
 
 const MAXIMUM_DOCUMENT_BYTES: usize = 1_000_000;
-const MAXIMUM_CONCEPT_DOCUMENTS: usize = 4;
+const MAXIMUM_CONCEPT_BYTES: usize = 4_000_000;
 const MAXIMUM_DOCUMENT_DEPTH: usize = 32;
 pub(super) const MAXIMUM_DOCUMENT_NODES: usize = 10_000;
 const MAXIMUM_DOCUMENT_TEXT: usize = 500_000;
@@ -57,7 +57,7 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
 
     let serialized = serde_json::to_string(&content)?;
 
-    if serialized.len() > MAXIMUM_DOCUMENT_BYTES * MAXIMUM_CONCEPT_DOCUMENTS {
+    if serialized.len() > MAXIMUM_CONCEPT_BYTES {
         return Err(invalid_content("Content", "is too large"));
     }
 
@@ -84,6 +84,8 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
         "Feedback common mistakes",
         &mut state,
     )?;
+    validate_document(&content.assistance.hint, "Hint", &mut state)?;
+    validate_document(&content.assistance.reference, "Reference", &mut state)?;
 
     Ok(ValidatedContent {
         cloze_group_ids: state.cloze_group_ids,
@@ -917,6 +919,7 @@ mod tests {
         let occlusion_group_id = "018f1e2d-3c4b-7a69-8f10-123456789abe";
         let occlusion_region_id = "018f1e2d-3c4b-7a69-8f10-123456789abf";
         let content = ConceptContent {
+            assistance: Default::default(),
             schema_version: 1,
             prompt: json!({
                 "type": "doc",
@@ -1075,18 +1078,21 @@ mod tests {
         };
 
         let answer_mark = ConceptContent {
+            assistance: Default::default(),
             schema_version: 1,
             prompt: ConceptContent::default().prompt,
             answer: document(marked_text("Answer", group_id)),
             feedback: Default::default(),
         };
         let invalid_group = ConceptContent {
+            assistance: Default::default(),
             schema_version: 1,
             prompt: document(marked_text("Prompt", "not-a-uuid")),
             answer: ConceptContent::default().answer,
             feedback: Default::default(),
         };
         let empty_omission = ConceptContent {
+            assistance: Default::default(),
             schema_version: 1,
             prompt: document(marked_text("   ", group_id)),
             answer: ConceptContent::default().answer,
@@ -1132,6 +1138,7 @@ mod tests {
         };
         let invalid_contents = [
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: ConceptContent::default().prompt,
                 answer: document(vec![image(
@@ -1141,6 +1148,7 @@ mod tests {
                 feedback: Default::default(),
             },
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: document(vec![image(
                     first_media,
@@ -1150,6 +1158,7 @@ mod tests {
                 feedback: Default::default(),
             },
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: document(vec![image(
                     first_media,
@@ -1159,6 +1168,7 @@ mod tests {
                 feedback: Default::default(),
             },
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: document(vec![image(
                     first_media,
@@ -1168,6 +1178,7 @@ mod tests {
                 feedback: Default::default(),
             },
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: document(vec![image(
                     first_media,
@@ -1180,6 +1191,7 @@ mod tests {
                 feedback: Default::default(),
             },
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: document(vec![
                     image(
@@ -1207,6 +1219,7 @@ mod tests {
     #[test]
     fn executable_or_unrecognized_content_is_rejected() {
         let content = ConceptContent {
+            assistance: Default::default(),
             schema_version: 1,
             prompt: json!({
                 "type": "doc",
