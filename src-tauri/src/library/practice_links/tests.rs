@@ -10,20 +10,20 @@ use crate::library::{
     ConceptDetail, ConceptLibrary, CreateConceptInput, RecordReviewInput, ReviewRating,
 };
 
-fn setup() -> (TempDir, LocalDataStore) {
+pub(super) fn setup() -> (TempDir, LocalDataStore) {
     let directory = tempdir().unwrap();
     let store = LocalDataStore::open(directory.path().join("original")).unwrap();
 
     (directory, store)
 }
 
-fn concept(store: &LocalDataStore, title: &str) -> ConceptDetail {
+pub(super) fn concept(store: &LocalDataStore, title: &str) -> ConceptDetail {
     let input: CreateConceptInput = serde_json::from_value(json!({ "title": title })).unwrap();
 
     ConceptLibrary::new(store).create_concept(input).unwrap()
 }
 
-fn link(store: &LocalDataStore, first: &str, second: &str, objective: &str) -> LibraryResult<()> {
+pub(super) fn link(store: &LocalDataStore, first: &str, second: &str, objective: &str) -> LibraryResult<()> {
     PracticeLinkLibrary::new(store).create(CreatePracticeLinkInput {
         concept_id: first.to_owned(),
         related_concept_id: second.to_owned(),
@@ -31,7 +31,7 @@ fn link(store: &LocalDataStore, first: &str, second: &str, objective: &str) -> L
     })
 }
 
-fn changes(store: &LocalDataStore) -> usize {
+pub(super) fn changes(store: &LocalDataStore) -> usize {
     store.changes_after(0, 1000).unwrap().len()
 }
 
@@ -347,6 +347,19 @@ fn links_and_removal_history_survive_backup_and_portable_export() {
         .set_concept_archived(&second.id, true)
         .unwrap();
 
+    let current = library.links(&first.id).unwrap().remove(0);
+
+    library
+        .set_comparison(crate::library::SetPracticeComparisonInput {
+            id: current.id,
+            expected_change_id: current.last_change_id,
+            comparison: Some(crate::library::PracticeComparison {
+                prompt: "When does reliable ordering matter?".to_owned(),
+                explanation: "Files and commands need all bytes in order.".to_owned(),
+            }),
+        })
+        .unwrap();
+
     let expected = library.links(&first.id).unwrap();
     let path = directory.path().join("backup.twill");
 
@@ -403,5 +416,16 @@ fn links_and_removal_history_survive_backup_and_portable_export() {
             .unwrap()
             .len(),
         2
+    );
+    let exported = portable["tables"]["practice_links"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["entity_id"] == expected[0].id)
+        .unwrap();
+
+    assert_eq!(
+        exported["comparison_json"],
+        serde_json::to_value(expected[0].comparison.as_ref().unwrap()).unwrap()
     );
 }

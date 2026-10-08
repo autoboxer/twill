@@ -2,6 +2,8 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 import ConfirmDialog from './ConfirmDialog.vue';
+import PracticeComparisonDialog from './PracticeComparisonDialog.vue';
+import PracticeComparisonEditor from './PracticeComparisonEditor.vue';
 import { useActionNotifications } from '../composables/useActionNotifications';
 import { conceptLibraryErrorMessage, useConceptLibrary } from '../composables/useConceptLibrary';
 import { usePracticeLinks } from '../composables/usePracticeLinks';
@@ -14,13 +16,15 @@ const props = defineProps({
 
 const {
   actionError, createLink, links, load, loadError, loading,
-  pending, removeLink, updateLink
+  pending, removeLink, setComparison, updateLink
 } = usePracticeLinks( () => props.conceptId );
 const { getLibrary } = useConceptLibrary();
 const { notifySuccess } = useActionNotifications();
 const open = ref( false );
 const editTarget = ref( null );
 const removeTarget = ref( null );
+const comparisonTarget = ref( null );
+const previewTarget = ref( null );
 const objective = ref( '' );
 const query = ref( '' );
 const page = ref( 1 );
@@ -135,6 +139,18 @@ async function confirmRemove() {
     notifySuccess( 'Link removed' );
   }
 }
+
+function editComparison( link ) {
+  actionError.value = '';
+  comparisonTarget.value = link;
+}
+
+async function saveComparison( comparison ) {
+  if ( comparisonTarget.value && await setComparison( comparisonTarget.value, comparison ) ) {
+    comparisonTarget.value = null;
+    notifySuccess( comparison ? 'Comparison saved' : 'Comparison removed' );
+  }
+}
 </script>
 
 <template>
@@ -176,6 +192,26 @@ async function confirmRemove() {
         </div>
 
         <div class="linked-practice__actions">
+          <UButton
+            v-if="link.comparison && !archived && !link.archived"
+            color="neutral"
+            variant="link"
+            :aria-label="`Compare cases with ${ link.title }`"
+            :disabled="pending"
+            @click="previewTarget = link"
+          >
+            Compare
+          </UButton>
+          <UTooltip :text="link.comparison ? 'Edit comparison' : 'Add comparison'">
+            <UButton
+              :aria-label="`${ link.comparison ? 'Edit' : 'Add' } comparison with ${ link.title }`"
+              icon="i-lucide-columns-2"
+              color="neutral"
+              variant="ghost"
+              :disabled="pending"
+              @click="editComparison( link )"
+            />
+          </UTooltip>
           <UTooltip text="Edit learning objective">
             <UButton
               :aria-label="`Edit link to ${ link.title }`"
@@ -321,6 +357,20 @@ async function confirmRemove() {
       </template>
     </UModal>
 
+    <PracticeComparisonEditor
+      :link="comparisonTarget"
+      :pending="pending"
+      :error="actionError"
+      @close="comparisonTarget = null"
+      @save="saveComparison"
+    />
+
+    <PracticeComparisonDialog
+      :concept-id="conceptId"
+      :link="previewTarget"
+      @close="previewTarget = null"
+    />
+
     <ConfirmDialog
       v-model:open="removeOpen"
       title="Remove link?"
@@ -392,6 +442,9 @@ async function confirmRemove() {
 
 .linked-practice__actions {
   flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 11rem;
 }
 
 .practice-link-form {

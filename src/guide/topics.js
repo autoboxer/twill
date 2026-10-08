@@ -66,6 +66,18 @@ export const guideTopics = [
         ]
       },
       {
+        title: 'Compare linked cases',
+        steps: [
+          'Open either concept from Library. Beside its linked case, select Add comparison.',
+          'Write a question about the difference that matters and an expected explanation. Select Save comparison.',
+          'Select Compare to read both case prompts. Explain the difference mentally or enter an optional response, then select Show explanation to check your reasoning.'
+        ],
+        paragraphs: [
+          'The comparison is shared by both linked concepts. Edit it from either side. Removing the comparison keeps the link and both concepts.',
+          'Library comparisons do not record a review or change review dates. A response clears when you close the comparison. Use ordinary Study when you want to review and grade a card.'
+        ]
+      },
+      {
         title: 'Link related cases',
         steps: [
           'Create a separate concept for each case, with its own Prompt, Answer and any required key points or checkpoints.',

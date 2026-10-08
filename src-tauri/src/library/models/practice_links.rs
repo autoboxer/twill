@@ -26,7 +26,31 @@ pub struct PracticeLink {
     pub title: String,
     pub archived: bool,
     pub objective: String,
+    pub comparison: Option<PracticeComparison>,
     pub last_change_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PracticeComparison {
+    pub prompt: String,
+    pub explanation: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PracticeComparisonCase {
+    pub link: PracticeLink,
+    pub source: ConceptDetail,
+    pub related: ConceptDetail,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SetPracticeComparisonInput {
+    pub id: String,
+    pub expected_change_id: String,
+    pub comparison: Option<PracticeComparison>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
