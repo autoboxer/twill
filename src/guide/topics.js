@@ -61,9 +61,27 @@ export const guideTopics = [
         title: 'Write a clear question',
         paragraphs: [
           'Include enough context to answer the question. State any required units, assumptions, or reasoning. Decide which ability the question should test. Include several steps when you need to practice a whole procedure.',
-          'Check that the title, images, and surrounding text do not give away the answer. If one card reveals the answer to another, practice those cards in separate sessions when possible.',
+          'Check that the title, images, and surrounding text do not give away the answer. Twill defers remaining cards that share revealed content or a direct practice link. Use separate sessions when other questions give away an answer.',
           'Use a custom template when a consistent layout helps you read or answer a question. A template changes how content appears, not what you practice.'
         ]
+      },
+      {
+        title: 'Link related cases',
+        steps: [
+          'Create a separate concept for each case, with its own Prompt, Answer and any required key points or checkpoints.',
+          'Open a concept from Library. In Linked practice, select Link concept, describe the learning objective and choose another concept.',
+          'Select the linked title to revisit the other case. Use Edit learning objective to change the connection, or Remove link to keep both concepts without the connection.',
+          'In Study, reveal your current answer, then select Linked practice. Choose a related case and the card you want to attempt. Select Recalled or Still missed after checking its answer, or select Return to session at any time.'
+        ],
+        paragraphs: [
+          'Link cases that apply a shared principle in different situations, or cases whose differences help you choose the right principle. A link is visible from either concept. Each card keeps its own grade and review schedule.',
+          'Linked practice is an extra attempt. It does not change review dates or count as a completed review. Your original response and checks are restored when you return to the session.',
+          'Revealing an answer, an answer part, a hint or a reference defers remaining cards from that concept and its directly linked cases. Cloze and Image occlusion also defer related cards when shown, since visible context can reveal other answers. Select the deferred count to see those cards. They remain due, and a new session makes them available again.',
+          'Pausing, hiding help or undoing a grade does not remove this boundary. Linked practice and mastery retries remain available as supported attempts.',
+          'Archived cases remain labeled in the links but are not available for study. Restore them before adding new links. Deleting a concept removes its connections.'
+        ],
+        example: 'Compare a file transfer that requires reliable ordered delivery with a live video stream where late frames are useless. Ask which transport fits each case and why.',
+        avoid: 'Changing a title or a few words without changing the decision does not test a new application. Changing numbers can help you practice a procedure, but does not necessarily test when to use it.'
       }
     ],
     related: [ 'recall', 'explain', 'problem' ]

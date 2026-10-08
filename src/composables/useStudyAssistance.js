@@ -8,6 +8,7 @@ export function useStudyAssistance({
   answerRevealed,
   actionsBlocked,
   pretestActive,
+  onExposed,
   response
 }) {
   const revealedAssistance = ref([]);
@@ -53,6 +54,7 @@ export function useStudyAssistance({
       revealedAnswerParts.value = revealedAnswerParts.value.filter( ( id ) => !ids.includes( id ) );
     } else {
       markAssistance();
+      onExposed();
       revealedAnswerParts.value = [ ...new Set([ ...revealedAnswerParts.value, ...ids ]) ];
     }
   }
@@ -69,6 +71,7 @@ export function useStudyAssistance({
     }
 
     markAssistance();
+    onExposed();
 
     revealedAssistance.value = [ ...revealedAssistance.value, id ];
   }

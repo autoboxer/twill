@@ -4,10 +4,79 @@ use serde_json::json;
 
 use super::ID_BATCH_SIZE;
 use crate::data::LocalDataStore;
+use crate::library::practice_links::PracticeLinkLibrary;
+use crate::library::CreatePracticeLinkInput;
 use crate::library::{
     ConceptLibrary, CreateTemplateInput, LibraryError, LibraryQuery, RecordReviewInput,
     RetrievalFormKind, ReviewRating, SchedulingState, StudyQuery, TemplateLibrary,
 };
+
+#[test]
+fn separation_map_keeps_only_active_direct_links_incident_to_the_selected_queue() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = LocalDataStore::open(directory.path()).unwrap();
+    let library = ConceptLibrary::new(&store);
+    let tag = library.create_tag("Not a relationship".into()).unwrap();
+    let create = |title| {
+        library
+            .create_concept(
+                serde_json::from_value(json!({ "title": title, "tagIds": [tag.id] })).unwrap(),
+            )
+            .unwrap()
+    };
+    let first = create("Selected source");
+    let second = create("Related outside scope");
+    let third = create("Indirect case");
+    let archived = create("Archived case");
+    let removed = create("Removed connection");
+    let deleted = create("Deleted case");
+    let links = PracticeLinkLibrary::new(&store);
+    let link = |first: &str, second: &str| {
+        links
+            .create(CreatePracticeLinkInput {
+                concept_id: first.into(),
+                related_concept_id: second.into(),
+                objective: "Apply the same principle.".into(),
+            })
+            .unwrap();
+    };
+
+    link(&first.id, &second.id);
+    link(&second.id, &third.id);
+    link(&first.id, &archived.id);
+    link(&first.id, &removed.id);
+    link(&first.id, &deleted.id);
+    library.set_concept_archived(&archived.id, true).unwrap();
+    library.delete_concept(&deleted.id).unwrap();
+    let removed_link = links.links(&removed.id).unwrap().remove(0);
+    links
+        .remove(crate::library::RemovePracticeLinkInput {
+            id: removed_link.id,
+            expected_change_id: removed_link.last_change_id,
+        })
+        .unwrap();
+    let before = store.changes_after(0, 1000).unwrap();
+    let queue = library
+        .selected_study_queue(StudyQuery {
+            query: "Selected".into(),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert_eq!(queue.cards.len(), 1);
+    assert_eq!(queue.related_concepts.len(), 2);
+    assert_eq!(
+        queue.related_concepts[&first.id],
+        BTreeSet::from([second.id.clone()])
+    );
+    assert_eq!(
+        queue.related_concepts[&second.id],
+        BTreeSet::from([first.id.clone()])
+    );
+    assert!(!queue.related_concepts.contains_key(&third.id));
+    assert_eq!(library.concept(&first.id).unwrap(), first);
+    assert_eq!(store.changes_after(0, 1000).unwrap(), before);
+}
 
 #[test]
 fn queue_shares_documents_and_templates_without_losing_form_configuration() {
@@ -129,6 +198,27 @@ fn batched_content_reads_keep_complete_membership_and_mixed_order() {
     let ordered = library.study_queue().unwrap();
     assert_eq!(ordered.cards.len(), ID_BATCH_SIZE + 1);
     assert_eq!(ordered.concepts.len(), ID_BATCH_SIZE + 1);
+    let first = &ordered.concepts[0].id;
+    let last = &ordered.concepts[ID_BATCH_SIZE].id;
+
+    PracticeLinkLibrary::new(&store)
+        .create(CreatePracticeLinkInput {
+            concept_id: first.clone(),
+            related_concept_id: last.clone(),
+            objective: "Related cases across read batches.".into(),
+        })
+        .unwrap();
+    let ordered = library.study_queue().unwrap();
+
+    assert_eq!(ordered.related_concepts.len(), 2);
+    assert_eq!(
+        ordered.related_concepts[first],
+        BTreeSet::from([last.clone()])
+    );
+    assert_eq!(
+        ordered.related_concepts[last],
+        BTreeSet::from([first.clone()])
+    );
     assert!(ordered
         .cards
         .windows(2)

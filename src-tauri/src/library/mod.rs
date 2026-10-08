@@ -11,6 +11,7 @@ mod media;
 mod mixed_practice;
 mod models;
 mod pretesting;
+mod practice_links;
 mod preferences;
 mod retrieval_forms;
 mod search_query;
@@ -34,6 +35,7 @@ pub use models::{
     CardQualitySource, CardQualityStatus, CloseCardQualityConcernInput,
     ConceptContent, ConceptDetail, ConceptSummary, CreateConceptInput,
     CreateCardQualityConcernInput, CreateCssSnippetInput, CreateNamedItemInput,
+    CreatePracticeLinkInput, LinkedPracticeCase, LinkedPracticeInput,
     CreateTemplateInput, CssSnippet,
     CssSnippetCatalog, CssSnippetContent, DevicePreferences, EntityIdInput,
     DeferredConceptEdit, DeferredEditQueue, DeferredEditTargetStatus,
@@ -42,8 +44,8 @@ pub use models::{
     LibraryCardMatch, LibraryCardState, LibrarySort, LibraryViewPreferences, MediaSummary,
     MotionPreference, NamedItem, OrganizationSummary,
     ProblemSettings, QueueDeferredEditInput, ReadingFont, ReadingTextSize,
-    PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput,
-    RenameNamedItemInput, RetrievalFormKind, ReverseReviewInput, ReviewOutcome,
+    PracticeLink, PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput,
+    RemovePracticeLinkInput, RenameNamedItemInput, RetrievalFormKind, ReverseReviewInput, ReviewOutcome,
     ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
     SetAppearancePreferencesInput, SetConceptArchivedInput,
     SetCssSnippetEnabledInput, SetGradingModeInput, SetMixedPracticeEnabledInput,
@@ -51,11 +53,12 @@ pub use models::{
     StartupDestination, StudyCard, StudyConcept, StudyQuery, StudyQueue, StudyTemplate, TemplateBlock,
     TemplateCatalog, TemplateContent, TemplateDetail, TemplateSummary,
     TypeAnswerSettings, UpdateConceptInput, UpdateCssSnippetInput,
-    UpdateDeferredEditNoteInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
+    UpdateDeferredEditNoteInput, UpdatePracticeLinkInput, UpdateSchedulingSettingsInput, UpdateTemplateInput,
     UpsertAuthoringDraftInput,
     AUTHORING_DRAFT_SCHEMA_VERSION, CSS_SNIPPET_SCHEMA_VERSION,
     RICH_CONTENT_SCHEMA_VERSION, TEMPLATE_SCHEMA_VERSION,
 };
+pub use practice_links::PracticeLinkLibrary;
 pub use service::ConceptLibrary;
 pub use templates::TemplateLibrary;
 

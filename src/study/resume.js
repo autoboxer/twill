@@ -5,7 +5,9 @@ export function preserveStudySession( session ) {
 }
 
 export function markStudyConceptChanged( conceptId ) {
-  if ( !resumableSession || !resumableSession.recall.cards.some( ( card ) => card.conceptId === conceptId ) ) {
+  if ( !resumableSession || ( !resumableSession.recall.cards.some( ( card ) => card.conceptId === conceptId )
+    && !resumableSession.recall.deferredCards?.some( ( item ) => item.card.conceptId === conceptId )
+    && resumableSession.linkedPractice?.active?.card.conceptId !== conceptId ) ) {
     return;
   }
 
@@ -24,10 +26,21 @@ export function markStudyTemplateChanged( templateId ) {
 
   const changedConceptIds = new Set( resumableSession.changedConceptIds ?? []);
 
-  for ( const card of resumableSession.recall.cards ) {
+  const cards = [
+    ...resumableSession.recall.cards,
+    ...( resumableSession.recall.deferredCards ?? []).map( ( item ) => item.card )
+  ];
+
+  for ( const card of cards ) {
     if ( card.templateId === templateId ) {
       changedConceptIds.add( card.conceptId );
     }
+  }
+
+  const practiceCard = resumableSession.linkedPractice?.active?.card;
+
+  if ( practiceCard?.templateId === templateId ) {
+    changedConceptIds.add( practiceCard.conceptId );
   }
 
   resumableSession.changedConceptIds = [ ...changedConceptIds ];

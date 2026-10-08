@@ -5,6 +5,7 @@ mod card_quality;
 mod concepts;
 mod css_snippets;
 mod preferences;
+mod practice_links;
 mod retrieval;
 mod study;
 mod templates;
@@ -37,6 +38,10 @@ pub use preferences::{
     ReadingFont, ReadingTextSize, SetAppearancePreferencesInput, SetGradingModeInput,
     SetMixedPracticeEnabledInput, SetPretestingEnabledInput, SetStartupDestinationInput,
     StartupDestination,
+};
+pub use practice_links::{
+    CreatePracticeLinkInput, LinkedPracticeCase, LinkedPracticeInput, PracticeLink,
+    RemovePracticeLinkInput, UpdatePracticeLinkInput,
 };
 pub use retrieval::{
     CardSummary, ClozeSettings, ExplainSettings, ImageOcclusionSettings, ProblemSettings,

@@ -193,8 +193,8 @@ export const commandRegistry = Object.freeze([
   }),
   localCommand({
     id: COMMAND_IDS.studyMasteryMissed,
-    context: 'Study, mastery retry after reveal',
-    description: 'Mark the retry as still missed.',
+    context: 'Study, mastery retry or linked practice after reveal',
+    description: 'Mark the practice attempt as still missed.',
     group: 'Study',
     icon: 'i-lucide-rotate-ccw',
     label: 'Still missed',
@@ -202,8 +202,8 @@ export const commandRegistry = Object.freeze([
   }),
   localCommand({
     id: COMMAND_IDS.studyMasteryRecalled,
-    context: 'Study, mastery retry after reveal',
-    description: 'Mark the retry as recalled.',
+    context: 'Study, mastery retry or linked practice after reveal',
+    description: 'Mark the practice attempt as recalled.',
     group: 'Study',
     icon: 'i-lucide-check',
     label: 'Recalled',

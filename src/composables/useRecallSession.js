@@ -17,6 +17,9 @@ export function useRecallSession() {
   const cards = ref([]);
   const correctionPending = ref( false );
   const currentIndex = ref( 0 );
+  const deferredCards = ref([]);
+  const exposedConceptIds = ref( new Set() );
+  const relatedConcepts = ref({});
   const masteryIndex = ref( 0 );
   const masteryItems = ref([]);
   const masteryResults = ref([]);
@@ -28,7 +31,7 @@ export function useRecallSession() {
   const ratingCounts = ref( emptyRatingCounts() );
 
   const completedCount = computed( () => currentIndex.value );
-  const hasCards = computed( () => cards.value.length > 0 );
+  const hasCards = computed( () => cards.value.length > 0 || deferredCards.value.length > 0 );
   const reviewComplete = computed( () => (
     hasCards.value && currentIndex.value >= cards.value.length
   ) );
@@ -112,8 +115,47 @@ export function useRecallSession() {
 
   function begin( studyCards, options = {}) {
     cards.value = [ ...studyCards ];
+    relatedConcepts.value = options.relatedConcepts ?? {};
     pretestingEnabled.value = Boolean( options.pretestingEnabled );
     restart();
+  }
+
+  function exposeConcept( conceptId ) {
+    if ( !conceptId || exposedConceptIds.value.has( conceptId ) ) {
+      return;
+    }
+
+    exposedConceptIds.value.add( conceptId );
+    deferExposedCards();
+  }
+
+  function deferExposedCards() {
+    const affected = new Map();
+
+    for ( const conceptId of exposedConceptIds.value ) {
+      for ( const relatedId of relatedConcepts.value[ conceptId ] ?? []) {
+        affected.set( relatedId, 'linked' );
+      }
+    }
+
+    for ( const conceptId of exposedConceptIds.value ) {
+      affected.set( conceptId, 'shared' );
+    }
+
+    // Preserve the current attempt and completed cards, including an Undo correction
+    const retained = cards.value.slice( 0, currentIndex.value + 1 );
+
+    for ( const card of cards.value.slice( currentIndex.value + 1 ) ) {
+      const reason = affected.get( card.conceptId );
+
+      if ( reason ) {
+        deferredCards.value.push({ card, reason });
+      } else {
+        retained.push( card );
+      }
+    }
+
+    cards.value = retained;
   }
 
   function revealAnswer() {
@@ -235,12 +277,7 @@ export function useRecallSession() {
       return false;
     }
 
-    const completedCards = cards.value.slice( 0, currentIndex.value + 1 );
-    const remainingCards = cards.value
-      .slice( currentIndex.value + 1 )
-      .filter( ( candidate ) => candidate.conceptId !== card.conceptId );
-
-    cards.value = [ ...completedCards, ...remainingCards ];
+    exposeConcept( card.conceptId );
     currentIndex.value += 1;
     answerRevealed.value = false;
     correctionPending.value = false;
@@ -321,6 +358,7 @@ export function useRecallSession() {
     currentIndex.value = previousIndex;
     answerRevealed.value = true;
     correctionPending.value = true;
+    deferExposedCards();
 
     return assessment;
   }
@@ -330,6 +368,8 @@ export function useRecallSession() {
     assessments.value = [];
     correctionPending.value = false;
     currentIndex.value = 0;
+    deferredCards.value = [];
+    exposedConceptIds.value = new Set();
     masteryIndex.value = 0;
     masteryItems.value = [];
     masteryResults.value = [];
@@ -347,6 +387,9 @@ export function useRecallSession() {
       cards: [ ...cards.value ],
       correctionPending: correctionPending.value,
       currentIndex: currentIndex.value,
+      deferredCards: deferredCards.value.map( ( item ) => ({ ...item }) ),
+      exposedConceptIds: [ ...exposedConceptIds.value ],
+      relatedConcepts: relatedConcepts.value,
       masteryIndex: masteryIndex.value,
       masteryItems: masteryItems.value.map( ( item ) => ({ ...item }) ),
       masteryResults: masteryResults.value.map( ( result ) => ({ ...result }) ),
@@ -369,6 +412,9 @@ export function useRecallSession() {
     cards.value = [ ...snapshot.cards ];
     correctionPending.value = snapshot.correctionPending;
     currentIndex.value = snapshot.currentIndex;
+    deferredCards.value = ( snapshot.deferredCards ?? []).map( ( item ) => ({ ...item }) );
+    exposedConceptIds.value = new Set( snapshot.exposedConceptIds ?? []);
+    relatedConcepts.value = snapshot.relatedConcepts ?? {};
     masteryIndex.value = snapshot.masteryIndex ?? 0;
     masteryItems.value = ( snapshot.masteryItems ?? []).map( ( item ) => ({
       ...item
@@ -396,6 +442,8 @@ export function useRecallSession() {
     }
 
     const previousCardId = currentCard.value?.id;
+
+    deferredCards.value = deferredCards.value.filter( ( item ) => !conceptIds.has( item.card.conceptId ) );
 
     cards.value = [
       ...cards.value.slice( 0, currentIndex.value ),
@@ -428,7 +476,9 @@ export function useRecallSession() {
     correctionPending,
     createSnapshot,
     currentCard,
+    deferredCards,
     excludeConcepts,
+    exposeConcept,
     hasCards,
     isComplete,
     lastAssessment,

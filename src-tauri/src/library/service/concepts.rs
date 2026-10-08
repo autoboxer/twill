@@ -73,6 +73,7 @@ impl ConceptLibrary<'_> {
                 transaction.soft_delete_entity(&card_id)?;
             }
 
+            crate::library::practice_links::remove_concept_links(transaction, &id)?;
             transaction.soft_delete_entity(&id)?;
 
             Ok(())
@@ -359,7 +360,7 @@ fn item_ids(items: &[NamedItem]) -> HashSet<String> {
     items.iter().map(|item| item.id.clone()).collect()
 }
 
-pub(super) fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDetail> {
+pub(in crate::library) fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDetail> {
     let concept = connection
         .query_row(
             "SELECT

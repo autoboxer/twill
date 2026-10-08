@@ -16,6 +16,7 @@ const MAXIMUM_JSON_BYTES: usize = 4_000_000;
 
 pub(crate) fn validate_restored_content(connection: &Connection) -> LibraryResult<()> {
     validate_card_parents(connection)?;
+    super::practice_links::validate_restored_links(connection)?;
 
     let mut statement = connection.prepare(
         "SELECT entity_id, content_json FROM concepts

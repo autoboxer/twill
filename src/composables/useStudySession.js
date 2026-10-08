@@ -1,4 +1,4 @@
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute } from 'vue-router';
 
 import { conceptLibraryErrorMessage, useConceptLibrary } from './useConceptLibrary';
@@ -6,6 +6,7 @@ import { useDevicePreferences } from './useDevicePreferences';
 import { useRecallSession } from './useRecallSession';
 import { useStudyAssistance } from './useStudyAssistance';
 import { useStudyComparison } from './useStudyComparison';
+import { useLinkedPractice } from './useLinkedPractice';
 import { useNativeActionGuard } from './useNativeLifecycle';
 import { richDocumentHasContent } from '../rich-content/schema';
 import { gradingOptionsByMode } from '../study/grading';
@@ -32,7 +33,7 @@ export function useStudySession({
   } = useDevicePreferences();
 
   const {
-    answerRevealed,
+    answerRevealed: reviewAnswerRevealed,
     assess,
     assessMastery,
     begin,
@@ -41,23 +42,25 @@ export function useStudySession({
     completePretestTeaching,
     correctionPending,
     createSnapshot,
-    currentCard,
+    currentCard: reviewCard,
+    deferredCards,
     excludeConcepts,
+    exposeConcept,
     hasCards,
     isComplete,
     lastAssessment,
     lastAssessmentCanBeRestored,
-    masteryActive,
+    masteryActive: reviewMasteryActive,
     masteryCompletedCount,
     masteryMissedCount,
     masteryReady,
     masteryRecalledCount,
     masteryStarted,
     masteryTotal,
-    pretestActive,
+    pretestActive: reviewPretestActive,
     pretestAttemptedCount,
     pretestSkippedCount,
-    pretestTeachingActive,
+    pretestTeachingActive: reviewPretestTeachingActive,
     pretestTotal,
     position,
     ratingCounts,
@@ -101,8 +104,21 @@ export function useStudySession({
     busy: writePending,
     flush: () => {}
   });
-  const sessionBusy = computed( () => writePending.value || initialLoading.value || nativeActionPending.value );
-  const actionsBlocked = computed( () => sessionBusy.value || sessionStatus.value !== 'active'
+  const linkedPractice = useLinkedPractice({
+    sourceCard: reviewCard,
+    answerRevealed: reviewAnswerRevealed,
+    blocked: computed( () => writePending.value || initialLoading.value || nativeActionPending.value
+      || sessionStatus.value !== 'active' || route.name !== 'study' || correctionPending.value )
+  });
+  const linkedPracticeActive = computed( () => Boolean( linkedPractice.active.value ) );
+  const currentCard = computed( () => linkedPractice.active.value?.card ?? reviewCard.value );
+  const answerRevealed = computed( () => linkedPractice.active.value?.answerRevealed ?? reviewAnswerRevealed.value );
+  const masteryActive = computed( () => !linkedPracticeActive.value && reviewMasteryActive.value );
+  const pretestActive = computed( () => !linkedPracticeActive.value && reviewPretestActive.value );
+  const pretestTeachingActive = computed( () => !linkedPracticeActive.value && reviewPretestTeachingActive.value );
+  const sessionBusy = computed( () => writePending.value || initialLoading.value || nativeActionPending.value
+    || linkedPractice.loading.value );
+  const actionsBlocked = computed( () => sessionBusy.value || linkedPractice.open.value || sessionStatus.value !== 'active'
     || route.name !== 'study' );
 
   const answerFeedbackReviewed = ref( false );
@@ -122,6 +138,7 @@ export function useStudySession({
     answerRevealed,
     actionsBlocked,
     pretestActive,
+    onExposed: () => exposeConcept( currentCard.value?.conceptId ),
     response: studyResponse
   });
   const {
@@ -131,7 +148,17 @@ export function useStudySession({
     setComparison
   } = useStudyComparison({ currentCard, answerRevealed, actionsBlocked });
 
-  const studyMedia = ref([]);
+  const reviewMedia = ref([]);
+  const studyMedia = computed( () => linkedPractice.active.value?.media ?? reviewMedia.value );
+
+  function exposeVisibleContext() {
+    if ([ 'cloze', 'imageOcclusion' ].includes( currentCard.value?.retrievalKind ) ) {
+      exposeConcept( currentCard.value.conceptId );
+    }
+  }
+
+  watch( () => currentCard.value?.id, exposeVisibleContext, { flush: 'post' });
+
   const mixedPracticeEnabled = ref( false );
   const nextDueAt = ref( null );
   const totalAvailableCards = ref( 0 );
@@ -151,7 +178,8 @@ export function useStudySession({
   });
 
   const canUndoLastGrade = computed( () => (
-    lastAssessmentCanBeRestored.value
+    !linkedPracticeActive.value
+    && lastAssessmentCanBeRestored.value
     && !actionsBlocked.value
     && !sessionChangedConceptIds.value.has( lastAssessment.value?.conceptId )
     && !correctionPending.value
@@ -210,8 +238,27 @@ export function useStudySession({
 
     if ( resumableSession ) {
       restoreStudySession( resumableSession );
+      const validation = linkedPracticeActive.value ? await linkedPractice.validate() : { valid: true };
+
+      if ( !viewActive ) {
+        return;
+      }
+
+      if ( !validation.valid ) {
+        if ( validation.sourceChanged ) {
+          sessionChangedConceptIds.value = new Set([
+            ...sessionChangedConceptIds.value,
+            linkedPractice.active.value.sourceConceptId
+          ]);
+          excludeChangedConcepts();
+          sessionResumeNotice.value = 'The current concept changed or is no longer available. Start a new session to study updated cards.';
+        } else {
+          returnFromLinkedPractice();
+          sessionResumeNotice.value = 'The linked case changed or is no longer available. You have returned to your session.';
+        }
+      }
       initialLoading.value = false;
-      sessionResumeNotice.value = resumableSession.changedConceptIds?.length
+      sessionResumeNotice.value ||= resumableSession.changedConceptIds?.length
         ? 'Changed or removed concepts were skipped. Their earlier grades cannot be undone in this session. Start a new session to study updated cards.'
         : '';
       await nextTick();
@@ -263,9 +310,10 @@ export function useStudySession({
     }
 
     begin([]);
+    linkedPractice.reset();
     sessionStatus.value = 'ended';
     restoreAttempt();
-    studyMedia.value = [];
+    reviewMedia.value = [];
     pausedAttempts.clear();
     sessionResumeNotice.value = '';
     navigationNotice.value = '';
@@ -301,11 +349,14 @@ export function useStudySession({
         return false;
       }
 
-      studyMedia.value = queue.media;
+      linkedPractice.reset();
+      reviewMedia.value = queue.media;
       mixedPracticeEnabled.value = Boolean( queue.mixedPracticeEnabled );
       begin( queue.cards, {
-        pretestingEnabled: preferences.pretestingEnabled
+        pretestingEnabled: preferences.pretestingEnabled,
+        relatedConcepts: queue.relatedConcepts
       });
+      exposeVisibleContext();
       sessionStatus.value = 'active';
       navigationNotice.value = '';
       pausedAttempts.clear();
@@ -353,7 +404,12 @@ export function useStudySession({
     }
 
     answerFeedbackReviewed.value = false;
-    revealAnswer();
+    if ( linkedPracticeActive.value ) {
+      linkedPractice.active.value.answerRevealed = true;
+    } else {
+      revealAnswer();
+    }
+    exposeConcept( currentCard.value?.conceptId );
     await nextTick();
 
     onAnswerRevealed();
@@ -399,6 +455,7 @@ export function useStudySession({
           pretestId: pretest.pretestId,
           response
         });
+        exposeConcept( card.conceptId );
       } else {
         skipPretest({ pretestId: pretest.pretestId });
       }
@@ -439,6 +496,7 @@ export function useStudySession({
 
     if (
       actionsBlocked.value
+      || linkedPracticeActive.value
       || !visibleRating
       || answerFeedbackPending.value
       || pretestTeachingActive.value
@@ -490,7 +548,7 @@ export function useStudySession({
   }
 
   async function beginMasteryRound() {
-    if ( actionsBlocked.value || !startMastery() ) {
+    if ( actionsBlocked.value || linkedPracticeActive.value || !startMastery() ) {
       return;
     }
 
@@ -616,6 +674,46 @@ export function useStudySession({
       && !answerFeedbackPending.value;
   }
 
+  async function startLinkedPractice( cardId ) {
+    const origin = {
+      ...attemptSnapshot(),
+      answerFeedbackReviewed: answerFeedbackReviewed.value
+    };
+
+    if ( !await linkedPractice.start( cardId, origin ) ) {
+      return;
+    }
+
+    restoreAttempt();
+    answerFeedbackReviewed.value = false;
+    await nextTick();
+    onStateChanged();
+  }
+
+  function returnFromLinkedPractice( outcome = null ) {
+    const origin = linkedPractice.finish( outcome );
+
+    restoreAttempt( origin );
+    answerFeedbackReviewed.value = Boolean( origin?.answerFeedbackReviewed );
+  }
+
+  async function finishLinkedPractice( recalled = null ) {
+    if ( actionsBlocked.value || !linkedPracticeActive.value
+      || ( recalled !== null && ( typeof recalled !== 'boolean'
+        || !answerRevealed.value || answerFeedbackPending.value ) ) ) {
+      return;
+    }
+
+    returnFromLinkedPractice( recalled === null ? null : { recalled, ...attemptSnapshot() });
+    await nextTick();
+    onStateChanged();
+  }
+
+  function linkedPracticeActionEnabled() {
+    return linkedPracticeActive.value && !actionsBlocked.value
+      && answerRevealed.value && !answerFeedbackPending.value;
+  }
+
   async function continueToGrading() {
     if ( actionsBlocked.value || !answerFeedbackPending.value ) {
       return;
@@ -662,10 +760,11 @@ export function useStudySession({
       nextDueAt: nextDueAt.value,
       pausedAttempts: [ ...pausedAttempts.entries() ],
       recall: createSnapshot(),
+      linkedPractice: linkedPractice.snapshot(),
       answerFeedbackReviewed: answerFeedbackReviewed.value,
       ...attemptSnapshot(),
       sessionGradingMode: sessionGradingMode.value,
-      studyMedia: [ ...studyMedia.value ],
+      studyMedia: [ ...reviewMedia.value ],
       totalAvailableCards: totalAvailableCards.value,
       matchingDueCards: matchingDueCards.value,
       selectedCardCount: selectedCardCount.value,
@@ -675,6 +774,7 @@ export function useStudySession({
 
   function restoreStudySession( session ) {
     restoreSnapshot( session.recall );
+    linkedPractice.restore( session.linkedPractice );
     sessionStatus.value = session.status ?? 'active';
     assessmentError.value = session.assessmentError ?? '';
     recoveryError.value = session.recoveryError ?? '';
@@ -684,7 +784,7 @@ export function useStudySession({
     nextDueAt.value = session.nextDueAt;
     sessionGradingMode.value = session.sessionGradingMode;
     sessionChangedConceptIds.value = new Set( session.changedConceptIds ?? []);
-    studyMedia.value = [ ...session.studyMedia ];
+    reviewMedia.value = [ ...session.studyMedia ];
     totalAvailableCards.value = session.totalAvailableCards;
     matchingDueCards.value = session.matchingDueCards ?? session.totalAvailableCards;
     selectedCardCount.value = session.selectedCardCount ?? session.recall.cards.length;
@@ -696,7 +796,19 @@ export function useStudySession({
       pausedAttempts.set( cardId, attempt );
     }
 
-    if ( excludeConcepts( sessionChangedConceptIds.value ) ) {
+    excludeChangedConcepts();
+  }
+
+  function excludeChangedConcepts() {
+    const currentChanged = excludeConcepts( sessionChangedConceptIds.value );
+    const practice = linkedPractice.active.value;
+
+    if ( practice && ( currentChanged || sessionChangedConceptIds.value.has( practice.card.conceptId ) ) ) {
+      returnFromLinkedPractice();
+      sessionResumeNotice.value = 'The linked case changed or is no longer available. You have returned to your session.';
+    }
+
+    if ( currentChanged ) {
       answerFeedbackReviewed.value = false;
       restoreAttempt();
       assessmentError.value = '';
@@ -725,10 +837,12 @@ export function useStudySession({
     createStudySessionSnapshot,
     currentAnswerFeedback,
     currentCard,
+    deferredCards,
     endSession,
     explainSettings,
     finishCurrentPretest,
     focusedSession,
+    finishLinkedPractice,
     gradingMode,
     gradingModeError,
     gradingModeLocked,
@@ -738,6 +852,9 @@ export function useStudySession({
     isComplete,
     loadError,
     loadStudyQueue,
+    linkedPractice,
+    linkedPracticeActionEnabled,
+    linkedPracticeActive,
     masteryActionEnabled,
     masteryActive,
     masteryCompletedCount,
@@ -779,6 +896,7 @@ export function useStudySession({
     setComparison,
     showAnswer,
     skipCurrentPretest,
+    startLinkedPractice,
     studyMedia,
     studyResponse,
     totalAvailableCards,
