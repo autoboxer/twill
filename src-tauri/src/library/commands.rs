@@ -9,21 +9,23 @@ use crate::library::{
     ConceptDetail,
     CardQualityConcern, CardQualityLibrary, CardQualityQueue,
     CloseCardQualityConcernInput, ConceptLibrary, CreateCardQualityConcernInput,
-    CreateConceptInput, CreateCssSnippetInput, CreateNamedItemInput,
+    CreateConceptInput, CreateCssSnippetInput, CreateNamedItemInput, CreatePracticeLinkInput,
     CreateTemplateInput, CssSnippet, CssSnippetCatalog, CssSnippetLibrary,
     DeferredConceptEdit, DeferredEditLibrary, DeferredEditQueue, DevicePreferences,
     DismissCardQualitySignalInput, EntityIdInput, LibraryError, LibraryOrganizations,
     LibraryPage, LibraryQuery,
     FinalizeConceptInput, FinalizeTemplateInput, OrganizationSummary,
-    PretestRecord, QueueDeferredEditInput, RecordPretestInput, RecordReviewInput,
-    RenameNamedItemInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
+    PracticeLink, PracticeLinkLibrary, PretestRecord, QueueDeferredEditInput,
+    RecordPretestInput, RecordReviewInput,
+    RemovePracticeLinkInput, RenameNamedItemInput, ReverseReviewInput,
+    ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings,
     SetAppearancePreferencesInput, SetConceptArchivedInput, SetCssSnippetEnabledInput,
     SetGradingModeInput, SetLibraryViewPreferencesInput, SetMixedPracticeEnabledInput,
     SetPretestingEnabledInput,
     SetStartupDestinationInput, StudyQuery, StudyQueue, TemplateCatalog,
     TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
-    UpdateCssSnippetInput, UpdateDeferredEditNoteInput,
+    UpdateCssSnippetInput, UpdateDeferredEditNoteInput, UpdatePracticeLinkInput,
     UpdateSchedulingSettingsInput, UpdateTemplateInput,
     UpsertAuthoringDraftInput,
 };
@@ -47,6 +49,7 @@ impl From<LibraryError> for CommandError {
             LibraryError::EmptyValue { .. }
             | LibraryError::ValueTooLong { .. }
             | LibraryError::InvalidContent { .. }
+            | LibraryError::InvalidPracticeLink { .. }
             | LibraryError::InvalidTemplate { .. }
             | LibraryError::InvalidCss { .. }
             | LibraryError::InvalidAuthoringDraft { .. }
@@ -77,6 +80,8 @@ impl From<LibraryError> for CommandError {
             | LibraryError::CardQualityConcernConflict
             | LibraryError::CardQualityEvidenceChanged
             | LibraryError::CardQualitySignalNotActive(_)
+            | LibraryError::PracticeLinkExists
+            | LibraryError::PracticeLinkChanged
             | LibraryError::TemplateInUse { .. } => "conflict",
             LibraryError::ConceptNotFound(_)
             | LibraryError::OrganizationNotFound { .. }
@@ -86,6 +91,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::MediaNotFound(_)
             | LibraryError::CardNotFound(_)
             | LibraryError::ReviewNotFound(_)
+            | LibraryError::PracticeLinkNotFound(_)
             | LibraryError::CardQualityConcernNotFound(_) => "notFound",
             LibraryError::Data(_)
             | LibraryError::Database(_)
@@ -174,6 +180,46 @@ pub(crate) fn get_concept(
 ) -> CommandResult<ConceptDetail> {
     ConceptLibrary::new(local_data.inner())
         .concept(&concept_id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_practice_links(
+    local_data: State<'_, LocalDataStore>,
+    concept_id: String,
+) -> CommandResult<Vec<PracticeLink>> {
+    PracticeLinkLibrary::new(local_data.inner())
+        .links(&concept_id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn create_practice_link(
+    local_data: State<'_, LocalDataStore>,
+    input: CreatePracticeLinkInput,
+) -> CommandResult<()> {
+    PracticeLinkLibrary::new(local_data.inner())
+        .create(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn update_practice_link(
+    local_data: State<'_, LocalDataStore>,
+    input: UpdatePracticeLinkInput,
+) -> CommandResult<()> {
+    PracticeLinkLibrary::new(local_data.inner())
+        .update(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn remove_practice_link(
+    local_data: State<'_, LocalDataStore>,
+    input: RemovePracticeLinkInput,
+) -> CommandResult<()> {
+    PracticeLinkLibrary::new(local_data.inner())
+        .remove(input)
         .map_err(Into::into)
 }
 

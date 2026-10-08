@@ -24,6 +24,18 @@ pub enum LibraryError {
     #[error("concept {0} was not found")]
     ConceptNotFound(String),
 
+    #[error("this concept is already linked")]
+    PracticeLinkExists,
+
+    #[error("practice link {0} was not found")]
+    PracticeLinkNotFound(String),
+
+    #[error("the link changed; reopen it before trying again")]
+    PracticeLinkChanged,
+
+    #[error("{message}")]
+    InvalidPracticeLink { message: &'static str },
+
     #[error("{kind} {id} was not found")]
     OrganizationNotFound { kind: &'static str, id: String },
 

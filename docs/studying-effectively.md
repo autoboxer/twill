@@ -45,7 +45,7 @@ and check trusted references. Not all learning needs to become a flashcard.
 | You know the definition but not why it matters. | Explain how it works, what it changes, or how it relates to another idea. | Use Explain. |
 | You confuse two similar things. | Identify the difference that matters, then apply it to another example. | Use Compare and contrast in Explain. More detailed comparison and choice tools are planned. |
 | You can follow a solution but cannot solve independently. | Study the method, complete part of a problem, then solve another. | Use Problem. Guided sequences are planned. |
-| You know one example but struggle when the situation changes. | Practice choosing and applying the principle in a different situation. | Create separate Problem or Explain concepts. Links between different applications are planned. |
+| You know one example but struggle when the situation changes. | Practice choosing and applying the principle in a different situation. | Create separate Problem or Explain concepts and link them with a clear learning objective. |
 | You need to understand a diagram. | Identify its parts. Practice their functions or relationships separately if needed. | Use Image occlusion and Explain. Image labeling is planned. |
 | You remember facts but lose the overall structure. | Recall the important sequence or relationships, then check for missing ideas. | Use an Explain prompt with key points. More response options for this activity are planned. |
 | You repeat the same mistake. | Check your knowledge and reasoning, and make sure the question is clear and accurate. | Use feedback and Problem checkpoints. Flag unclear or incorrect cards with Needs improvement. |
@@ -166,14 +166,19 @@ does not support doing so for every example.
   when a trustworthy contrasting example is available.
 - Ask which method or principle applies and why. Leave its name out of the
   title and prompt when you need to practice choosing it.
+- Create each case as a separate concept with its own expected answer and
+  criteria. Open a concept in Library and select Link concept under Linked
+  practice. Describe the learning objective and choose the related case.
+  The connection appears in both concepts, but their cards retain separate
+  grades and schedules. Select a linked title to revisit or edit that case.
 - If useful, create an example that follows the principle or shows when it does
   not apply. Check it against clear requirements and an accurate reference
   example. An example that sounds plausible may still be incorrect.
 
-For now, create separate concepts for different prompts or answers and organize
-them with meaningful tags. Card types within one concept share its content, so
-they do not provide separate scenarios. Links between related concepts and
-tools for creating examples are planned.
+Card types within one concept share its content, so they do not provide separate
+scenarios. Link separately authored cases when the connection supports a useful
+learning objective. Tags can organize material without declaring that connection.
+Optional linked practice in Study and tools for creating examples are planned.
 
 Practice can help you apply learning to a new task, but success with familiar
 cards does not guarantee that ability. Vary the question to practice something
@@ -468,9 +473,9 @@ if useful. Hide it in an independent problem only if recalling the formula is
 part of the task. If the starting rate can be zero, explain that this formula
 cannot calculate relative change from a starting rate of zero.
 
-For now, create these distinct prompts as separate Problem or Explain concepts
-with a shared tag. Planned linked practice can make their relationship explicit. In
-either case, succeeding on one question is not an automatic pass on the others.
+Create these distinct prompts as separate Problem or Explain concepts. Link them
+with an objective such as distinguishing a relative change from an absolute
+change. Succeeding on one question is not an automatic pass on the others.
 
 ### Use a hint or reference when you need help
 
@@ -563,8 +568,9 @@ a review grade.
 
 The examples use Standard recall, Type answer, Cloze, Image occlusion, Explain,
 Problem, optional answer feedback, hints, references, answer parts, idea checks, pretesting, mixed
-practice, and mastery retries. Focused sessions include only cards that are due.
-Linked applications, choice authoring, guided sequences,
+practice, and mastery retries. Authors can link independent cases with a learning
+objective and revisit them from Library. Focused sessions include only cards that
+are due. Optional linked practice in Study, choice authoring, guided sequences,
 image labeling, reconstruction controls, tools for creating examples, and records
 of learning across sessions are planned.
 They are not available controls. References to them above describe future

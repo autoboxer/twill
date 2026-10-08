@@ -13,10 +13,11 @@ pub enum EntityKind {
     Media,
     CssSnippet,
     CardQualityConcern,
+    PracticeLink,
 }
 
 impl EntityKind {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Concept,
         Self::Card,
         Self::Deck,
@@ -28,6 +29,7 @@ impl EntityKind {
         Self::Media,
         Self::CssSnippet,
         Self::CardQualityConcern,
+        Self::PracticeLink,
     ];
 
     pub const fn as_str(self) -> &'static str {
@@ -43,6 +45,7 @@ impl EntityKind {
             Self::Media => "media",
             Self::CssSnippet => "css_snippet",
             Self::CardQualityConcern => "card_quality_concern",
+            Self::PracticeLink => "practice_link",
         }
     }
 }
@@ -63,6 +66,7 @@ impl TryFrom<&str> for EntityKind {
             "media" => Ok(Self::Media),
             "css_snippet" => Ok(Self::CssSnippet),
             "card_quality_concern" => Ok(Self::CardQualityConcern),
+            "practice_link" => Ok(Self::PracticeLink),
             _ => Err(DataError::UnknownEntityKind(value.to_owned())),
         }
     }

@@ -73,6 +73,7 @@ impl ConceptLibrary<'_> {
                 transaction.soft_delete_entity(&card_id)?;
             }
 
+            crate::library::practice_links::remove_concept_links(transaction, &id)?;
             transaction.soft_delete_entity(&id)?;
 
             Ok(())

@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import ConceptCardQualityDialog from '../components/ConceptCardQualityDialog.vue';
 import ContentState from '../components/ContentState.vue';
+import LinkedPracticeManager from '../components/LinkedPracticeManager.vue';
 import PageHeader from '../components/PageHeader.vue';
 import RichContentRenderer from '../components/RichContentRenderer.vue';
 import { useStartupReady } from '../composables/useStartupReady';
@@ -572,6 +573,13 @@ useStartupReady( initialLoading );
           </div>
         </div>
       </section>
+
+      <LinkedPracticeManager
+        :key="concept.id"
+        :concept-id="concept.id"
+        :archived="concept.archived"
+        :navigation-query="libraryQuery"
+      />
 
       <section class="concept-detail-panel retrieval-forms">
         <div class="concept-detail-panel__heading">
