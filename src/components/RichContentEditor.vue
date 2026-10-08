@@ -5,7 +5,14 @@ import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import { useAuthoringMedia } from '../composables/useAuthoringMedia';
 import { useCommands } from '../composables/useCommands';
 import { COMMAND_IDS, isApplePlatform } from '../commands/registry';
+import { createUuid } from '../lib/identifiers';
 import { changeClozeOmissions, clozeEditingTarget } from '../cloze/editing';
+import { answerPartRevealGroups, collectAnswerParts } from '../answer-parts/documents';
+import {
+  answerPartEditingTarget,
+  setAnswerPartGroup,
+  toggleAnswerPart
+} from '../answer-parts/editing';
 import {
   collectClozeGroups,
   createClozeGroupId,
@@ -22,6 +29,10 @@ const props = defineProps({
     required: true
   },
   clozeEnabled: {
+    type: Boolean,
+    default: false
+  },
+  answerPartsEnabled: {
     type: Boolean,
     default: false
   },
@@ -51,6 +62,7 @@ const commands = useCommands();
 
 const clozeMenuOpen = ref( false );
 const clozeTarget = shallowRef( null );
+const answerPartTarget = shallowRef( null );
 const currentEditor = shallowRef( null );
 const editorFocused = ref( false );
 const fileInput = ref( null );
@@ -125,6 +137,7 @@ const document = computed({
 });
 
 const clozeGroups = computed( () => collectClozeGroups( document.value ) );
+const answerParts = computed( () => collectAnswerParts( document.value ) );
 const clozeActive = computed( () => Boolean( clozeTarget.value?.omissions.length ) );
 const clozeAtLimit = computed( () => clozeGroups.value.length >= MAXIMUM_CLOZE_GROUPS );
 const clozeToggleLabel = computed( () => clozeActive.value
@@ -361,6 +374,50 @@ const editorHandlers = {
 function syncEditorState({ editor }) {
   currentEditor.value = editor;
   clozeTarget.value = props.clozeEnabled ? clozeEditingTarget( editor ) : null;
+  answerPartTarget.value = props.answerPartsEnabled ? answerPartEditingTarget( editor ) : null;
+}
+
+function answerPartGroupItems( part ) {
+  const groups = new Map();
+
+  for ( const other of answerParts.value ) {
+    if ( other.id !== part.id && !groups.has( other.groupId ) ) {
+      groups.set( other.groupId, {
+        label: `With ${ other.label.toLowerCase() }`,
+        value: other.groupId
+      });
+    }
+  }
+
+  const defaultGroup = answerPartRevealGroups( props.modelValue ).some( ( group ) => group.default );
+
+  return [{ label: defaultGroup ? 'Default group' : 'No group', value: 'separate' }, ...groups.values() ];
+}
+
+function answerPartGroupValue( part ) {
+  return answerParts.value.some( ( other ) => other.id !== part.id && other.groupId === part.groupId )
+    ? part.groupId
+    : 'separate';
+}
+
+function changeAnswerPartGroup( part, value ) {
+  if ( props.disabled || !props.answerPartsEnabled || !currentEditor.value ) {
+    return;
+  }
+
+  const groupId = value === 'separate' ? createUuid() : value;
+
+  if ( value !== 'separate' && !answerParts.value.some( ( other ) => other.groupId === groupId ) ) {
+    return;
+  }
+
+  setAnswerPartGroup( currentEditor.value, part.id, groupId );
+}
+
+function changeAnswerPart( editor ) {
+  if ( !props.disabled && props.answerPartsEnabled ) {
+    toggleAnswerPart( editor );
+  }
 }
 
 watch( () => props.clozeEnabled, () => {
@@ -625,6 +682,23 @@ async function insertImage( event ) {
               class="rich-editor__formatting"
             >
               <template #inserts>
+                <UTooltip
+                  v-if="answerPartsEnabled"
+                  :text="answerPartTarget?.active ? 'Remove answer part' : 'Reveal selected blocks as an answer part'"
+                >
+                  <UButton
+                    type="button"
+                    icon="i-lucide-square-stack"
+                    aria-label="Answer part"
+                    :aria-pressed="answerPartTarget?.active === true"
+                    :color="answerPartTarget?.active ? 'primary' : 'neutral'"
+                    :variant="answerPartTarget?.active ? 'subtle' : 'ghost'"
+                    size="sm"
+                    :disabled="disabled || !answerPartTarget"
+                    @click="changeAnswerPart( editor )"
+                  />
+                </UTooltip>
+
                 <UTooltip text="Equation">
                   <UButton
                     type="button"
@@ -712,6 +786,30 @@ async function insertImage( event ) {
       >
         {{ imageError }}
       </p>
+
+      <div
+        v-if="answerPartsEnabled && answerParts.length"
+        class="answer-part-groups"
+        data-twill-answer-parts
+        aria-label="Answer reveal groups"
+      >
+        <div
+          v-for="part in answerParts"
+          :key="part.id"
+          class="answer-part-groups__row"
+        >
+          <span>{{ part.label }}</span>
+          <USelect
+            :model-value="answerPartGroupValue( part )"
+            :items="answerPartGroupItems( part )"
+            :aria-label="`Reveal ${ part.label.toLowerCase() }`"
+            :disabled="disabled"
+            size="sm"
+            class="answer-part-groups__select"
+            @update:model-value="changeAnswerPartGroup( part, $event )"
+          />
+        </div>
+      </div>
     </div>
 
     <UModal

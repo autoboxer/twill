@@ -8,7 +8,7 @@ use crate::library::{
 };
 
 const MAXIMUM_DOCUMENT_BYTES: usize = 1_000_000;
-const MAXIMUM_CONCEPT_DOCUMENTS: usize = 4;
+const MAXIMUM_CONCEPT_BYTES: usize = 4_000_000;
 const MAXIMUM_DOCUMENT_DEPTH: usize = 32;
 pub(super) const MAXIMUM_DOCUMENT_NODES: usize = 10_000;
 const MAXIMUM_DOCUMENT_TEXT: usize = 500_000;
@@ -16,6 +16,7 @@ const MAXIMUM_LATEX_LENGTH: usize = 10_000;
 const MAXIMUM_LINK_LENGTH: usize = 2_048;
 const MAXIMUM_ATTRIBUTE_TEXT_LENGTH: usize = 500;
 const MAXIMUM_CLOZE_GROUPS: usize = 100;
+const MAXIMUM_ANSWER_PARTS: usize = 100;
 const MAXIMUM_IMAGE_OCCLUSION_GROUPS: usize = 100;
 const MAXIMUM_IMAGE_OCCLUSION_REGIONS: usize = 500;
 
@@ -37,6 +38,7 @@ enum NodeContext {
 }
 
 struct ValidationState {
+    answer_part_ids: HashSet<String>,
     cloze_group_ids: Vec<String>,
     cloze_group_set: HashSet<String>,
     image_occlusion_group_ids: Vec<String>,
@@ -57,11 +59,12 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
 
     let serialized = serde_json::to_string(&content)?;
 
-    if serialized.len() > MAXIMUM_DOCUMENT_BYTES * MAXIMUM_CONCEPT_DOCUMENTS {
+    if serialized.len() > MAXIMUM_CONCEPT_BYTES {
         return Err(invalid_content("Content", "is too large"));
     }
 
     let mut state = ValidationState {
+        answer_part_ids: HashSet::new(),
         cloze_group_ids: Vec::new(),
         cloze_group_set: HashSet::new(),
         image_occlusion_group_ids: Vec::new(),
@@ -84,6 +87,8 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
         "Feedback common mistakes",
         &mut state,
     )?;
+    validate_document(&content.assistance.hint, "Hint", &mut state)?;
+    validate_document(&content.assistance.reference, "Reference", &mut state)?;
 
     Ok(ValidatedContent {
         cloze_group_ids: state.cloze_group_ids,
@@ -180,6 +185,7 @@ fn validate_node(
         "paragraph" => validate_inline_container(object, field, depth, state),
         "heading" => validate_heading(object, field, depth, state),
         "blockquote" => validate_block_container(object, field, depth, state),
+        "answerPart" => validate_answer_part(object, field, depth, state),
         "bulletList" => validate_list(object, false, field, depth, state),
         "orderedList" => validate_list(object, true, field, depth, state),
         "listItem" => validate_list_item(object, field, depth, state),
@@ -207,11 +213,66 @@ fn node_is_allowed(node_type: &str, context: NodeContext) -> bool {
                 | "blockMath"
                 | "mediaImage"
                 | "horizontalRule"
+                | "answerPart"
         ),
         NodeContext::Inline => matches!(node_type, "text" | "hardBreak" | "inlineMath"),
         NodeContext::ListItem => node_type == "listItem",
         NodeContext::Code => node_type == "text",
     }
+}
+
+fn validate_answer_part(
+    object: &Map<String, Value>,
+    field: &'static str,
+    depth: usize,
+    state: &mut ValidationState,
+) -> LibraryResult<()> {
+    if field != "Answer" || depth != 1 {
+        return Err(invalid_content(
+            field,
+            "can contain answer parts only at the top level of Answer",
+        ));
+    }
+
+    ensure_keys(object, &["type", "attrs", "content"], field)?;
+
+    let attributes = required_attributes(object, field)?;
+    ensure_keys(attributes, &["id", "groupId"], field)?;
+
+    let id = required_string(attributes, "id", field)?;
+    let group_id = required_string(attributes, "groupId", field)?;
+
+    for value in [id, group_id] {
+        if !Uuid::parse_str(value).is_ok_and(|uuid| uuid.to_string() == value) {
+            return Err(invalid_content(
+                field,
+                "contains an invalid answer part identity",
+            ));
+        }
+    }
+
+    if !state.answer_part_ids.insert(id.to_owned()) {
+        return Err(invalid_content(field, "contains duplicate answer parts"));
+    }
+
+    if state.answer_part_ids.len() > MAXIMUM_ANSWER_PARTS {
+        return Err(invalid_content(
+            field,
+            format!("cannot contain more than {MAXIMUM_ANSWER_PARTS} answer parts"),
+        ));
+    }
+
+    let content = required_array(object, "content", field)?;
+
+    if !content.iter().any(rich_document_has_content) {
+        return Err(invalid_content(field, "contains an empty answer part"));
+    }
+
+    for node in content {
+        validate_node(node, NodeContext::Block, field, depth + 1, state)?;
+    }
+
+    Ok(())
 }
 
 fn validate_inline_container(
@@ -843,6 +904,75 @@ mod tests {
     use crate::library::{ConceptContent, LibraryError};
 
     #[test]
+    fn answer_parts_require_unique_identities_and_top_level_answer_blocks() {
+        let id = "018f1e2d-3c4b-7a69-8f10-123456789abc";
+        let group = "018f1e2d-3c4b-7a69-8f10-123456789abd";
+        let part = json!({ "type": "answerPart", "attrs": { "id": id, "groupId": group },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "A useful target" }] }]
+        });
+        let document = |nodes: Vec<Value>| json!({ "type": "doc", "content": nodes });
+        let mut valid = ConceptContent::default();
+        valid.answer = document(vec![part.clone()]);
+
+        assert_eq!(validate_content(valid.clone()).unwrap().content, valid);
+
+        let mut invalid_id = part.clone();
+        invalid_id["attrs"]["id"] = json!("not-an-id");
+        let mut invalid_group = part.clone();
+        invalid_group["attrs"]["groupId"] = json!(group.to_uppercase());
+        let mut empty = part.clone();
+        empty["content"] = json!([{ "type": "paragraph" }]);
+        let mut unsafe_child = part.clone();
+        unsafe_child["content"] = json!([{ "type": "script" }]);
+        let mut nested = part.clone();
+        nested["content"] = json!([part]);
+
+        for nodes in [
+            vec![
+                valid.answer["content"][0].clone(),
+                valid.answer["content"][0].clone(),
+            ],
+            vec![invalid_id],
+            vec![invalid_group],
+            vec![empty],
+            vec![unsafe_child],
+            vec![nested],
+            vec![json!({ "type": "blockquote", "content": valid.answer["content"] })],
+        ] {
+            let mut content = valid.clone();
+            content.answer = document(nodes);
+
+            assert!(validate_content(content).is_err());
+        }
+
+        let mut wrong_field = ConceptContent::default();
+        wrong_field.prompt = valid.answer.clone();
+        assert!(validate_content(wrong_field).is_err());
+        let mut wrong_field = ConceptContent::default();
+        wrong_field.assistance.hint = valid.answer;
+        assert!(validate_content(wrong_field).is_err());
+    }
+
+    #[test]
+    fn answer_parts_are_bounded_and_allow_shared_reveal_groups() {
+        let group = uuid::Uuid::now_v7().to_string();
+        let parts: Vec<Value> = (0..101).map(|_| json!({
+            "type": "answerPart", "attrs": { "id": uuid::Uuid::now_v7().to_string(), "groupId": group },
+            "content": [{ "type": "blockMath", "attrs": { "latex": "F = ma" } }]
+        })).collect();
+        let mut content = ConceptContent::default();
+        content.answer = json!({ "type": "doc", "content": parts[..100] });
+        let validated = validate_content(content.clone()).unwrap();
+
+        assert!(validated.cloze_group_ids.is_empty());
+        assert!(validated.image_occlusion_group_ids.is_empty());
+
+        content.answer = json!({ "type": "doc", "content": parts });
+
+        assert!(validate_content(content).is_err());
+    }
+
+    #[test]
     fn image_display_width_is_optional_and_bounded_without_changing_media() {
         let media_id = "018f1e2d-3c4b-7a69-8f10-123456789abc";
 
@@ -917,6 +1047,7 @@ mod tests {
         let occlusion_group_id = "018f1e2d-3c4b-7a69-8f10-123456789abe";
         let occlusion_region_id = "018f1e2d-3c4b-7a69-8f10-123456789abf";
         let content = ConceptContent {
+            assistance: Default::default(),
             schema_version: 1,
             prompt: json!({
                 "type": "doc",
@@ -1075,18 +1206,21 @@ mod tests {
         };
 
         let answer_mark = ConceptContent {
+            assistance: Default::default(),
             schema_version: 1,
             prompt: ConceptContent::default().prompt,
             answer: document(marked_text("Answer", group_id)),
             feedback: Default::default(),
         };
         let invalid_group = ConceptContent {
+            assistance: Default::default(),
             schema_version: 1,
             prompt: document(marked_text("Prompt", "not-a-uuid")),
             answer: ConceptContent::default().answer,
             feedback: Default::default(),
         };
         let empty_omission = ConceptContent {
+            assistance: Default::default(),
             schema_version: 1,
             prompt: document(marked_text("   ", group_id)),
             answer: ConceptContent::default().answer,
@@ -1132,6 +1266,7 @@ mod tests {
         };
         let invalid_contents = [
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: ConceptContent::default().prompt,
                 answer: document(vec![image(
@@ -1141,6 +1276,7 @@ mod tests {
                 feedback: Default::default(),
             },
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: document(vec![image(
                     first_media,
@@ -1150,6 +1286,7 @@ mod tests {
                 feedback: Default::default(),
             },
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: document(vec![image(
                     first_media,
@@ -1159,6 +1296,7 @@ mod tests {
                 feedback: Default::default(),
             },
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: document(vec![image(
                     first_media,
@@ -1168,6 +1306,7 @@ mod tests {
                 feedback: Default::default(),
             },
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: document(vec![image(
                     first_media,
@@ -1180,6 +1319,7 @@ mod tests {
                 feedback: Default::default(),
             },
             ConceptContent {
+                assistance: Default::default(),
                 schema_version: 1,
                 prompt: document(vec![
                     image(
@@ -1207,6 +1347,7 @@ mod tests {
     #[test]
     fn executable_or_unrecognized_content_is_rejected() {
         let content = ConceptContent {
+            assistance: Default::default(),
             schema_version: 1,
             prompt: json!({
                 "type": "doc",

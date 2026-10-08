@@ -25,6 +25,61 @@ fn concept_input(title: &str) -> CreateConceptInput {
     serde_json::from_value(json!({ "title": title })).unwrap()
 }
 
+#[test]
+fn backup_round_trip_preserves_assistance_answer_parts_media_and_assisted_reviews() {
+    let root = tempdir().unwrap();
+    let source = LocalDataStore::open(root.path().join("source")).unwrap();
+    let library = ConceptLibrary::new(&source);
+    let mut image = Cursor::new(Vec::new());
+
+    DynamicImage::new_rgba8(4, 3).write_to(&mut image, ImageFormat::Png).unwrap();
+
+    let media = library.import_image(image.get_ref()).unwrap();
+    let mut input = concept_input("Help round trip");
+    let group_id = uuid::Uuid::now_v7().to_string();
+    input.content.answer = json!({ "type": "doc", "content": [
+        { "type": "answerPart", "attrs": { "id": uuid::Uuid::now_v7().to_string(), "groupId": group_id },
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "First target" }] }] },
+        { "type": "answerPart", "attrs": { "id": uuid::Uuid::now_v7().to_string(), "groupId": group_id },
+            "content": [{ "type": "mediaImage", "attrs": { "mediaId": media.id } }] }
+    ] });
+    input.content.assistance.hint = json!({ "type": "doc", "content": [{
+        "type": "paragraph", "content": [{ "type": "text", "text": "Think of the denominator." }]
+    }] });
+    input.content.assistance.reference = json!({ "type": "doc", "content": [{
+        "type": "mediaImage", "attrs": { "mediaId": media.id }
+    }] });
+    let concept = library.create_concept(input).unwrap();
+    let review = library.record_review(RecordReviewInput {
+        card_id: concept.cards[0].id.clone(),
+        rating: ReviewRating::Again,
+        assisted: true,
+    }).unwrap();
+    let archive = root.path().join("help.twill");
+
+    create_backup(&source, &archive).unwrap();
+
+    let preview = inspect_backup(&archive).unwrap();
+    let profile = root.path().join("target");
+    let target = LocalDataStore::open(&profile).unwrap();
+
+    prepare_restore(&profile, &archive, &preview.fingerprint).unwrap();
+    drop(target);
+
+    let restored = open_with_restore(&profile, || Ok(LocalDataStore::open(&profile)?)).unwrap();
+    let saved = ConceptLibrary::new(&restored).concept(&concept.id).unwrap();
+    let assisted: bool = restored.read_result::<_, crate::data::DataError>(|connection| {
+        Ok(connection.query_row("SELECT assisted FROM reviews WHERE entity_id = ?1",
+            [&review.review_id], |row| row.get(0))?)
+    }).unwrap();
+
+    assert_eq!(saved.content.assistance, concept.content.assistance);
+    assert_eq!(saved.content.answer, concept.content.answer);
+    assert_eq!(saved.media[0].id, media.id);
+    assert!(assisted);
+    assert_eq!(fs::read_dir(restored.media_directory()).unwrap().count(), 1);
+}
+
 fn fixture() -> (TempDir, std::path::PathBuf) {
     fixture_with_input(|_, _, _| {})
 }
@@ -98,6 +153,7 @@ fn fixture_with_input(
 
     library
         .record_review(RecordReviewInput {
+            assisted: false,
             card_id: concept.cards[0].id.clone(),
             rating: ReviewRating::Good,
         })

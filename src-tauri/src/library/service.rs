@@ -143,7 +143,9 @@ impl<'store> ConceptLibrary<'store> {
         let card_id = input.card_id.trim().to_owned();
 
         self.store
-            .write_result(|transaction| record_review(transaction, &card_id, input.rating, now))
+            .write_result(|transaction| {
+                record_review(transaction, &card_id, input.rating, input.assisted, now)
+            })
     }
 
     fn record_pretest_at(

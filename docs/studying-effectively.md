@@ -274,9 +274,9 @@ a long streak of immediate repetitions.
 - Information included in the question is allowed context. An extra hint that
   supplies part of the answer is assistance. Judge what you could answer before
   you received that help.
-- You choose the current grades yourself. More hint controls and separate results
-  for individual answer parts are planned. There is no current rule that maps
-  each hint to a particular grade.
+- You choose the current grades yourself. Revealing a hint, reference or answer
+  part before full comparison marks the review as assisted. There is no rule
+  that maps each hint to a particular grade. One grade assesses the whole card.
 - Correct an accidental grade with Undo last grade when it is available. Do not
   change grades to force a desired due date or claim that one answer proves
   every related card is known.
@@ -472,13 +472,101 @@ For now, create these distinct prompts as separate Problem or Explain concepts
 with a shared tag. Planned linked practice can make their relationship explicit. In
 either case, succeeding on one question is not an automatic pass on the others.
 
+### Use a hint or reference when you need help
+
+When creating or editing a concept, select **Add help** to add a Hint or
+Reference. Use a hint for a useful cue or memory association. Use a reference
+for a formula, source passage or supporting example. Both are optional and
+shared by the concept’s card types. Put information that should always be
+available in Prompt instead.
+
+Try the question before opening help. You can reveal the full answer without
+opening either field. Opening help before revealing the answer marks the review
+as assisted, even if you hide it afterward. Grade the original attempt. Choose
+Forgot or Again if help was needed to produce the answer. Opening help after
+the final reveal is feedback, not assistance for that original attempt.
+
+If you write a response, Twill keeps its state at the first help request for
+comparison. You can continue writing, and that later response appears separately
+after reveal. These responses last only while the app remains open. The saved
+review records whether help was used, not the response text or a detailed log.
+An assisted flag does not automatically change a grade or calculate a penalty.
+The learner still chooses the grade for the original attempt. Help is withheld
+during the initial pretest attempt, then becomes available during feedback.
+
+### Reveal meaningful answer parts
+
+Use answer parts when checking one part at a time helps you understand a larger
+answer. For example, a solution can contain the chosen method, its calculation,
+and its interpretation. Keep each part in the existing Answer document. Parts
+can include text, equations, lists, code or images.
+
+In the Answer editor, place the cursor in a block or select several blocks.
+Select **Answer part** in the toolbar. To remove a part without deleting its
+content, place the cursor inside it and select the same button. The controls
+below Answer let you group a part with another part. Without authored groups,
+all parts belong to one default reveal group.
+
+On built-in study cards, **Reveal** shows one part. A group control names the
+parts it reveals together. When there are no authored groups, **Reveal all
+parts** shows every part. Individual reveal remains available. Hiding a group
+hides only its members, regardless of which parts you revealed earlier. These
+controls do not show other Answer content. You can reveal the full answer
+directly. Template cards keep their authored layouts
+and display parts as ordinary answer content instead of selective controls.
+Put formulas or other context that should always be visible in Prompt.
+
+Try the whole question before revealing parts. If you reveal a part early,
+Twill marks the review as assisted and preserves your response from before
+help. Grade that whole attempt. A part you missed still matters even if you
+remembered the others, if the question required that part. If targets need
+separate schedules, use separate cards
+or concepts. Answer parts do not create schedules or inferred grades.
+
+Parts and their groups remain available while you pause or visit another view.
+Undo restores the previous attempt. These disclosure states and written
+responses remain session only. First pretest attempts withhold selective reveal.
+
+### Compare the important ideas
+
+After revealing the full answer, Explain cards use their key points for optional
+checks. Problem cards use their checkpoints. On other built-in cards, you can
+check the answer parts themselves. You do not need to check both a rubric and
+the parts that express it.
+
+For mental recall, use Remembered, Partially remembered or Forgot. If you wrote
+your response, use Present, Incomplete or Missing. Compare the response you made
+before opening help. Later writing does not change that original attempt.
+Leave a check at Not checked if you do not need it. These checks are optional,
+and you can grade without completing them.
+
+Compare meaning rather than exact wording. A different correct explanation or
+valid solution method can satisfy the question. An answer part can contain extra
+explanation rather than a requirement. Make the requirements clear in Prompt.
+Use the Answer and feedback as a reference, including a complete example when
+the quality of the whole response matters more than a list of separate ideas.
+Accepted alternatives in Type answer are not separate required ideas.
+
+Review incomplete ideas and any important omissions. Choose Forgot or Again
+if a required idea was missing or incomplete. Hard means a correct answer that
+was difficult to recall, not a partly correct answer. One grade assesses the
+whole card. Twill does
+not add up these checks, decide a grade, or schedule parts independently. If you
+used help, compare the attempt you made before that help.
+
+Checks stay with an attempt when you pause, visit another view or undo a grade.
+They clear for a fresh attempt or mastery retry and are not saved after an app
+restart. You can also use them while reading pretest feedback without creating
+a review grade.
+
 ## Current boundaries
 
 The examples use Standard recall, Type answer, Cloze, Image occlusion, Explain,
-Problem, optional answer feedback, pretesting, mixed practice, and mastery
-retries. Focused sessions include only cards that are due. More hint controls,
-linked applications, choice authoring, guided sequences, image labeling, reconstruction controls,
-tools for creating examples, and records of learning across sessions are planned.
+Problem, optional answer feedback, hints, references, answer parts, idea checks, pretesting, mixed
+practice, and mastery retries. Focused sessions include only cards that are due.
+Linked applications, choice authoring, guided sequences,
+image labeling, reconstruction controls, tools for creating examples, and records
+of learning across sessions are planned.
 They are not available controls. References to them above describe future
 possibilities.
 

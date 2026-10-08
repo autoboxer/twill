@@ -145,6 +145,7 @@ export const guideTopics = [
         title: 'Define a good explanation',
         paragraphs: [
           'Choose Why, How, Cause and effect, or Compare and contrast. Add the key points that a correct explanation should include. During Study, explain mentally or use the scratchpad. Compare the meaning of your explanation with the key points.',
+          'After revealing the answer, you can mark each key point as Remembered, Partially remembered, or Forgot. If you wrote an explanation, the choices are Present, Incomplete, and Missing. Different wording can express the same idea. Checks are optional, and you still choose one grade for the whole card.',
           'Ask about a specific relationship or process. If you cannot explain it, review a clear example or any background knowledge you need before trying again.'
         ],
         example: 'Prompt: Why can packet loss delay later TCP data even when those later packets arrive? Key point: The ordered byte stream waits for missing earlier data to be recovered.',
@@ -162,6 +163,7 @@ export const guideTopics = [
         title: 'Practice the ability you need',
         paragraphs: [
           'Write the problem and verify its solution. Add checkpoints for important steps. During Study, attempt the problem in the workpad or on paper. Compare your result and any required reasoning with the solution.',
+          'After revealing the answer, you can mark each checkpoint as Remembered, Partially remembered, or Forgot. If you wrote in the workpad, the choices are Present, Incomplete, and Missing. Accept another valid method when the question allows it. These optional checks do not choose a grade.',
           'Study a worked example first if the method is unfamiliar. Leave a formula in Prompt when you want to practice applying it. Ask for the formula from memory only if you also need to recall it. Allow enough time to work through the problem.'
         ],
         example: 'A rate rises from 10% to 15%. State the increase in percentage points and relative percent. Answer: The rate increases by 5 percentage points. The relative increase is 50%, calculated using the original 10% as the denominator.',
@@ -183,7 +185,8 @@ export const guideTopics = [
         ],
         paragraphs: [
           'Use Hard only for a correct answer. Decide what a correct response should include before reviewing, such as required reasoning or units. Different wording is fine if it meets those requirements.',
-          'Information included in the question is allowed context. If you need to look at the answer or an extra hint to finish, judge what you could answer before that help. Use Undo last grade to correct an accidental grade when the command is available.'
+          'Information included in the question is allowed context. If you need to look at the answer or an extra hint to finish, judge what you could answer before that help. Use Undo last grade to correct an accidental grade when the command is available.',
+          'If you open Hint or Reference before revealing the answer, Twill marks the review as assisted. Grade your original attempt, not what you could answer afterward. Choose Forgot or Again if you needed help to answer.'
         ],
         example: 'If you needed the revealed answer to finish your response, choose Forgot or Again. Being able to repeat the answer afterward does not change that attempt.',
         avoid: 'Choose a grade that reflects your attempt. If a card repeatedly causes difficulty, inspect the question or revisit the material rather than choose Easy to delay it.'
@@ -204,6 +207,31 @@ export const guideTopics = [
         ],
         example: 'After confusing percent with percentage points, inspect the denominator in a worked correction, then attempt another case without it.',
         avoid: 'An immediate retry can help you practice a correction, but the answer may still be fresh in your mind. Check it again later and practice related questions separately.'
+      },
+      {
+        title: 'Use optional help',
+        steps: [
+          'When creating or editing a concept, select Add help. Write a Hint for a useful cue or memory association, or add a Reference with a formula, source or example.',
+          'Try the question first. Select Hint or Reference when you need it, or reveal the full answer without opening either.',
+          'After revealing the answer, compare your response from before help. If you continued writing after opening help, that later response appears separately.'
+        ],
+        paragraphs: [
+          'Help is shared by the concept’s card types. Put context that should always be available in Prompt instead. Hint and Reference are withheld during a first pretest attempt.',
+          'Opening help before the answer marks the review as assisted. Hiding it does not remove that mark. Opening a reference after revealing the answer is feedback for that attempt.'
+        ]
+      },
+      {
+        title: 'Reveal an answer in parts',
+        steps: [
+          'In Answer, place the cursor in a block or select several blocks. Select Answer part in the toolbar to make those blocks a part. Select it again inside a part to remove the part without deleting its content.',
+          'Below the editor, group a part with another part when you want to reveal them together. Without authored groups, all parts belong to the default reveal group.',
+          'On a built-in study card, try the whole question first. Select Reveal for one part or use its group control to reveal the named parts together. Without authored groups, select Reveal all parts. You can still reveal the full answer at any time.'
+        ],
+        paragraphs: [
+          'Keep context that should always be visible in Prompt. Other Answer content stays hidden until you reveal the full answer. Template cards use their own layouts and show parts as ordinary answer content.',
+          'Revealing a part early marks the review as assisted. Grade your whole original attempt, not just the parts you remembered. Parts do not receive separate grades or review schedules.',
+          'After full reveal, Explain and Problem cards use their key points or checkpoints for optional checks. Other built-in cards let you check the parts themselves. Use Remembered, Partially remembered, or Forgot for mental recall. Written answers use Present, Incomplete, and Missing. A part may provide extra explanation rather than a requirement. If a required idea was missing or incomplete, choose Forgot or Again for the whole answer. Checks remain available when you pause or visit another view, but not after you restart the app.'
+        ]
       },
       {
         title: 'Optional pretesting',

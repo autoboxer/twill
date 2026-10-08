@@ -17,6 +17,7 @@ import { collectImageOcclusionGroups } from '../image-occlusion/documents';
 import { libraryNavigationQuery } from '../library/search';
 import { richDocumentHasContent } from '../rich-content/schema';
 import { retrievalFormIcon, retrievalFormLabel } from '../retrieval-forms/catalog';
+import { assistanceDocuments } from '../study/assistance';
 
 const route = useRoute();
 const router = useRouter();
@@ -96,6 +97,7 @@ const answerFeedbackDocuments = computed( () => [
     label: 'Common mistakes'
   }
 ].filter( ( item ) => richDocumentHasContent( item.document ) ) );
+const helpDocuments = computed( () => assistanceDocuments( concept.value?.content ) );
 
 watch( () => route.fullPath, loadConcept, { immediate: true, flush: 'sync' });
 
@@ -551,6 +553,22 @@ useStartupReady( initialLoading );
               :document="item.document"
               :label="item.label"
             />
+          </div>
+        </div>
+      </section>
+
+      <section
+        v-if="helpDocuments.length"
+        class="concept-detail-panel concept-feedback-panel"
+        data-twill-concept-assistance
+      >
+        <h2>Optional help</h2>
+
+        <div class="concept-feedback-documents">
+          <div v-for="item in helpDocuments" :key="item.id" class="concept-feedback-document">
+            <h3>{{ item.label }}</h3>
+
+            <RichContentRenderer :document="item.document" :label="item.label" />
           </div>
         </div>
       </section>

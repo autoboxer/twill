@@ -388,16 +388,6 @@
   font-weight: 670;
 }
 
-.explain-response__heading p,
-.explain-comparison__heading p,
-.problem-response__heading p,
-.problem-comparison__heading p {
-  margin: 0.2rem 0 0;
-  color: var(--ui-text-muted);
-  font-size: 0.82rem;
-  line-height: 1.5;
-}
-
 .explain-response__input,
 .problem-response__input {
   width: 100%;
@@ -420,8 +410,13 @@
 .explain-comparison__content,
 .problem-comparison__content {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
+}
+
+.explain-comparison__content--written,
+.problem-comparison__content--written {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .explain-comparison__content > div,
@@ -431,6 +426,13 @@
   background: var(--ui-bg);
   border: 1px solid var(--ui-border);
   border-radius: 0.5rem;
+}
+
+.explain-comparison__content:not(.explain-comparison__content--written) > div,
+.problem-comparison__content:not(.problem-comparison__content--written) > div {
+  padding: 0;
+  background: none;
+  border: 0;
 }
 
 .explain-comparison__content > div > span,
@@ -445,9 +447,7 @@
 }
 
 .explain-comparison__attempt,
-.explain-comparison__empty,
-.problem-comparison__attempt,
-.problem-comparison__empty {
+.problem-comparison__attempt {
   margin: 0;
   color: var(--ui-text-highlighted);
   font-size: 0.95rem;
@@ -456,62 +456,55 @@
   white-space: pre-wrap;
 }
 
-.explain-comparison__empty,
-.problem-comparison__empty {
-  color: var(--ui-text-muted);
-}
-
-.explain-comparison ul {
+.study-idea-list {
   display: grid;
   padding: 0;
   margin: 0;
   gap: 0.65rem;
   list-style: none;
+  counter-reset: study-idea;
 }
 
-.explain-comparison li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+.study-idea-list__item {
+  display: flex;
+  flex-wrap: wrap;
   align-items: start;
   gap: 0.5rem;
   color: var(--ui-text-highlighted);
   font-size: 0.9rem;
   line-height: 1.55;
   overflow-wrap: anywhere;
+  counter-increment: study-idea;
 }
 
-.explain-comparison li > svg {
-  width: 1rem;
-  height: 1rem;
-  margin-top: 0.2rem;
+.study-idea-list__text {
+  flex: 1 1 12rem;
+  min-width: 0;
+  white-space: pre-wrap;
+}
+
+ol.study-idea-list .study-idea-list__text::before {
+  margin-right: 0.4rem;
   color: var(--ui-primary);
-}
-
-.problem-comparison ol {
-  display: grid;
-  padding: 0;
-  margin: 0;
-  gap: 0.65rem;
-  counter-reset: problem-solution-checkpoint;
-  list-style: none;
-}
-
-.problem-comparison li {
-  display: grid;
-  grid-template-columns: 1.25rem minmax(0, 1fr);
-  align-items: start;
-  gap: 0.5rem;
-  color: var(--ui-text-highlighted);
-  font-size: 0.9rem;
-  line-height: 1.55;
-  overflow-wrap: anywhere;
-  counter-increment: problem-solution-checkpoint;
-}
-
-.problem-comparison li::before {
-  color: var(--ui-primary);
-  content: counter(problem-solution-checkpoint) '.';
+  content: counter(study-idea) '.';
   font-weight: 680;
+}
+
+.study-idea-check {
+  flex-shrink: 0;
+  width: 12rem;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.study-idea-check--written {
+  width: 8.25rem;
+}
+
+.study-comparison-guidance {
+  color: var(--ui-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 .type-answer-comparison {
@@ -947,4 +940,53 @@
   margin: 0 0 0.75rem;
   color: var(--ui-text-muted);
   font-size: 0.8rem;
+}
+.study-assistance-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  color: var(--ui-text-muted);
+}
+
+.study-assisted-response {
+  display: grid;
+  flex-basis: 100%;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.study-assisted-response p {
+  color: var(--ui-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.study-answer-parts {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.study-answer-part {
+  min-width: 0;
+}
+
+.study-answer-part--group-start {
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ui-border);
+}
+
+.study-answer-part__heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.65rem;
+  color: var(--ui-text-muted);
+  font-size: 0.82rem;
+}
+
+.study-answer-part__group-label {
+  color: var(--ui-text-dimmed);
+  font-size: 0.75rem;
 }

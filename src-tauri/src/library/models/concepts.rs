@@ -105,12 +105,30 @@ impl Default for AnswerFeedback {
 
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnswerAssistance {
+    pub hint: Value,
+    pub reference: Value,
+}
+
+impl Default for AnswerAssistance {
+    fn default() -> Self {
+        Self {
+            hint: empty_rich_text_document(),
+            reference: empty_rich_text_document(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ConceptContent {
     pub schema_version: u32,
     pub prompt: Value,
     pub answer: Value,
     #[serde(default)]
     pub feedback: AnswerFeedback,
+    #[serde(default)]
+    pub assistance: AnswerAssistance,
 }
 
 impl Default for ConceptContent {
@@ -120,6 +138,7 @@ impl Default for ConceptContent {
             prompt: empty_rich_text_document(),
             answer: empty_rich_text_document(),
             feedback: AnswerFeedback::default(),
+            assistance: AnswerAssistance::default(),
         }
     }
 }

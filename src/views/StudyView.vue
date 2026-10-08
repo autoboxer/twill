@@ -10,6 +10,8 @@ import DeferredEditNoteDialog from '../components/DeferredEditNoteDialog.vue';
 import ExplainResponse from '../components/ExplainResponse.vue';
 import ProblemResponse from '../components/ProblemResponse.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
+import StudyAnswerParts from '../components/StudyAnswerParts.vue';
+import StudyAssistance from '../components/StudyAssistance.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import StudyHelpButton from '../components/StudyHelpButton.vue';
 import StudySessionBuilder from '../components/StudySessionBuilder.vue';
@@ -28,6 +30,8 @@ import { useStartupReady } from '../composables/useStartupReady';
 import { gradingModeItems, gradingOptionsByMode } from '../study/grading';
 import { emptyStudySelection, studySelectionFromLibrary } from '../study/selection';
 import { retrievalFormLabel as studyCardName } from '../retrieval-forms/catalog';
+import { supportsAnswerParts } from '../answer-parts/documents';
+import { usesAnswerPartComparison } from '../study/comparison';
 
 const commands = useCommands();
 const { resolvedMotion } = useAppearance();
@@ -44,12 +48,14 @@ const {
   actionsBlocked,
   answerFeedbackPending,
   answerRevealed,
+  assisted,
   assessmentError,
   assessmentPending,
   beginMasteryRound,
   canRevealAnswer,
   canUndoLastGrade,
   completedCount,
+  comparisonChecks,
   continueToGrading,
   correctionPending,
   currentAnswerFeedback,
@@ -94,6 +100,9 @@ const {
   recordMasteryAssessment,
   recoveryError,
   resumeSession,
+  responseBeforeAssistance,
+  revealedAssistance,
+  revealedAnswerParts,
   sessionBusy,
   sessionEnded,
   sessionPaused,
@@ -101,12 +110,15 @@ const {
   selectedCardCount,
   sessionResumeNotice,
   sessionSelection,
+  setComparison,
   showAnswer,
   skipCurrentPretest,
   studyMedia,
   studyResponse,
   totalAvailableCards,
   totalCards,
+  toggleAssistance,
+  toggleAnswerParts,
   typeAnswerSettings,
   undoLastGrade,
   undoPending,
@@ -150,6 +162,32 @@ const {
 } = useStudyDeferredEdits( session );
 
 const builderDisabled = computed( () => sessionBusy.value || deferredStartPending.value );
+const selectiveAnswer = computed( () => supportsAnswerParts( currentCard.value ) );
+const comparisonResponse = computed( () => (
+  answerRevealed.value && assisted.value ? responseBeforeAssistance.value : studyResponse.value
+) );
+const writtenComparison = computed( () => (
+  Boolean( typeAnswerSettings.value || comparisonResponse.value.trim() )
+) );
+const comparisonGuidance = computed( () => {
+  if ( !answerRevealed.value ) {
+    return '';
+  }
+
+  const judgments = Object.values( comparisonChecks.value );
+
+  if ( judgments.includes( 'missing' ) || judgments.includes( 'partial' ) ) {
+    if ( pretestTeachingActive.value ) {
+      return 'Review any required ideas you missed or only partly recalled before continuing.';
+    }
+
+    const grade = masteryActive.value ? 'Still missed' : gradingMode.value === 'advanced' ? 'Again' : 'Forgot';
+
+    return `Choose ${ grade } if a required idea was missing or incomplete.`;
+  }
+
+  return '';
+});
 
 watch( () => route.fullPath, () => {
   if ( route.name === 'study' && route.query.build === '1' ) {
@@ -771,32 +809,77 @@ useStartupReady( initialLoading );
             :card="currentCard"
             :answer-revealed="answerRevealed"
             :media="studyMedia"
+            :hide-answer="selectiveAnswer"
           />
 
           <TypeAnswerResponse
             v-if="typeAnswerSettings"
             ref="typeAnswerResponse"
-            v-model="studyResponse"
+            :model-value="comparisonResponse"
             :accepted-answers="typeAnswerSettings.acceptedAnswers"
             :revealed="answerRevealed"
+            @update:model-value="studyResponse = $event"
             @submit="showAnswer"
           />
 
           <ExplainResponse
             v-if="explainSettings"
             ref="explainResponse"
-            v-model="studyResponse"
+            :model-value="comparisonResponse"
             :settings="explainSettings"
             :revealed="answerRevealed"
+            :checks="comparisonChecks"
+            :disabled="actionsBlocked"
+            @update:model-value="studyResponse = $event"
+            @compare="setComparison"
           />
 
           <ProblemResponse
             v-if="problemSettings"
             ref="problemResponse"
-            v-model="studyResponse"
+            :model-value="comparisonResponse"
             :settings="problemSettings"
             :revealed="answerRevealed"
+            :checks="comparisonChecks"
+            :disabled="actionsBlocked"
+            @update:model-value="studyResponse = $event"
+            @compare="setComparison"
           />
+
+          <StudyAssistance
+            v-if="!pretestActive"
+            :content="currentCard.content"
+            :revealed="revealedAssistance"
+            :disabled="actionsBlocked"
+            @toggle="toggleAssistance"
+          />
+
+          <StudyAnswerParts
+            v-if="selectiveAnswer && !pretestActive"
+            :document="currentCard.content.answer"
+            :full-answer-revealed="answerRevealed"
+            :revealed="revealedAnswerParts"
+            :disabled="actionsBlocked"
+            :comparison-enabled="usesAnswerPartComparison( currentCard )"
+            :written-response="writtenComparison"
+            :checks="comparisonChecks"
+            @toggle="toggleAnswerParts"
+            @compare="setComparison"
+          />
+
+          <div
+            v-if="assisted"
+            class="study-assistance-notice"
+            data-twill-assisted
+            role="status"
+          >
+            <strong>Help used</strong>
+            <span>Grade your answer before help.</span>
+            <div v-if="answerRevealed && studyResponse && studyResponse !== responseBeforeAssistance" class="study-assisted-response">
+              <span>Your response after help</span>
+              <p>{{ studyResponse }}</p>
+            </div>
+          </div>
 
           <StudyAnswerFeedback
             v-if="answerRevealed && currentAnswerFeedback"
@@ -806,6 +889,10 @@ useStartupReady( initialLoading );
         </div>
 
         <footer class="study-card__footer">
+          <p v-if="comparisonGuidance" class="study-comparison-guidance" role="status">
+            {{ comparisonGuidance }}
+          </p>
+
           <UAlert
             v-if="correctionPending"
             class="study-correction-notice"

@@ -75,8 +75,8 @@ export function useConceptLibrary() {
     recordPretest: ( cardId, outcome ) => run( 'record_pretest', {
       input: { cardId, outcome }
     }),
-    recordReview: ( cardId, rating ) => run( 'record_review', {
-      input: { cardId, rating }
+    recordReview: ( cardId, rating, assisted = false ) => run( 'record_review', {
+      input: { cardId, rating, assisted }
     }),
     reverseReview: ( reviewId ) => run( 'reverse_review', {
       input: { reviewId }

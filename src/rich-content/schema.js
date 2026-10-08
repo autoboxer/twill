@@ -170,6 +170,35 @@ const ClozeBlank = Node.create({
   }
 });
 
+const RichDocument = Node.create({
+  name: 'doc',
+  topNode: true,
+  content: '(block | answerPart)+'
+});
+
+const AnswerPart = Node.create({
+  name: 'answerPart',
+  group: 'answerPart',
+  content: 'block+',
+  defining: true,
+  isolating: true,
+
+  addAttributes() {
+    return {
+      id: { default: null, rendered: false },
+      groupId: { default: null, rendered: false }
+    };
+  },
+
+  parseHTML() {
+    return [];
+  },
+
+  renderHTML() {
+    return [ 'div', { 'data-type': 'answer-part' }, 0 ];
+  }
+});
+
 export function createEmptyRichDocument() {
   return {
     type: 'doc',
@@ -189,7 +218,11 @@ export function createEmptyConceptContent() {
     schemaVersion: RICH_CONTENT_SCHEMA_VERSION,
     prompt: createEmptyRichDocument(),
     answer: createEmptyRichDocument(),
-    feedback: createEmptyAnswerFeedback()
+    feedback: createEmptyAnswerFeedback(),
+    assistance: {
+      hint: createEmptyRichDocument(),
+      reference: createEmptyRichDocument()
+    }
   };
 }
 
@@ -207,6 +240,10 @@ export function cloneConceptContent( content ) {
       commonMistakes: cloneRichDocument(
         content?.feedback?.commonMistakes ?? fallback.feedback.commonMistakes
       )
+    },
+    assistance: {
+      hint: cloneRichDocument( content?.assistance?.hint ?? fallback.assistance.hint ),
+      reference: cloneRichDocument( content?.assistance?.reference ?? fallback.assistance.reference )
     }
   };
 }
@@ -260,6 +297,7 @@ export function createRichContentExtensions({
     : undefined;
 
   return [
+    RichDocument,
     CodeBlockLowlight.extend({
       addOptions() {
         return {
@@ -293,6 +331,7 @@ export function createRichContentExtensions({
     }),
     Cloze,
     ClozeBlank,
+    AnswerPart,
     MediaImage.configure({
       imageEditingEnabled,
       imageOcclusionDocument,
@@ -308,6 +347,7 @@ export function highlightCode( code, language ) {
 
 export function richContentStarterKit( editable = true ) {
   return {
+    document: false,
     codeBlock: false,
     heading: {
       levels: [ 1, 2, 3 ]

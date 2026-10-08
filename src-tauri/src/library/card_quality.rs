@@ -794,7 +794,7 @@ mod tests {
         reviewed_at: i64,
     ) -> ReviewOutcome {
         store
-            .write_result(|transaction| record_review(transaction, card_id, rating, reviewed_at))
+            .write_result(|transaction| record_review(transaction, card_id, rating, false, reviewed_at))
             .unwrap()
     }
 
