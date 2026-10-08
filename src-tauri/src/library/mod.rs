@@ -35,7 +35,7 @@ pub use models::{
     CardQualitySource, CardQualityStatus, CloseCardQualityConcernInput,
     ConceptContent, ConceptDetail, ConceptSummary, CreateConceptInput,
     CreateCardQualityConcernInput, CreateCssSnippetInput, CreateNamedItemInput,
-    CreatePracticeLinkInput,
+    CreatePracticeLinkInput, LinkedPracticeCase, LinkedPracticeInput,
     CreateTemplateInput, CssSnippet,
     CssSnippetCatalog, CssSnippetContent, DevicePreferences, EntityIdInput,
     DeferredConceptEdit, DeferredEditQueue, DeferredEditTargetStatus,

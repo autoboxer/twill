@@ -14,6 +14,7 @@ import StudyAnswerParts from '../components/StudyAnswerParts.vue';
 import StudyAssistance from '../components/StudyAssistance.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import StudyHelpButton from '../components/StudyHelpButton.vue';
+import StudyLinkedPracticePicker from '../components/StudyLinkedPracticePicker.vue';
 import StudySessionBuilder from '../components/StudySessionBuilder.vue';
 import StudySessionControls from '../components/StudySessionControls.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
@@ -64,6 +65,7 @@ const {
   explainSettings,
   finishCurrentPretest,
   focusedSession,
+  finishLinkedPractice,
   gradingMode,
   gradingModeError,
   gradingModeLocked,
@@ -73,6 +75,9 @@ const {
   isComplete,
   loadError,
   loadStudyQueue,
+  linkedPractice,
+  linkedPracticeActionEnabled,
+  linkedPracticeActive,
   masteryActionEnabled,
   masteryActive,
   masteryCompletedCount,
@@ -113,6 +118,7 @@ const {
   setComparison,
   showAnswer,
   skipCurrentPretest,
+  startLinkedPractice,
   studyMedia,
   studyResponse,
   totalAvailableCards,
@@ -124,6 +130,20 @@ const {
   undoPending,
   updateGradingMode
 } = session;
+const {
+  active: linkedAttempt,
+  available: linkedPracticeAvailable,
+  choose: chooseLinkedPractice,
+  close: closeLinkedPracticePicker,
+  error: linkedPracticeError,
+  links: practiceLinks,
+  loadLinks: reloadPracticeLinks,
+  loading: linkedPracticeLoading,
+  open: linkedPracticePickerOpen,
+  results: linkedPracticeResults,
+  select: selectPracticeLink,
+  selectedCase: selectedPracticeCase
+} = linkedPractice;
 const {
   answerFeedback,
   completionHeading,
@@ -181,7 +201,8 @@ const comparisonGuidance = computed( () => {
       return 'Review any required ideas you missed or only partly recalled before continuing.';
     }
 
-    const grade = masteryActive.value ? 'Still missed' : gradingMode.value === 'advanced' ? 'Again' : 'Forgot';
+    const grade = masteryActive.value || linkedPracticeActive.value
+      ? 'Still missed' : gradingMode.value === 'advanced' ? 'Again' : 'Forgot';
 
     return `Choose ${ grade } if a required idea was missing or incomplete.`;
   }
@@ -275,6 +296,10 @@ const visibleProgress = computed( () => {
 });
 
 const progressLabel = computed( () => {
+  if ( linkedPracticeActive.value ) {
+    return 'Linked practice';
+  }
+
   if ( isComplete.value ) {
     return 'Complete';
   }
@@ -393,13 +418,13 @@ registerGradingCommand(
 );
 
 useCommandHandler( COMMAND_IDS.studyMasteryMissed, {
-  enabled: computed( () => masteryActionEnabled() ),
-  execute: () => recordMasteryAssessment( false )
+  enabled: computed( () => masteryActionEnabled() || linkedPracticeActionEnabled() ),
+  execute: () => linkedPracticeActive.value ? finishLinkedPractice( false ) : recordMasteryAssessment( false )
 });
 
 useCommandHandler( COMMAND_IDS.studyMasteryRecalled, {
-  enabled: computed( () => masteryActionEnabled() ),
-  execute: () => recordMasteryAssessment( true )
+  enabled: computed( () => masteryActionEnabled() || linkedPracticeActionEnabled() ),
+  execute: () => linkedPracticeActive.value ? finishLinkedPractice( true ) : recordMasteryAssessment( true )
 });
 
 function gradingOptionsForMode( mode ) {
@@ -421,6 +446,7 @@ function registerGradingCommand( commandId, mode, rating ) {
       gradingMode.value === mode
       && !actionsBlocked.value
       && !masteryActive.value
+      && !linkedPracticeActive.value
       && !pretestTeachingActive.value
       && answerRevealed.value
       && !answerFeedbackPending.value
@@ -676,6 +702,9 @@ useStartupReady( initialLoading );
             </span>
 
             <span v-if="focusedSession">{{ selectedCardCount }} selected</span>
+            <span v-if="linkedPracticeResults.length" data-twill-linked-count>
+              {{ linkedPracticeResults.length }} extra {{ linkedPracticeResults.length === 1 ? 'attempt' : 'attempts' }}
+            </span>
 
             <span
               v-if="mixedPracticeEnabled"
@@ -746,16 +775,29 @@ useStartupReady( initialLoading );
         <header class="study-card__header">
           <div>
             <span class="study-card__eyebrow">
-              {{ masteryActive
-                ? `Mastery retry · ${ studyCardName( currentCard ) }`
-                : pretestActive || pretestTeachingActive
-                  ? `Pretest · ${ studyCardName( currentCard ) }`
-                  : studyCardName( currentCard ) }}
+              {{ linkedPracticeActive
+                ? `Linked practice · ${ studyCardName( currentCard ) }`
+                : masteryActive
+                  ? `Mastery retry · ${ studyCardName( currentCard ) }`
+                  : pretestActive || pretestTeachingActive
+                    ? `Pretest · ${ studyCardName( currentCard ) }`
+                    : studyCardName( currentCard ) }}
             </span>
             <h2>{{ currentCard.conceptTitle }}</h2>
           </div>
 
           <div class="study-card__actions">
+            <UTooltip v-if="linkedPracticeAvailable" text="Linked practice">
+              <UButton
+                leading-icon="i-lucide-network"
+                aria-label="Linked practice"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                @click="chooseLinkedPractice"
+              />
+            </UTooltip>
+
             <CardQualityAction
               :card="currentCard"
               :disabled="assessmentPending || gradingModePending || pretestPending || undoPending"
@@ -794,6 +836,21 @@ useStartupReady( initialLoading );
         </header>
 
         <div class="study-card__body">
+          <div v-if="linkedAttempt" class="study-linked-notice" data-twill-linked-practice>
+            <p>{{ linkedAttempt.link.objective }}</p>
+            <span>Extra practice does not change review dates.</span>
+            <UButton
+              leading-icon="i-lucide-arrow-left"
+              color="neutral"
+              variant="link"
+              size="sm"
+              :disabled="actionsBlocked"
+              @click="finishLinkedPractice()"
+            >
+              Return to session
+            </UButton>
+          </div>
+
           <UAlert
             v-if="pretestActive || pretestTeachingActive"
             class="study-pretest-notice"
@@ -959,7 +1016,7 @@ useStartupReady( initialLoading );
               variant="subtle"
               @click="continueToGrading"
             >
-              {{ pretestTeachingActive ? 'Continue' : 'Continue to grading' }}
+              {{ pretestTeachingActive || linkedPracticeActive ? 'Continue' : 'Continue to grading' }}
             </UButton>
           </div>
 
@@ -985,7 +1042,7 @@ useStartupReady( initialLoading );
           </div>
 
           <div
-            v-else-if="masteryActive"
+            v-else-if="masteryActive || linkedPracticeActive"
             id="study-mastery-actions"
             ref="gradingActions"
             key="mastery"
@@ -998,14 +1055,14 @@ useStartupReady( initialLoading );
                 :leading-icon="option.icon"
                 :color="option.color"
                 :variant="option.variant"
-                :disabled="assessmentPending"
+                :disabled="actionsBlocked"
                 :loading="assessmentPending
                   && pendingAssessment === option.outcome"
                 :aria-keyshortcuts="option.command.ariaKeyshortcuts"
                 :title="option.command.tooltip"
                 size="sm"
                 class="study-grade-button"
-                @click="recordMasteryAssessment( option.recalled )"
+                @click="linkedPracticeActive ? finishLinkedPractice( option.recalled ) : recordMasteryAssessment( option.recalled )"
               >
                 <span>{{ option.label }}</span>
 
@@ -1033,7 +1090,7 @@ useStartupReady( initialLoading );
                 :leading-icon="option.icon"
                 :color="option.color"
                 :variant="option.variant"
-                :disabled="assessmentPending || gradingModePending"
+                :disabled="actionsBlocked"
                 :loading="assessmentPending && pendingAssessment === option.rating"
                 :aria-keyshortcuts="option.command.ariaKeyshortcuts"
                 :title="option.command.tooltip"
@@ -1230,6 +1287,19 @@ useStartupReady( initialLoading );
       :replacing="hasCards && !isComplete"
       :start-session="startFocusedSession"
       @after:leave="focusCurrentState"
+    />
+
+    <StudyLinkedPracticePicker
+      :open="linkedPracticePickerOpen"
+      :links="practiceLinks"
+      :selected-case="selectedPracticeCase"
+      :loading="linkedPracticeLoading"
+      :error="linkedPracticeError"
+      @close="closeLinkedPracticePicker"
+      @select="selectPracticeLink"
+      @start="startLinkedPractice"
+      @back="reloadPracticeLinks"
+      @closed="focusCurrentState"
     />
 
     <DeferredEditNoteDialog

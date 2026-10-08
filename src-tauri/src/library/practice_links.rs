@@ -2,7 +2,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::data::{EntityKind, LocalDataStore, WriteTransaction};
 use crate::library::{
-    CreatePracticeLinkInput, LibraryError, LibraryResult, PracticeLink, RemovePracticeLinkInput,
+    CreatePracticeLinkInput, LibraryError, LibraryResult, LinkedPracticeCase, LinkedPracticeInput,
+    PracticeLink, RemovePracticeLinkInput,
     UpdatePracticeLinkInput,
 };
 
@@ -21,6 +22,43 @@ impl<'store> PracticeLinkLibrary<'store> {
         self.store.read_result(|connection| {
             concept_archived(connection, concept_id)?;
             query_links(connection, concept_id)
+        })
+    }
+
+    pub fn practice(&self, input: LinkedPracticeInput) -> LibraryResult<LinkedPracticeCase> {
+        self.store.read_result(|connection| {
+            if concept_archived(connection, &input.concept_id)? {
+                return Err(invalid("Restore the current concept before linked practice."));
+            }
+
+            let link = query_links(connection, &input.concept_id)?
+                .into_iter()
+                .find(|link| link.id == input.link_id)
+                .ok_or_else(|| LibraryError::PracticeLinkNotFound(input.link_id.clone()))?;
+
+            if link.archived {
+                return Err(invalid("Restore this archived case before practicing it."));
+            }
+
+            let source_last_change_id = connection.query_row(
+                "SELECT last_change_id FROM entities WHERE id = ?1",
+                [&input.concept_id],
+                |row| row.get(0),
+            )?;
+            let concept = crate::library::service::query_concept(connection, &link.concept_id)?;
+            let template_ids = concept
+                .cards
+                .iter()
+                .filter_map(|card| card.template.as_ref().map(|template| template.id.clone()))
+                .collect();
+            let templates = crate::library::study::query_templates(connection, &template_ids)?;
+
+            Ok(LinkedPracticeCase {
+                link,
+                source_last_change_id,
+                concept,
+                templates,
+            })
         })
     }
 

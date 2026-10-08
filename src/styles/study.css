@@ -990,3 +990,20 @@ ol.study-idea-list .study-idea-list__text::before {
   color: var(--ui-text-dimmed);
   font-size: 0.75rem;
 }
+
+.study-linked-notice {
+  display: grid;
+  gap: 0.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--ui-border);
+  overflow-wrap: anywhere;
+}
+
+.study-linked-notice > span {
+  color: var(--ui-text-muted);
+  font-size: 0.8125rem;
+}
+
+.study-linked-notice > button {
+  justify-self: start;
+}

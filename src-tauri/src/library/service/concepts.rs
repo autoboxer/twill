@@ -360,7 +360,7 @@ fn item_ids(items: &[NamedItem]) -> HashSet<String> {
     items.iter().map(|item| item.id.clone()).collect()
 }
 
-pub(super) fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDetail> {
+pub(in crate::library) fn query_concept(connection: &Connection, id: &str) -> LibraryResult<ConceptDetail> {
     let concept = connection
         .query_row(
             "SELECT

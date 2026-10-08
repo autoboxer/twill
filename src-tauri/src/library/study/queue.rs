@@ -303,7 +303,7 @@ fn query_concepts(
     Ok(concepts)
 }
 
-fn query_templates(
+pub(crate) fn query_templates(
     connection: &Connection,
     ids: &BTreeSet<String>,
 ) -> LibraryResult<Vec<StudyTemplate>> {

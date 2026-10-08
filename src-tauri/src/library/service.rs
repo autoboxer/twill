@@ -26,8 +26,7 @@ mod search;
 mod tests;
 
 pub(super) use cards::{validate_retrieval_form_selection, validate_template_selections};
-use concepts::query_concept;
-pub(super) use concepts::{create_concept, update_concept};
+pub(super) use concepts::{create_concept, query_concept, update_concept};
 
 pub struct ConceptLibrary<'store> {
     store: &'store LocalDataStore,

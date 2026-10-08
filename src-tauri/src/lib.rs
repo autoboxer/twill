@@ -51,6 +51,7 @@ pub fn run() {
             library::commands::get_library_organizations,
             library::commands::get_concept,
             library::commands::get_practice_links,
+            library::commands::get_linked_practice,
             library::commands::create_practice_link,
             library::commands::update_practice_link,
             library::commands::remove_practice_link,

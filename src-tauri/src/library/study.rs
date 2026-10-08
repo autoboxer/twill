@@ -11,6 +11,7 @@ use crate::library::{
 mod queue;
 
 pub use queue::{query_selected_study_queue, query_study_queue};
+pub(super) use queue::query_templates;
 
 const FSRS_ALGORITHM: &str = "fsrs";
 const FSRS_VERSION: &str = "6.6.1";

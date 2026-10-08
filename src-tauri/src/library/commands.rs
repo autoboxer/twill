@@ -13,7 +13,7 @@ use crate::library::{
     CreateTemplateInput, CssSnippet, CssSnippetCatalog, CssSnippetLibrary,
     DeferredConceptEdit, DeferredEditLibrary, DeferredEditQueue, DevicePreferences,
     DismissCardQualitySignalInput, EntityIdInput, LibraryError, LibraryOrganizations,
-    LibraryPage, LibraryQuery,
+    LibraryPage, LibraryQuery, LinkedPracticeCase, LinkedPracticeInput,
     FinalizeConceptInput, FinalizeTemplateInput, OrganizationSummary,
     PracticeLink, PracticeLinkLibrary, PretestRecord, QueueDeferredEditInput,
     RecordPretestInput, RecordReviewInput,
@@ -190,6 +190,16 @@ pub(crate) fn get_practice_links(
 ) -> CommandResult<Vec<PracticeLink>> {
     PracticeLinkLibrary::new(local_data.inner())
         .links(&concept_id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_linked_practice(
+    local_data: State<'_, LocalDataStore>,
+    input: LinkedPracticeInput,
+) -> CommandResult<LinkedPracticeCase> {
+    PracticeLinkLibrary::new(local_data.inner())
+        .practice(input)
         .map_err(Into::into)
 }
 

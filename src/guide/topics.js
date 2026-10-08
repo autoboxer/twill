@@ -70,10 +70,12 @@ export const guideTopics = [
         steps: [
           'Create a separate concept for each case, with its own Prompt, Answer and any required key points or checkpoints.',
           'Open a concept from Library. In Linked practice, select Link concept, describe the learning objective and choose another concept.',
-          'Select the linked title to revisit the other case. Use Edit learning objective to change the connection, or Remove link to keep both concepts without the connection.'
+          'Select the linked title to revisit the other case. Use Edit learning objective to change the connection, or Remove link to keep both concepts without the connection.',
+          'In Study, reveal your current answer, then select Linked practice. Choose a related case and the card you want to attempt. Select Recalled or Still missed after checking its answer, or select Return to session at any time.'
         ],
         paragraphs: [
           'Link cases that apply a shared principle in different situations, or cases whose differences help you choose the right principle. A link is visible from either concept. Each card keeps its own grade and review schedule.',
+          'Linked practice is an extra attempt. It does not change review dates or count as a completed review. Your original response and checks are restored when you return to the session.',
           'Archived cases remain labeled in the links but are not available for study. Restore them before adding new links. Deleting a concept removes its connections.'
         ],
         example: 'Compare a file transfer that requires reliable ordered delivery with a live video stream where late frames are useless. Ask which transport fits each case and why.',

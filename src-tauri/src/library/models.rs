@@ -40,7 +40,8 @@ pub use preferences::{
     StartupDestination,
 };
 pub use practice_links::{
-    CreatePracticeLinkInput, PracticeLink, RemovePracticeLinkInput, UpdatePracticeLinkInput,
+    CreatePracticeLinkInput, LinkedPracticeCase, LinkedPracticeInput, PracticeLink,
+    RemovePracticeLinkInput, UpdatePracticeLinkInput,
 };
 pub use retrieval::{
     CardSummary, ClozeSettings, ExplainSettings, ImageOcclusionSettings, ProblemSettings,

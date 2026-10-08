@@ -178,7 +178,13 @@ does not support doing so for every example.
 Card types within one concept share its content, so they do not provide separate
 scenarios. Link separately authored cases when the connection supports a useful
 learning objective. Tags can organize material without declaring that connection.
-Optional linked practice in Study and tools for creating examples are planned.
+After revealing an answer in Study, select Linked practice and choose a related
+case and a specific card. Attempt its prompt before revealing its answer. Choose
+Recalled or Still missed to return, or select Return to session without recording
+an outcome. Your original response and idea checks are restored. These extra
+attempts are supported practice, not independent reviews. They do not change
+review dates or count as completed reviews, even when the chosen card is due.
+Tools for creating examples are planned.
 
 Practice can help you apply learning to a new task, but success with familiar
 cards does not guarantee that ability. Vary the question to practice something
@@ -569,8 +575,9 @@ a review grade.
 The examples use Standard recall, Type answer, Cloze, Image occlusion, Explain,
 Problem, optional answer feedback, hints, references, answer parts, idea checks, pretesting, mixed
 practice, and mastery retries. Authors can link independent cases with a learning
-objective and revisit them from Library. Focused sessions include only cards that
-are due. Optional linked practice in Study, choice authoring, guided sequences,
+objective and revisit them from Library. Study offers explicitly chosen extra
+linked practice without changing review dates. Focused review sessions include
+only cards that are due. Choice authoring, guided sequences,
 image labeling, reconstruction controls, tools for creating examples, and records
 of learning across sessions are planned.
 They are not available controls. References to them above describe future
