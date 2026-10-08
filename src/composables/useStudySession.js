@@ -1,4 +1,4 @@
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { onBeforeRouteLeave, useRoute } from 'vue-router';
 
 import { conceptLibraryErrorMessage, useConceptLibrary } from './useConceptLibrary';
@@ -43,7 +43,9 @@ export function useStudySession({
     correctionPending,
     createSnapshot,
     currentCard: reviewCard,
+    deferredCards,
     excludeConcepts,
+    exposeConcept,
     hasCards,
     isComplete,
     lastAssessment,
@@ -136,6 +138,7 @@ export function useStudySession({
     answerRevealed,
     actionsBlocked,
     pretestActive,
+    onExposed: () => exposeConcept( currentCard.value?.conceptId ),
     response: studyResponse
   });
   const {
@@ -147,6 +150,15 @@ export function useStudySession({
 
   const reviewMedia = ref([]);
   const studyMedia = computed( () => linkedPractice.active.value?.media ?? reviewMedia.value );
+
+  function exposeVisibleContext() {
+    if ([ 'cloze', 'imageOcclusion' ].includes( currentCard.value?.retrievalKind ) ) {
+      exposeConcept( currentCard.value.conceptId );
+    }
+  }
+
+  watch( () => currentCard.value?.id, exposeVisibleContext, { flush: 'post' });
+
   const mixedPracticeEnabled = ref( false );
   const nextDueAt = ref( null );
   const totalAvailableCards = ref( 0 );
@@ -341,8 +353,10 @@ export function useStudySession({
       reviewMedia.value = queue.media;
       mixedPracticeEnabled.value = Boolean( queue.mixedPracticeEnabled );
       begin( queue.cards, {
-        pretestingEnabled: preferences.pretestingEnabled
+        pretestingEnabled: preferences.pretestingEnabled,
+        relatedConcepts: queue.relatedConcepts
       });
+      exposeVisibleContext();
       sessionStatus.value = 'active';
       navigationNotice.value = '';
       pausedAttempts.clear();
@@ -395,6 +409,7 @@ export function useStudySession({
     } else {
       revealAnswer();
     }
+    exposeConcept( currentCard.value?.conceptId );
     await nextTick();
 
     onAnswerRevealed();
@@ -440,6 +455,7 @@ export function useStudySession({
           pretestId: pretest.pretestId,
           response
         });
+        exposeConcept( card.conceptId );
       } else {
         skipPretest({ pretestId: pretest.pretestId });
       }
@@ -821,6 +837,7 @@ export function useStudySession({
     createStudySessionSnapshot,
     currentAnswerFeedback,
     currentCard,
+    deferredCards,
     endSession,
     explainSettings,
     finishCurrentPretest,

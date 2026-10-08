@@ -178,6 +178,7 @@ pub fn query_selected_study_queue(
         .collect();
     let concepts = query_concepts(connection, &concept_ids)?;
     let templates = query_templates(connection, &template_ids)?;
+    let related_concepts = query_related_concepts(connection, &concept_ids)?;
 
     if concepts.len() != concept_ids.len() || templates.len() != template_ids.len() {
         return Err(LibraryError::InvalidRetrievalForm);
@@ -225,11 +226,55 @@ pub fn query_selected_study_queue(
         concepts,
         templates,
         media: media.into_values().collect(),
+        related_concepts,
         next_due_at,
         total_cards,
         due_cards,
         mixed_practice_enabled,
     })
+}
+
+fn query_related_concepts(
+    connection: &Connection,
+    concept_ids: &BTreeSet<String>,
+) -> LibraryResult<BTreeMap<String, BTreeSet<String>>> {
+    let mut related = BTreeMap::<String, BTreeSet<String>>::new();
+
+    for batch in concept_ids.iter().collect::<Vec<_>>().chunks(ID_BATCH_SIZE) {
+        let placeholders = (1..=batch.len())
+            .map(|index| format!("?{index}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let mut statement = connection.prepare(&format!(
+            "SELECT links.first_concept_id, links.second_concept_id
+            FROM practice_links AS links
+            INNER JOIN entities ON entities.id = links.entity_id
+            INNER JOIN concepts AS first ON first.entity_id = links.first_concept_id
+            INNER JOIN concepts AS second ON second.entity_id = links.second_concept_id
+            INNER JOIN entities AS first_entity ON first_entity.id = first.entity_id
+            INNER JOIN entities AS second_entity ON second_entity.id = second.entity_id
+            WHERE entities.deleted_at IS NULL
+                AND first_entity.deleted_at IS NULL AND second_entity.deleted_at IS NULL
+                AND first.archived_at IS NULL AND second.archived_at IS NULL
+                AND (links.first_concept_id IN ({placeholders})
+                    OR links.second_concept_id IN ({placeholders}))"
+        ))?;
+        let pairs = statement.query_map(params_from_iter(batch), |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+
+        for pair in pairs {
+            let (first, second) = pair?;
+
+            related
+                .entry(first.clone())
+                .or_default()
+                .insert(second.clone());
+            related.entry(second).or_default().insert(first);
+        }
+    }
+
+    Ok(related)
 }
 
 fn query_active_concept_tags(

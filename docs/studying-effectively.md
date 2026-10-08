@@ -175,6 +175,19 @@ does not support doing so for every example.
   not apply. Check it against clear requirements and an accurate reference
   example. An example that sounds plausible may still be incorrect.
 
+Twill defers remaining cards from a concept and its directly linked cases after
+you reveal an answer, an answer part, a hint or a reference. Cloze and Image
+occlusion also defer related cards on presentation, because their visible context
+can reveal other targets. Select the deferred count in Study to inspect those
+cards or open them in Library. They stay due and earn no review credit.
+
+The boundary lasts for the current session, including pause, navigation and Undo.
+Hiding an answer or reversing a grade cannot remove information you have seen.
+Starting a new session makes deferred cards available again. Linked practice
+and mastery retries remain available as supported attempts. Relationships are
+captured when the session starts. A shared tag or an indirect link does not
+defer another case.
+
 Card types within one concept share its content, so they do not provide separate
 scenarios. Link separately authored cases when the connection supports a useful
 learning objective. Tags can organize material without declaring that connection.
@@ -576,7 +589,8 @@ The examples use Standard recall, Type answer, Cloze, Image occlusion, Explain,
 Problem, optional answer feedback, hints, references, answer parts, idea checks, pretesting, mixed
 practice, and mastery retries. Authors can link independent cases with a learning
 objective and revisit them from Library. Study offers explicitly chosen extra
-linked practice without changing review dates. Focused review sessions include
+linked practice without changing review dates. Answer-cued related cards are
+deferred for the remainder of the current session. Focused review sessions include
 only cards that are due. Choice authoring, guided sequences,
 image labeling, reconstruction controls, tools for creating examples, and records
 of learning across sessions are planned.

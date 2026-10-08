@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -46,6 +48,7 @@ pub struct StudyQueue {
     pub concepts: Vec<StudyConcept>,
     pub templates: Vec<StudyTemplate>,
     pub media: Vec<MediaSummary>,
+    pub related_concepts: BTreeMap<String, BTreeSet<String>>,
     pub next_due_at: Option<i64>,
     pub total_cards: i64,
     pub due_cards: i64,

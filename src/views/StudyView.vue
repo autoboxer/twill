@@ -13,6 +13,7 @@ import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
 import StudyAnswerParts from '../components/StudyAnswerParts.vue';
 import StudyAssistance from '../components/StudyAssistance.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
+import StudyDeferredCards from '../components/StudyDeferredCards.vue';
 import StudyHelpButton from '../components/StudyHelpButton.vue';
 import StudyLinkedPracticePicker from '../components/StudyLinkedPracticePicker.vue';
 import StudySessionBuilder from '../components/StudySessionBuilder.vue';
@@ -61,6 +62,7 @@ const {
   correctionPending,
   currentAnswerFeedback,
   currentCard,
+  deferredCards,
   endSession,
   explainSettings,
   finishCurrentPretest,
@@ -702,6 +704,7 @@ useStartupReady( initialLoading );
             </span>
 
             <span v-if="focusedSession">{{ selectedCardCount }} selected</span>
+            <StudyDeferredCards v-if="deferredCards.length" :items="deferredCards" />
             <span v-if="linkedPracticeResults.length" data-twill-linked-count>
               {{ linkedPracticeResults.length }} extra {{ linkedPracticeResults.length === 1 ? 'attempt' : 'attempts' }}
             </span>
@@ -1141,6 +1144,16 @@ useStartupReady( initialLoading );
 
         <div class="study-complete__actions">
           <UButton
+            v-if="deferredCards.length"
+            color="neutral"
+            variant="subtle"
+            :disabled="sessionBusy"
+            @click="loadStudyQueue()"
+          >
+            Start a new session
+          </UButton>
+
+          <UButton
             leading-icon="i-lucide-play"
             size="lg"
             @click="beginMasteryRound"
@@ -1179,6 +1192,9 @@ useStartupReady( initialLoading );
             Session complete
           </h2>
           <p v-if="completionDescription">{{ completionDescription }}</p>
+          <p v-if="deferredCards.length">
+            {{ deferredCards.length }} {{ deferredCards.length === 1 ? 'card is' : 'cards are' }} deferred and still due.
+          </p>
         </div>
 
         <dl
@@ -1258,6 +1274,16 @@ useStartupReady( initialLoading );
         />
 
         <div class="study-complete__actions">
+          <UButton
+            v-if="deferredCards.length"
+            color="neutral"
+            variant="subtle"
+            :disabled="sessionBusy"
+            @click="loadStudyQueue()"
+          >
+            Start a new session
+          </UButton>
+
           <UButton
             :to="{ name: 'library' }"
             leading-icon="i-lucide-library"
