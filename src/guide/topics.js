@@ -70,11 +70,13 @@ export const guideTopics = [
         steps: [
           'Open either concept from Library. Beside its linked case, select Add comparison.',
           'Write a question about the difference that matters and an expected explanation. Select Save comparison.',
-          'Select Compare to read both case prompts. Explain the difference mentally or enter an optional response, then select Show explanation to check your reasoning.'
+          'Select Compare to read both case prompts. Explain the difference mentally or enter an optional response, then select Show explanation to check your reasoning.',
+          'In Study, reveal the current answer and select Linked practice. Choose a case with an authored comparison, then select Compare cases. Select Return to session when you are ready to grade your original answer.'
         ],
         paragraphs: [
           'The comparison is shared by both linked concepts. Edit it from either side. Removing the comparison keeps the link and both concepts.',
-          'Library comparisons do not record a review or change review dates. A response clears when you close the comparison. Use ordinary Study when you want to review and grade a card.'
+          'Comparisons do not record a review or change review dates. Closing clears the comparison response. Pausing Study keeps it until you resume or return to the session.',
+          'Your original response and checks stay unchanged. Grade that original attempt, not how well you answered after seeing the comparison.'
         ]
       },
       {

@@ -150,7 +150,12 @@ and your reasoning. You can hide the explanation without losing your response.
 The comparison is shared by both concepts. Edit it from either side, or remove
 it without removing the link or either concept. Library comparisons do not create
 grades or change review dates. Your response clears when you close the comparison.
-Comparison practice within Study and authored choices are still planned.
+In Study, reveal your current answer and select Linked practice. Choose a case
+with an authored comparison, then select Compare cases. Select Return to session
+to grade your original attempt. The comparison does not change that response,
+your idea checks or any help you used. Grade what you recalled before the
+comparison, not your answer afterward. Pausing keeps your comparison response
+and revealed explanation until you resume. Authored choices are still planned.
 
 ### You can follow a solution but cannot solve another problem
 
@@ -601,8 +606,8 @@ The examples use Standard recall, Type answer, Cloze, Image occlusion, Explain,
 Problem, optional answer feedback, hints, references, answer parts, idea checks, pretesting, mixed
 practice, and mastery retries. Authors can link independent cases with a learning
 objective and revisit them from Library. Study offers explicitly chosen extra
-linked practice without changing review dates. Library also supports authored
-two-case comparisons with optional responses and an expected explanation.
+linked practice without changing review dates. Library and Study also support
+authored two-case comparisons with optional responses and an expected explanation.
 Answer-cued related cards are
 deferred for the remainder of the current session. Focused review sessions include
 only cards that are due. Choice authoring, guided sequences,

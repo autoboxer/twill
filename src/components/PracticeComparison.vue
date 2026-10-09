@@ -1,14 +1,12 @@
 <script setup>
-import { ref } from 'vue';
-
 import RichContentRenderer from './RichContentRenderer.vue';
 
 defineProps({
   activity: { type: Object, required: true }
 });
 
-const response = ref( '' );
-const revealed = ref( false );
+const response = defineModel( 'response', { type: String, default: '' });
+const revealed = defineModel( 'revealed', { type: Boolean, default: false });
 </script>
 
 <template>

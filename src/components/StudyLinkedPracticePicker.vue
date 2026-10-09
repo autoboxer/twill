@@ -13,7 +13,7 @@ const props = defineProps({
   error: { type: String, default: '' }
 });
 
-const emit = defineEmits([ 'close', 'select', 'start', 'back', 'closed' ]);
+const emit = defineEmits([ 'close', 'select', 'start', 'compare', 'back', 'closed' ]);
 
 async function restoreStudyFocus( event ) {
   event.preventDefault();
@@ -38,7 +38,7 @@ function cardLabel( card ) {
   <UModal
     :open="open"
     title="Linked practice"
-    description="Choose a case and card for extra practice. Review dates stay unchanged."
+    description="Choose a related case for extra practice."
     :content="{ onCloseAutoFocus: restoreStudyFocus }"
     :ui="{ overlay: 'z-70', content: 'z-71 rounded-md' }"
     @update:open="!$event && emit('close')"
@@ -58,6 +58,17 @@ function cardLabel( card ) {
         <template v-if="selectedCase">
           <h3>{{ selectedCase.concept.title }}</h3>
           <p>{{ selectedCase.link.objective }}</p>
+
+          <UButton
+            v-if="selectedCase.link.comparison"
+            leading-icon="i-lucide-columns-2"
+            color="neutral"
+            variant="subtle"
+            :disabled="loading"
+            @click="emit('compare')"
+          >
+            Compare cases
+          </UButton>
 
           <ul class="linked-practice-picker__list">
             <li v-for="card in selectedCase.cards" :key="card.id">
