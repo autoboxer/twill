@@ -1,9 +1,11 @@
 use rusqlite::params;
+use std::collections::HashSet;
+use uuid::Uuid;
 
 use super::{concept_archived, invalid, link_objective, query_links, PracticeLinkLibrary};
 use crate::library::{
-    LibraryResult, LinkedPracticeInput, PracticeComparison, PracticeComparisonCase,
-    SetPracticeComparisonInput,
+    LibraryResult, LinkedPracticeInput, PracticeChoice, PracticeChoiceOption, PracticeComparison,
+    PracticeComparisonCase, SetPracticeComparisonInput,
 };
 
 impl PracticeLinkLibrary<'_> {
@@ -92,14 +94,73 @@ pub(super) fn normalize_comparison(
     Ok(PracticeComparison {
         prompt,
         explanation,
+        choice: comparison.choice.map(normalize_choice).transpose()?,
     })
+}
+
+fn normalize_choice(mut choice: PracticeChoice) -> LibraryResult<PracticeChoice> {
+    if !(2..=6).contains(&choice.options.len()) {
+        return Err(invalid("Provide two to six answer options."));
+    }
+
+    let mut ids = HashSet::new();
+    let mut labels = HashSet::new();
+
+    for option in &mut choice.options {
+        normalize_choice_option(option)?;
+
+        let label = option
+            .text
+            .to_lowercase()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        if !ids.insert(option.id.clone()) || !labels.insert(label) {
+            return Err(invalid(
+                "Give each answer option a different identity and text.",
+            ));
+        }
+    }
+
+    choice.correct_option_id = normalize_option_id(&choice.correct_option_id)?;
+
+    if !ids.contains(&choice.correct_option_id) {
+        return Err(invalid("Choose one of the options as the correct answer."));
+    }
+
+    Ok(choice)
+}
+
+fn normalize_choice_option(option: &mut PracticeChoiceOption) -> LibraryResult<()> {
+    option.id = normalize_option_id(&option.id)?;
+    option.text = option.text.trim().to_owned();
+    option.feedback = option.feedback.trim().to_owned();
+
+    if option.text.is_empty() || option.text.chars().count() > 300 {
+        return Err(invalid("Write each option in 1 to 300 characters."));
+    }
+
+    if option.feedback.is_empty() || option.feedback.chars().count() > 1_000 {
+        return Err(invalid(
+            "Write feedback for each option in 1 to 1,000 characters.",
+        ));
+    }
+
+    Ok(())
+}
+
+fn normalize_option_id(value: &str) -> LibraryResult<String> {
+    Uuid::parse_str(value.trim())
+        .map(|id| id.to_string())
+        .map_err(|_| invalid("Each answer option needs a valid identity."))
 }
 
 pub(super) fn read_comparison(
     json: Option<String>,
 ) -> rusqlite::Result<Option<PracticeComparison>> {
     json.map(|value| {
-        if value.len() > 16_000 {
+        if value.len() > 64_000 {
             return Err(rusqlite::Error::InvalidQuery);
         }
 

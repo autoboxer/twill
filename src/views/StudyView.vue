@@ -1342,6 +1342,7 @@ useStartupReady( initialLoading );
       v-if="comparisonAttempt"
       v-model:response="comparisonAttempt.response"
       v-model:revealed="comparisonAttempt.revealed"
+      v-model:choice-state="comparisonAttempt.choiceState"
       :open="!sessionPaused && !sessionEnded && !initialLoading"
       :activity="comparisonAttempt.activity"
       @close="finishCaseComparison"

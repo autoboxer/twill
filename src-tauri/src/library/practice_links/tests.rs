@@ -356,6 +356,16 @@ fn links_and_removal_history_survive_backup_and_portable_export() {
             comparison: Some(crate::library::PracticeComparison {
                 prompt: "When does reliable ordering matter?".to_owned(),
                 explanation: "Files and commands need all bytes in order.".to_owned(),
+                choice: Some(serde_json::from_value(json!({
+                    "options": [
+                        {"id": "018ff201-0000-7000-8000-000000000001", "text": "Reliable delivery",
+                            "feedback": "A complete file needs every byte."},
+                        {"id": "018ff201-0000-7000-8000-000000000002", "text": "Discard late frames",
+                            "feedback": "This fits live video rather than a complete file."}
+                    ],
+                    "correctOptionId": "018ff201-0000-7000-8000-000000000001",
+                    "shuffle": false
+                })).unwrap()),
             }),
         })
         .unwrap();

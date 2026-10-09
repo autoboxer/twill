@@ -43,7 +43,7 @@ and check trusted references. Not all learning needs to become a flashcard.
 | You recognize an answer but cannot recall it. | Hide the answer and try a specific question. | Use Standard recall or Type answer. |
 | You need to recall a term in context. | Recall the term with help from its sentence. Check that it is not visible elsewhere. | Use Cloze. |
 | You know the definition but not why it matters. | Explain how it works, what it changes, or how it relates to another idea. | Use Explain. |
-| You confuse two similar things. | Identify the difference that matters, then apply it to another example. | Use Compare and contrast in Explain, or author a comparison between linked cases in Library. Choice tools are planned. |
+| You confuse two similar things. | Identify the difference that matters, then apply it to another example. | Use Compare and contrast in Explain, or author a linked comparison with optional answer choices. |
 | You can follow a solution but cannot solve independently. | Study the method, complete part of a problem, then solve another. | Use Problem. Guided sequences are planned. |
 | You know one example but struggle when the situation changes. | Practice choosing and applying the principle in a different situation. | Create separate Problem or Explain concepts and link them with a clear learning objective. |
 | You need to understand a diagram. | Identify its parts. Practice their functions or relationships separately if needed. | Use Image occlusion and Explain. Image labeling is planned. |
@@ -155,7 +155,26 @@ with an authored comparison, then select Compare cases. Select Return to session
 to grade your original attempt. The comparison does not change that response,
 your idea checks or any help you used. Grade what you recalled before the
 comparison, not your answer afterward. Pausing keeps your comparison response
-and revealed explanation until you resume. Authored choices are still planned.
+and revealed explanation until you resume.
+
+To practice choosing between plausible alternatives, edit a linked comparison
+and select Add answer choices. Use its prompt as the question. Write two to six
+different options and feedback explaining why each one fits or does not fit.
+Mark exactly one correct answer. Options shuffle for each fresh attempt unless
+you select Keep option order. Preserve the order when it communicates a range
+or sequence, not to make the correct answer easier to recognize.
+
+Open the comparison from Library or Study. Select an option and, if useful,
+explain why it fits. Change your selection as needed before selecting Check
+choice. Read your option's feedback and the expected explanation. An incorrect
+choice also shows the correct option and its feedback. Your checked selection
+cannot be changed; closing and reopening starts a fresh attempt. Pause and
+navigation retain the selection and presented order within the current session.
+
+Use options that require distinguishing the deciding feature, not guessing from
+wording. Follow an exposed answer with a later free recall or new case when you
+want to check independent ability. A correct choice during supported practice
+does not record a free recall success or change review dates.
 
 ### You can follow a solution but cannot solve another problem
 
@@ -607,10 +626,11 @@ Problem, optional answer feedback, hints, references, answer parts, idea checks,
 practice, and mastery retries. Authors can link independent cases with a learning
 objective and revisit them from Library. Study offers explicitly chosen extra
 linked practice without changing review dates. Library and Study also support
-authored two-case comparisons with optional responses and an expected explanation.
+authored two-case comparisons with optional responses, authored answer choices,
+corrective feedback and an expected explanation.
 Answer-cued related cards are
 deferred for the remainder of the current session. Focused review sessions include
-only cards that are due. Choice authoring, guided sequences,
+only cards that are due. Guided sequences,
 image labeling, reconstruction controls, tools for creating examples, and records
 of learning across sessions are planned.
 They are not available controls. References to them above describe future

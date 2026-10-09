@@ -66,7 +66,7 @@ async function load() {
     v-model:open="open"
     title="Compare cases"
     description="Compare the feature that changes which method fits."
-    :ui="{ content: 'rounded-md sm:max-w-3xl' }"
+    :ui="{ content: 'rounded-md sm:max-w-3xl', wrapper: 'pr-10' }"
   >
     <template #body>
       <p v-if="loading" role="status">Loading comparison</p>

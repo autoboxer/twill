@@ -41,7 +41,7 @@ pub use preferences::{
 };
 pub use practice_links::{
     CreatePracticeLinkInput, LinkedPracticeCase, LinkedPracticeInput, PracticeLink,
-    PracticeComparison, PracticeComparisonCase, RemovePracticeLinkInput,
+    PracticeChoice, PracticeChoiceOption, PracticeComparison, PracticeComparisonCase, RemovePracticeLinkInput,
     SetPracticeComparisonInput, UpdatePracticeLinkInput,
 };
 pub use retrieval::{

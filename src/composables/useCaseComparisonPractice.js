@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { onBeforeUnmount, ref, watch } from 'vue';
 
 import { conceptLibraryErrorMessage } from './useConceptLibrary';
+import { createChoiceState } from '../practice/choices';
 
 export function useCaseComparisonPractice({ sourceCard, onExposed }) {
   const active = ref( null );
@@ -46,7 +47,10 @@ export function useCaseComparisonPractice({ sourceCard, onExposed }) {
         return false;
       }
 
-      active.value = { activity, response: '', revealed: false };
+      active.value = {
+        activity, response: '', revealed: false,
+        choiceState: createChoiceState( activity.link.comparison.choice )
+      };
 
       for ( const concept of [ activity.source, activity.related ]) {
         if ( concept.cards.some( ( card ) => [ 'cloze', 'imageOcclusion' ].includes( card.retrievalKind ) ) ) {

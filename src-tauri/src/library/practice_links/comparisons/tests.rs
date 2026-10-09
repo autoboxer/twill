@@ -8,7 +8,301 @@ fn example() -> PracticeComparison {
     PracticeComparison {
         prompt: "Which requirement changes the transport?".to_owned(),
         explanation: "A file needs reliable order. Live video can discard late frames.".to_owned(),
+        choice: None,
     }
+}
+
+fn choice_example() -> crate::library::PracticeChoice {
+    let first = Uuid::now_v7().to_string();
+
+    crate::library::PracticeChoice {
+        correct_option_id: first.clone(),
+        shuffle: true,
+        options: vec![
+            crate::library::PracticeChoiceOption {
+                id: first,
+                text: "Reliable ordered delivery".to_owned(),
+                feedback: "A file needs every byte in order.".to_owned(),
+            },
+            crate::library::PracticeChoiceOption {
+                id: Uuid::now_v7().to_string(),
+                text: "Discarding late frames".to_owned(),
+                feedback: "Discarding a frame may fit live video, not a complete file.".to_owned(),
+            },
+        ],
+    }
+}
+
+#[test]
+fn choice_edits_preserve_the_comparison_and_do_not_change_card_state() {
+    let (_directory, store) = setup();
+    let first = concept(&store, "First");
+    let second = concept(&store, "Second");
+    let library = PracticeLinkLibrary::new(&store);
+
+    link(&store, &first.id, &second.id, "Compare cases.").unwrap();
+
+    let original = library.links(&first.id).unwrap().remove(0);
+    let comparison = PracticeComparison {
+        choice: Some(choice_example()),
+        ..example()
+    };
+
+    library
+        .set_comparison(SetPracticeComparisonInput {
+            id: original.id.clone(),
+            expected_change_id: original.last_change_id.clone(),
+            comparison: Some(comparison.clone()),
+        })
+        .unwrap();
+
+    let saved = library.links(&second.id).unwrap().remove(0);
+    let before = changes(&store);
+    let activity = library
+        .comparison(LinkedPracticeInput {
+            concept_id: second.id.clone(),
+            link_id: saved.id.clone(),
+        })
+        .unwrap();
+
+    assert_eq!(activity.link.comparison, Some(comparison.clone()));
+    assert_eq!(changes(&store), before);
+    assert!(matches!(
+        library.set_comparison(SetPracticeComparisonInput {
+            id: original.id,
+            expected_change_id: original.last_change_id,
+            comparison: None,
+        }),
+        Err(LibraryError::PracticeLinkChanged)
+    ));
+
+    let mut ordered = comparison.clone();
+    ordered.choice.as_mut().unwrap().shuffle = false;
+    ordered.choice.as_mut().unwrap().options.reverse();
+
+    library
+        .set_comparison(SetPracticeComparisonInput {
+            id: saved.id.clone(),
+            expected_change_id: saved.last_change_id,
+            comparison: Some(ordered.clone()),
+        })
+        .unwrap();
+
+    let updated = library.links(&first.id).unwrap().remove(0);
+    assert_eq!(updated.comparison, Some(ordered));
+
+    library
+        .set_comparison(SetPracticeComparisonInput {
+            id: updated.id,
+            expected_change_id: updated.last_change_id,
+            comparison: Some(example()),
+        })
+        .unwrap();
+
+    assert_eq!(
+        library.links(&first.id).unwrap()[0].comparison,
+        Some(example())
+    );
+    assert_eq!(library.links(&second.id).unwrap().len(), 1);
+    assert_eq!(
+        ConceptLibrary::new(&store).concept(&first.id).unwrap(),
+        first
+    );
+    assert_eq!(
+        ConceptLibrary::new(&store).concept(&second.id).unwrap(),
+        second
+    );
+}
+
+#[test]
+fn choices_validate_counts_identities_distinct_labels_correction_and_unicode_limits() {
+    let (_directory, store) = setup();
+    let first = concept(&store, "First");
+    let second = concept(&store, "Second");
+    let library = PracticeLinkLibrary::new(&store);
+
+    link(&store, &first.id, &second.id, "Compare cases.").unwrap();
+    let original = library.links(&first.id).unwrap().remove(0);
+    let before = changes(&store);
+    let valid = choice_example();
+    let mut invalid_choices = Vec::new();
+
+    for count in [0, 1, 7] {
+        let mut value = valid.clone();
+        value.options = (0..count)
+            .map(|index| crate::library::PracticeChoiceOption {
+                id: Uuid::now_v7().to_string(),
+                text: index.to_string(),
+                feedback: "Feedback.".to_owned(),
+            })
+            .collect();
+        invalid_choices.push(value);
+    }
+
+    for (index, text, feedback, id) in [
+        (
+            0,
+            " ".to_owned(),
+            "Feedback.".to_owned(),
+            valid.options[0].id.clone(),
+        ),
+        (
+            0,
+            "网".repeat(301),
+            "Feedback.".to_owned(),
+            valid.options[0].id.clone(),
+        ),
+        (
+            0,
+            "Option".to_owned(),
+            " ".to_owned(),
+            valid.options[0].id.clone(),
+        ),
+        (
+            0,
+            "Option".to_owned(),
+            "🌿".repeat(1_001),
+            valid.options[0].id.clone(),
+        ),
+        (
+            0,
+            "Option".to_owned(),
+            "Feedback.".to_owned(),
+            "invalid".to_owned(),
+        ),
+        (
+            1,
+            "Option".to_owned(),
+            "Feedback.".to_owned(),
+            valid.options[0].id.clone(),
+        ),
+        (
+            1,
+            "RELIABLE\nORDERED  DELIVERY".to_owned(),
+            "Feedback.".to_owned(),
+            valid.options[1].id.clone(),
+        ),
+    ] {
+        let mut value = valid.clone();
+        value.options[index] = crate::library::PracticeChoiceOption { id, text, feedback };
+        invalid_choices.push(value);
+    }
+
+    for id in ["".to_owned(), Uuid::now_v7().to_string()] {
+        let mut value = valid.clone();
+        value.correct_option_id = id;
+        invalid_choices.push(value);
+    }
+
+    for value in invalid_choices {
+        assert!(library
+            .set_comparison(SetPracticeComparisonInput {
+                id: original.id.clone(),
+                expected_change_id: original.last_change_id.clone(),
+                comparison: Some(PracticeComparison {
+                    choice: Some(value),
+                    ..example()
+                }),
+            })
+            .is_err());
+        assert_eq!(changes(&store), before);
+    }
+
+    let mut maximum = valid;
+    maximum.options = (0..6)
+        .map(|index| crate::library::PracticeChoiceOption {
+            id: Uuid::now_v7().to_string(),
+            text: format!("{index}{}", "网".repeat(299)),
+            feedback: "🌿".repeat(1_000),
+        })
+        .collect();
+    maximum.correct_option_id = maximum.options[5].id.clone();
+    maximum.options[0].text = format!("  {}  ", maximum.options[0].text);
+
+    library
+        .set_comparison(SetPracticeComparisonInput {
+            id: original.id,
+            expected_change_id: original.last_change_id,
+            comparison: Some(PracticeComparison {
+                choice: Some(maximum),
+                ..example()
+            }),
+        })
+        .unwrap();
+
+    let saved = library
+        .links(&first.id)
+        .unwrap()
+        .remove(0)
+        .comparison
+        .unwrap();
+    assert_eq!(
+        saved.choice.as_ref().unwrap().options[0]
+            .text
+            .chars()
+            .count(),
+        300
+    );
+    assert_eq!(
+        saved.choice.as_ref().unwrap().options[5]
+            .feedback
+            .chars()
+            .count(),
+        1_000
+    );
+    assert!(
+        read_comparison(Some(serde_json::to_string(&saved).unwrap()))
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[test]
+fn restore_validation_rejects_invalid_choice_data_and_accepts_maximum_escaped_json() {
+    let (_directory, store) = setup();
+    let first = concept(&store, "First");
+    let second = concept(&store, "Second");
+    link(&store, &first.id, &second.id, "Compare cases.").unwrap();
+    let link = PracticeLinkLibrary::new(&store)
+        .links(&first.id)
+        .unwrap()
+        .remove(0);
+    let mut comparison = example();
+    comparison.choice = Some(choice_example());
+    let mut invalid = serde_json::to_value(&comparison).unwrap();
+    invalid["choice"]["correctOptionId"] = json!(Uuid::now_v7().to_string());
+    let mut unknown = serde_json::to_value(&comparison).unwrap();
+    unknown["choice"]["options"][0]["unknown"] = json!(true);
+
+    for value in [invalid, unknown] {
+        store.write_result::<_, LibraryError>(|transaction| {
+            let entity = transaction.touch_entity(&link.id)?;
+            transaction.execute(
+                "UPDATE practice_links SET comparison_json = ?1, last_change_id = ?2 WHERE entity_id = ?3",
+                params![value.to_string(), entity.last_change_id, link.id],
+            )?;
+            Ok(())
+        }).unwrap();
+        assert!(store
+            .read_result(super::super::validate_restored_links)
+            .is_err());
+    }
+
+    comparison.prompt = "\u{1}".repeat(500);
+    comparison.explanation = "\u{1}".repeat(2_000);
+    let choice = comparison.choice.as_mut().unwrap();
+    choice.options = (0..6)
+        .map(|index| crate::library::PracticeChoiceOption {
+            id: Uuid::now_v7().to_string(),
+            text: format!("{index}{}", "\u{1}".repeat(299)),
+            feedback: "\u{1}".repeat(1_000),
+        })
+        .collect();
+    choice.correct_option_id = choice.options[0].id.clone();
+    let json = serde_json::to_string(&comparison).unwrap();
+    assert!(json.len() > 16_000 && json.len() < 64_000);
+    assert_eq!(read_comparison(Some(json)).unwrap(), Some(comparison));
+    assert!(read_comparison(Some(" ".repeat(64_001))).is_err());
 }
 
 #[test]
@@ -130,6 +424,7 @@ fn comparisons_normalize_unicode_and_reject_invalid_input_without_writes() {
             comparison: Some(PracticeComparison {
                 prompt: format!("  {}  ", "网".repeat(500)),
                 explanation: format!("\n{}\n", "🌿".repeat(2_000)),
+                choice: None,
             }),
         })
         .unwrap();

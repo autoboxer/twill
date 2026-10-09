@@ -35,6 +35,23 @@ pub struct PracticeLink {
 pub struct PracticeComparison {
     pub prompt: String,
     pub explanation: String,
+    pub choice: Option<PracticeChoice>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PracticeChoice {
+    pub options: Vec<PracticeChoiceOption>,
+    pub correct_option_id: String,
+    pub shuffle: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PracticeChoiceOption {
+    pub id: String,
+    pub text: String,
+    pub feedback: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

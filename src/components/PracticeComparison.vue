@@ -1,12 +1,34 @@
 <script setup>
-import RichContentRenderer from './RichContentRenderer.vue';
+import { computed, watch } from 'vue';
 
-defineProps({
+import PracticeChoice from './PracticeChoice.vue';
+import RichContentRenderer from './RichContentRenderer.vue';
+import { createChoiceState } from '../practice/choices';
+
+const props = defineProps({
   activity: { type: Object, required: true }
 });
 
 const response = defineModel( 'response', { type: String, default: '' });
 const revealed = defineModel( 'revealed', { type: Boolean, default: false });
+const choiceState = defineModel( 'choiceState', { type: Object, default: null });
+const choice = computed( () => props.activity.link.comparison.choice );
+const awaitingChoice = computed( () => Boolean( choice.value && !choiceState.value?.submittedId ) );
+
+watch( () => props.activity, ( activity, previous ) => {
+  if ( !choice.value ) {
+    choiceState.value = null;
+  } else if ( !choiceState.value || ( previous && activity !== previous ) ) {
+    choiceState.value = createChoiceState( choice.value );
+  }
+}, { immediate: true });
+
+function checkChoice() {
+  if ( choice.value.options.some( ( option ) => option.id === choiceState.value.selectedId ) ) {
+    choiceState.value = { ...choiceState.value, submittedId: choiceState.value.selectedId };
+    revealed.value = true;
+  }
+}
 </script>
 
 <template>
@@ -24,8 +46,15 @@ const revealed = defineModel( 'revealed', { type: Boolean, default: false });
       </section>
     </div>
 
+    <PracticeChoice
+      v-if="choice && choiceState"
+      v-model:state="choiceState"
+      :choice="choice"
+      :revealed="revealed"
+    />
+
     <div>
-      <label for="comparison-response">Your explanation (optional)</label>
+      <label for="comparison-response">{{ choice ? 'Why this option fits (optional)' : 'Your explanation (optional)' }}</label>
       <UTextarea
         id="comparison-response"
         v-model="response"
@@ -35,6 +64,17 @@ const revealed = defineModel( 'revealed', { type: Boolean, default: false });
     </div>
 
     <UButton
+      v-if="awaitingChoice"
+      color="neutral"
+      variant="subtle"
+      :disabled="!choiceState.selectedId"
+      @click="checkChoice"
+    >
+      Check choice
+    </UButton>
+
+    <UButton
+      v-else
       color="neutral"
       variant="subtle"
       :aria-expanded="revealed"

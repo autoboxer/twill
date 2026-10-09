@@ -10,6 +10,7 @@ defineProps({
 const emit = defineEmits([ 'close', 'closed', 'pause' ]);
 const response = defineModel( 'response', { type: String, default: '' });
 const revealed = defineModel( 'revealed', { type: Boolean, default: false });
+const choiceState = defineModel( 'choiceState', { type: Object, default: null });
 
 async function restoreStudyFocus( event ) {
   event.preventDefault();
@@ -25,13 +26,14 @@ async function restoreStudyFocus( event ) {
     title="Compare cases"
     description="Compare the feature that changes which method fits."
     :content="{ onCloseAutoFocus: restoreStudyFocus }"
-    :ui="{ overlay: 'z-70', content: 'z-71 rounded-md sm:max-w-3xl' }"
+    :ui="{ overlay: 'z-70', content: 'z-71 rounded-md sm:max-w-3xl', wrapper: 'pr-10' }"
     @update:open="!$event && emit('close')"
   >
     <template #body>
       <PracticeComparison
         v-model:response="response"
         v-model:revealed="revealed"
+        v-model:choice-state="choiceState"
         :activity="activity"
         data-twill-study-comparison
       />

@@ -1,7 +1,9 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, ref, toRaw, watch } from 'vue';
 
 import ConfirmDialog from './ConfirmDialog.vue';
+import PracticeChoiceEditor from './PracticeChoiceEditor.vue';
+import { choiceError } from '../practice/choices';
 
 const props = defineProps({
   link: { type: Object, default: null },
@@ -12,6 +14,7 @@ const emit = defineEmits([ 'close', 'save' ]);
 
 const prompt = ref( '' );
 const explanation = ref( '' );
+const choice = ref( null );
 const removeOpen = ref( false );
 const open = computed({
   get: () => Boolean( props.link ),
@@ -24,17 +27,18 @@ const open = computed({
 const promptLength = computed( () => Array.from( prompt.value.trim() ).length );
 const explanationLength = computed( () => Array.from( explanation.value.trim() ).length );
 const valid = computed( () => promptLength.value > 0 && promptLength.value <= 500
-  && explanationLength.value > 0 && explanationLength.value <= 2_000 );
+  && explanationLength.value > 0 && explanationLength.value <= 2_000 && !choiceError( choice.value ) );
 
 watch( () => props.link, ( link ) => {
   prompt.value = link?.comparison?.prompt ?? '';
   explanation.value = link?.comparison?.explanation ?? '';
+  choice.value = link?.comparison?.choice ? structuredClone( toRaw( link.comparison.choice ) ) : null;
   removeOpen.value = false;
 });
 
 function save() {
   if ( valid.value && !props.pending ) {
-    emit( 'save', { prompt: prompt.value.trim(), explanation: explanation.value.trim() });
+    emit( 'save', { prompt: prompt.value.trim(), explanation: explanation.value.trim(), choice: choice.value });
   }
 }
 </script>
@@ -82,6 +86,8 @@ function save() {
           />
           <p v-if="explanationLength > 2000" role="alert">Use no more than 2,000 characters.</p>
         </div>
+
+        <PracticeChoiceEditor v-model="choice" :pending="pending" />
       </form>
     </template>
 

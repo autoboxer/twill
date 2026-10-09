@@ -44,7 +44,7 @@ pub use models::{
     LibraryCardMatch, LibraryCardState, LibrarySort, LibraryViewPreferences, MediaSummary,
     MotionPreference, NamedItem, OrganizationSummary,
     ProblemSettings, QueueDeferredEditInput, ReadingFont, ReadingTextSize,
-    PracticeComparison, PracticeComparisonCase, PracticeLink,
+    PracticeChoice, PracticeChoiceOption, PracticeComparison, PracticeComparisonCase, PracticeLink,
     PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput,
     RemovePracticeLinkInput, RenameNamedItemInput, RetrievalFormKind, ReverseReviewInput, ReviewOutcome,
     ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
