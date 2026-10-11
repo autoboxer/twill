@@ -6,6 +6,7 @@ import { useDevicePreferences } from './useDevicePreferences';
 import { useRecallSession } from './useRecallSession';
 import { useStudyAssistance } from './useStudyAssistance';
 import { useStudyComparison } from './useStudyComparison';
+import { useCaseComparisonPractice } from './useCaseComparisonPractice';
 import { useLinkedPractice } from './useLinkedPractice';
 import { useNativeActionGuard } from './useNativeLifecycle';
 import { richDocumentHasContent } from '../rich-content/schema';
@@ -104,11 +105,13 @@ export function useStudySession({
     busy: writePending,
     flush: () => {}
   });
+  const caseComparison = useCaseComparisonPractice({ sourceCard: reviewCard, onExposed: exposeConcept });
   const linkedPractice = useLinkedPractice({
     sourceCard: reviewCard,
     answerRevealed: reviewAnswerRevealed,
     blocked: computed( () => writePending.value || initialLoading.value || nativeActionPending.value
-      || sessionStatus.value !== 'active' || route.name !== 'study' || correctionPending.value )
+      || sessionStatus.value !== 'active' || route.name !== 'study' || correctionPending.value
+      || Boolean( caseComparison.active.value ) )
   });
   const linkedPracticeActive = computed( () => Boolean( linkedPractice.active.value ) );
   const currentCard = computed( () => linkedPractice.active.value?.card ?? reviewCard.value );
@@ -117,9 +120,19 @@ export function useStudySession({
   const pretestActive = computed( () => !linkedPracticeActive.value && reviewPretestActive.value );
   const pretestTeachingActive = computed( () => !linkedPracticeActive.value && reviewPretestTeachingActive.value );
   const sessionBusy = computed( () => writePending.value || initialLoading.value || nativeActionPending.value
-    || linkedPractice.loading.value );
-  const actionsBlocked = computed( () => sessionBusy.value || linkedPractice.open.value || sessionStatus.value !== 'active'
+    || linkedPractice.loading.value || caseComparison.loading.value );
+  const actionsBlocked = computed( () => sessionBusy.value || linkedPractice.open.value || Boolean( caseComparison.active.value )
+    || sessionStatus.value !== 'active'
     || route.name !== 'study' );
+
+  watch( linkedPractice.open, ( open ) => {
+    if ( !open && !caseComparison.active.value ) {
+      caseComparison.reset();
+    }
+  }, { flush: 'sync' });
+  watch( linkedPractice.selectedCase, () => {
+    caseComparison.error.value = '';
+  });
 
   const answerFeedbackReviewed = ref( false );
   const studyResponse = ref( '' );
@@ -257,6 +270,12 @@ export function useStudySession({
           sessionResumeNotice.value = 'The linked case changed or is no longer available. You have returned to your session.';
         }
       }
+      await validateCaseComparison();
+
+      if ( !viewActive ) {
+        return;
+      }
+
       initialLoading.value = false;
       sessionResumeNotice.value ||= resumableSession.changedConceptIds?.length
         ? 'Changed or removed concepts were skipped. Their earlier grades cannot be undone in this session. Start a new session to study updated cards.'
@@ -287,7 +306,8 @@ export function useStudySession({
   });
 
   function pauseSession() {
-    if ( actionsBlocked.value || !hasCards.value || isComplete.value ) {
+    if ( sessionBusy.value || linkedPractice.open.value || sessionStatus.value !== 'active'
+      || route.name !== 'study' || !hasCards.value || isComplete.value ) {
       return;
     }
 
@@ -296,6 +316,12 @@ export function useStudySession({
 
   async function resumeSession() {
     if ( sessionBusy.value || !sessionPaused.value ) {
+      return;
+    }
+
+    await validateCaseComparison();
+
+    if ( !viewActive ) {
       return;
     }
 
@@ -311,6 +337,7 @@ export function useStudySession({
 
     begin([]);
     linkedPractice.reset();
+    caseComparison.reset();
     sessionStatus.value = 'ended';
     restoreAttempt();
     reviewMedia.value = [];
@@ -350,6 +377,7 @@ export function useStudySession({
       }
 
       linkedPractice.reset();
+      caseComparison.reset();
       reviewMedia.value = queue.media;
       mixedPracticeEnabled.value = Boolean( queue.mixedPracticeEnabled );
       begin( queue.cards, {
@@ -714,6 +742,43 @@ export function useStudySession({
       && answerRevealed.value && !answerFeedbackPending.value;
   }
 
+  async function startCaseComparison() {
+    const selected = linkedPractice.selectedCase.value;
+
+    if ( sessionBusy.value || linkedPracticeActive.value || caseComparison.active.value
+      || !linkedPractice.open.value || !selected?.link.comparison || !reviewAnswerRevealed.value
+      || sessionStatus.value !== 'active' || route.name !== 'study' || correctionPending.value ) {
+      return;
+    }
+
+    if ( await caseComparison.start( selected ) ) {
+      linkedPractice.close();
+    }
+  }
+
+  function finishCaseComparison() {
+    caseComparison.reset();
+  }
+
+  async function validateCaseComparison() {
+    const sourceId = caseComparison.active.value?.activity.source.id;
+    const status = await caseComparison.validate();
+
+    if ( !viewActive || status.valid ) {
+      return;
+    }
+
+    caseComparison.reset();
+
+    if ( status.sourceChanged ) {
+      sessionChangedConceptIds.value = new Set([ ...sessionChangedConceptIds.value, sourceId ]);
+      excludeChangedConcepts();
+      sessionResumeNotice.value = 'The current concept changed or is no longer available. Start a new session to study updated cards.';
+    } else {
+      sessionResumeNotice.value = 'The comparison changed or is no longer available. You have returned to your session.';
+    }
+  }
+
   async function continueToGrading() {
     if ( actionsBlocked.value || !answerFeedbackPending.value ) {
       return;
@@ -761,6 +826,7 @@ export function useStudySession({
       pausedAttempts: [ ...pausedAttempts.entries() ],
       recall: createSnapshot(),
       linkedPractice: linkedPractice.snapshot(),
+      caseComparison: caseComparison.active.value ? { ...caseComparison.active.value } : null,
       answerFeedbackReviewed: answerFeedbackReviewed.value,
       ...attemptSnapshot(),
       sessionGradingMode: sessionGradingMode.value,
@@ -775,6 +841,7 @@ export function useStudySession({
   function restoreStudySession( session ) {
     restoreSnapshot( session.recall );
     linkedPractice.restore( session.linkedPractice );
+    caseComparison.restore( session.caseComparison );
     sessionStatus.value = session.status ?? 'active';
     assessmentError.value = session.assessmentError ?? '';
     recoveryError.value = session.recoveryError ?? '';
@@ -800,12 +867,19 @@ export function useStudySession({
   }
 
   function excludeChangedConcepts() {
+    const comparison = caseComparison.active.value?.activity;
     const currentChanged = excludeConcepts( sessionChangedConceptIds.value );
     const practice = linkedPractice.active.value;
 
     if ( practice && ( currentChanged || sessionChangedConceptIds.value.has( practice.card.conceptId ) ) ) {
       returnFromLinkedPractice();
       sessionResumeNotice.value = 'The linked case changed or is no longer available. You have returned to your session.';
+    }
+
+    if ( comparison && ( currentChanged || sessionChangedConceptIds.value.has( comparison.source.id )
+      || sessionChangedConceptIds.value.has( comparison.related.id ) ) ) {
+      caseComparison.reset();
+      sessionResumeNotice.value = 'A comparison case changed or is no longer available. You have returned to your session.';
     }
 
     if ( currentChanged ) {
@@ -830,6 +904,7 @@ export function useStudySession({
     beginMasteryRound,
     canRevealAnswer,
     canUndoLastGrade,
+    caseComparison,
     completedCount,
     comparisonChecks,
     continueToGrading,
@@ -842,6 +917,7 @@ export function useStudySession({
     explainSettings,
     finishCurrentPretest,
     focusedSession,
+    finishCaseComparison,
     finishLinkedPractice,
     gradingMode,
     gradingModeError,
@@ -897,6 +973,7 @@ export function useStudySession({
     showAnswer,
     skipCurrentPretest,
     startLinkedPractice,
+    startCaseComparison,
     studyMedia,
     studyResponse,
     totalAvailableCards,

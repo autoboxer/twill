@@ -66,6 +66,33 @@ export const guideTopics = [
         ]
       },
       {
+        title: 'Compare linked cases',
+        steps: [
+          'Open either concept from Library. Beside its linked case, select Add comparison.',
+          'Write a question about the difference that matters and an expected explanation. Select Save comparison.',
+          'Select Compare to read both case prompts. Explain the difference mentally or enter an optional response, then select Show explanation to check your reasoning.',
+          'In Study, reveal the current answer and select Linked practice. Choose a case with an authored comparison, then select Compare cases. Select Return to session when you are ready to grade your original answer.'
+        ],
+        paragraphs: [
+          'The comparison is shared by both linked concepts. Edit it from either side. Removing the comparison keeps the link and both concepts.',
+          'Comparisons do not record a review or change review dates. Closing clears the comparison response. Pausing Study keeps it until you resume or return to the session.',
+          'Your original response and checks stay unchanged. Grade that original attempt, not how well you answered after seeing the comparison.'
+        ]
+      },
+      {
+        title: 'Practice with answer choices',
+        steps: [
+          'Edit a linked comparison and select Add answer choices. Write two to six different options and feedback explaining why each option fits or does not fit. Mark one option as the correct answer.',
+          'Leave Keep option order unchecked to shuffle each new attempt. Select it when the order is meaningful, such as a sequence or a range. Select Save comparison.',
+          'Open the comparison, choose an answer and optionally explain your choice. You can change your selection before selecting Check choice.',
+          'Read the feedback and expected explanation. If your choice was incorrect, check why the correct option fits. Return to your original Study attempt when you are ready to grade it.'
+        ],
+        paragraphs: [
+          'Use plausible alternatives that help you distinguish the cases. Avoid trick wording or options that give away the answer.',
+          'Choice practice is supported practice, not a free recall review. Its result does not change review dates or count as a completed review. Pausing keeps your selection and option order; closing starts a fresh attempt next time.'
+        ]
+      },
+      {
         title: 'Link related cases',
         steps: [
           'Create a separate concept for each case, with its own Prompt, Answer and any required key points or checkpoints.',

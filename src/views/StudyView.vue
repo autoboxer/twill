@@ -13,6 +13,7 @@ import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
 import StudyAnswerParts from '../components/StudyAnswerParts.vue';
 import StudyAssistance from '../components/StudyAssistance.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
+import StudyCaseComparisonDialog from '../components/StudyCaseComparisonDialog.vue';
 import StudyDeferredCards from '../components/StudyDeferredCards.vue';
 import StudyHelpButton from '../components/StudyHelpButton.vue';
 import StudyLinkedPracticePicker from '../components/StudyLinkedPracticePicker.vue';
@@ -56,6 +57,7 @@ const {
   beginMasteryRound,
   canRevealAnswer,
   canUndoLastGrade,
+  caseComparison,
   completedCount,
   comparisonChecks,
   continueToGrading,
@@ -67,6 +69,7 @@ const {
   explainSettings,
   finishCurrentPretest,
   focusedSession,
+  finishCaseComparison,
   finishLinkedPractice,
   gradingMode,
   gradingModeError,
@@ -121,6 +124,7 @@ const {
   showAnswer,
   skipCurrentPretest,
   startLinkedPractice,
+  startCaseComparison,
   studyMedia,
   studyResponse,
   totalAvailableCards,
@@ -146,6 +150,11 @@ const {
   select: selectPracticeLink,
   selectedCase: selectedPracticeCase
 } = linkedPractice;
+const {
+  active: comparisonAttempt,
+  error: caseComparisonError,
+  loading: caseComparisonLoading
+} = caseComparison;
 const {
   answerFeedback,
   completionHeading,
@@ -1319,12 +1328,25 @@ useStartupReady( initialLoading );
       :open="linkedPracticePickerOpen"
       :links="practiceLinks"
       :selected-case="selectedPracticeCase"
-      :loading="linkedPracticeLoading"
-      :error="linkedPracticeError"
+      :loading="linkedPracticeLoading || caseComparisonLoading"
+      :error="caseComparisonError || linkedPracticeError"
       @close="closeLinkedPracticePicker"
       @select="selectPracticeLink"
       @start="startLinkedPractice"
+      @compare="startCaseComparison"
       @back="reloadPracticeLinks"
+      @closed="focusCurrentState"
+    />
+
+    <StudyCaseComparisonDialog
+      v-if="comparisonAttempt"
+      v-model:response="comparisonAttempt.response"
+      v-model:revealed="comparisonAttempt.revealed"
+      v-model:choice-state="comparisonAttempt.choiceState"
+      :open="!sessionPaused && !sessionEnded && !initialLoading"
+      :activity="comparisonAttempt.activity"
+      @close="finishCaseComparison"
+      @pause="pauseSession"
       @closed="focusCurrentState"
     />
 

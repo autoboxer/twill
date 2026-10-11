@@ -98,6 +98,9 @@ export function usePracticeLinks( conceptId ) {
     removeLink: ( link ) => change( 'remove_practice_link', {
       id: link.id, expectedChangeId: link.lastChangeId
     }),
+    setComparison: ( link, comparison ) => change( 'set_practice_comparison', {
+      id: link.id, expectedChangeId: link.lastChangeId, comparison
+    }),
     updateLink: ( link, objective ) => change( 'update_practice_link', {
       id: link.id, expectedChangeId: link.lastChangeId, objective
     })

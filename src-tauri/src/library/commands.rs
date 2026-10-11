@@ -15,7 +15,7 @@ use crate::library::{
     DismissCardQualitySignalInput, EntityIdInput, LibraryError, LibraryOrganizations,
     LibraryPage, LibraryQuery, LinkedPracticeCase, LinkedPracticeInput,
     FinalizeConceptInput, FinalizeTemplateInput, OrganizationSummary,
-    PracticeLink, PracticeLinkLibrary, PretestRecord, QueueDeferredEditInput,
+    PracticeComparisonCase, PracticeLink, PracticeLinkLibrary, PretestRecord, QueueDeferredEditInput,
     RecordPretestInput, RecordReviewInput,
     RemovePracticeLinkInput, RenameNamedItemInput, ReverseReviewInput,
     ReviewOutcome, ReviewReversalOutcome,
@@ -23,6 +23,7 @@ use crate::library::{
     SetAppearancePreferencesInput, SetConceptArchivedInput, SetCssSnippetEnabledInput,
     SetGradingModeInput, SetLibraryViewPreferencesInput, SetMixedPracticeEnabledInput,
     SetPretestingEnabledInput,
+    SetPracticeComparisonInput,
     SetStartupDestinationInput, StudyQuery, StudyQueue, TemplateCatalog,
     TemplateContent, TemplateDetail, TemplateLibrary, UpdateConceptInput,
     UpdateCssSnippetInput, UpdateDeferredEditNoteInput, UpdatePracticeLinkInput,
@@ -210,6 +211,26 @@ pub(crate) fn create_practice_link(
 ) -> CommandResult<()> {
     PracticeLinkLibrary::new(local_data.inner())
         .create(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_practice_comparison(
+    local_data: State<'_, LocalDataStore>,
+    input: LinkedPracticeInput,
+) -> CommandResult<PracticeComparisonCase> {
+    PracticeLinkLibrary::new(local_data.inner())
+        .comparison(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn set_practice_comparison(
+    local_data: State<'_, LocalDataStore>,
+    input: SetPracticeComparisonInput,
+) -> CommandResult<()> {
+    PracticeLinkLibrary::new(local_data.inner())
+        .set_comparison(input)
         .map_err(Into::into)
 }
 

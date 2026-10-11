@@ -52,6 +52,8 @@ pub fn run() {
             library::commands::get_concept,
             library::commands::get_practice_links,
             library::commands::get_linked_practice,
+            library::commands::get_practice_comparison,
+            library::commands::set_practice_comparison,
             library::commands::create_practice_link,
             library::commands::update_practice_link,
             library::commands::remove_practice_link,

@@ -41,7 +41,8 @@ pub use preferences::{
 };
 pub use practice_links::{
     CreatePracticeLinkInput, LinkedPracticeCase, LinkedPracticeInput, PracticeLink,
-    RemovePracticeLinkInput, UpdatePracticeLinkInput,
+    PracticeChoice, PracticeChoiceOption, PracticeComparison, PracticeComparisonCase, RemovePracticeLinkInput,
+    SetPracticeComparisonInput, UpdatePracticeLinkInput,
 };
 pub use retrieval::{
     CardSummary, ClozeSettings, ExplainSettings, ImageOcclusionSettings, ProblemSettings,

@@ -6,6 +6,7 @@ CREATE TABLE practice_links (
         length(trim(objective)) BETWEEN 1 AND 300
         AND objective = trim(objective)
     ),
+    comparison_json TEXT CHECK (comparison_json IS NULL OR json_valid(comparison_json)),
     last_change_id TEXT NOT NULL,
     CHECK (first_concept_id < second_concept_id),
     FOREIGN KEY (entity_id) REFERENCES entities(id),

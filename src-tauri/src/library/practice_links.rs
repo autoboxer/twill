@@ -9,6 +9,8 @@ use crate::library::{
 
 const MAXIMUM_LINKS_PER_CONCEPT: usize = 32;
 
+mod comparisons;
+
 pub struct PracticeLinkLibrary<'store> {
     store: &'store LocalDataStore,
 }
@@ -148,7 +150,8 @@ impl<'store> PracticeLinkLibrary<'store> {
 fn query_links(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<PracticeLink>> {
     let mut statement = connection.prepare(
         "SELECT links.entity_id, concepts.entity_id, concepts.title,
-            concepts.archived_at IS NOT NULL, links.objective, entities.last_change_id
+            concepts.archived_at IS NOT NULL, links.objective, entities.last_change_id,
+            links.comparison_json
         FROM practice_links AS links
         INNER JOIN entities ON entities.id = links.entity_id
         INNER JOIN concepts ON concepts.entity_id = CASE
@@ -167,6 +170,7 @@ fn query_links(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<P
             archived: row.get(3)?,
             objective: row.get(4)?,
             last_change_id: row.get(5)?,
+            comparison: comparisons::read_comparison(row.get(6)?)?,
         })
     })?;
 
@@ -242,7 +246,8 @@ pub(super) fn remove_concept_links(
 pub(super) fn validate_restored_links(connection: &Connection) -> LibraryResult<()> {
     let mut statement = connection.prepare(
         "SELECT links.first_concept_id, links.second_concept_id, links.objective,
-            entities.kind, entities.last_change_id = links.last_change_id
+            entities.kind, entities.last_change_id = links.last_change_id,
+            links.comparison_json
         FROM practice_links AS links
         INNER JOIN entities ON entities.id = links.entity_id
         WHERE entities.deleted_at IS NULL",
@@ -257,6 +262,11 @@ pub(super) fn validate_restored_links(connection: &Connection) -> LibraryResult<
         let objective: String = row.get(2)?;
         let kind: String = row.get(3)?;
         let matching_change: bool = row.get(4)?;
+        let comparison = comparisons::read_comparison(row.get(5)?)?;
+
+        if comparison.clone().map(comparisons::normalize_comparison).transpose()? != comparison {
+            return Err(invalid("The backup contains an invalid comparison."));
+        }
 
         if kind != "practice_link"
             || !matching_change
