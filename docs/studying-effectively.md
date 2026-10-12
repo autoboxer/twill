@@ -188,9 +188,15 @@ does not record a free recall success or change review dates.
 - Use a different situation when you want evidence of application. Changing
   numbers can support fluency, but does not necessarily test method selection.
 
-For now, create separate Problem concepts with progressively less help. Sequences
-that combine worked examples, partially completed problems, and independent
-problems are planned. Removing help gradually can be useful, but the evidence
+In a Problem setup, select Add worked example. Write a prompt and a checked
+solution for each step. Choose which solutions remain visible in completion
+practice. Add a principle question only where explaining the method is useful.
+Use Full example and Completion preview in the editor or concept details to
+check the example. These previews do not change study progress.
+
+For now, create separate Problem concepts for independent attempts. Guided Study
+sequences that combine examples, completion work, and linked independent problems
+are planned. Removing help gradually can be useful, but the evidence
 does not support doing so for every example.
 [Atkinson et al., 2003](https://doi.org/10.1037/0022-0663.95.4.774),
 [Zamary & Rawson, 2018](https://doi.org/10.1007/s10648-018-9433-y).

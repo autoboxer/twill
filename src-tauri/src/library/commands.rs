@@ -71,6 +71,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::MissingProblemCheckpoint
             | LibraryError::MissingProblemPrompt
             | LibraryError::TooManyProblemCheckpoints { .. }
+            | LibraryError::InvalidWorkedExample { .. }
             | LibraryError::DuplicateProblemCheckpoint => "validation",
             LibraryError::DuplicateName { .. }
             | LibraryError::AuthoringMediaSessionClosed

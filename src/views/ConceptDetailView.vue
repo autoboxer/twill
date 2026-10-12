@@ -8,6 +8,7 @@ import ContentState from '../components/ContentState.vue';
 import LinkedPracticeManager from '../components/LinkedPracticeManager.vue';
 import PageHeader from '../components/PageHeader.vue';
 import RichContentRenderer from '../components/RichContentRenderer.vue';
+import WorkedExample from '../components/WorkedExample.vue';
 import { useStartupReady } from '../composables/useStartupReady';
 import { collectClozeGroups } from '../cloze/documents';
 import {
@@ -670,6 +671,11 @@ useStartupReady( initialLoading );
                     <span>{{ checkpoint }}</span>
                   </li>
                 </ol>
+
+                <details v-if="card.problem.workedExample" class="problem-example-details">
+                  <summary>Worked example</summary>
+                  <WorkedExample :example="card.problem.workedExample" class="mt-3" />
+                </details>
               </div>
 
               <div

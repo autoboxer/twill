@@ -213,6 +213,14 @@ export const guideTopics = [
         ],
         example: 'A rate rises from 10% to 15%. State the increase in percentage points and relative percent. Answer: The rate increases by 5 percentage points. The relative increase is 50%, calculated using the original 10% as the denominator.',
         avoid: 'Following a visible solution is useful instruction, but not an independent solution. Try a different case without the solution when you want to check application.'
+      },
+      {
+        title: 'Prepare a worked example',
+        paragraphs: [
+          'In the Problem setup, select Add worked example. Give each step a prompt and a checked solution. You can add a principle question to an important step. Choose which solutions should stay visible in completion practice.',
+          'Use Full example and Completion preview to check your steps. The preview is also available under Worked example in the concept details. It does not change your study progress. Guided Study practice is planned.'
+        ],
+        avoid: 'Use worked steps for a procedure you need to apply. You do not need a sequence of steps for every fact. Check that the solutions agree with the Answer.'
       }
     ],
     related: [ 'explain', 'feedback', 'grading' ]

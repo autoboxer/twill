@@ -8,6 +8,7 @@ import CardAnswerDetails from './CardAnswerDetails.vue';
 import StudyCardContent from './StudyCardContent.vue';
 import StudyAssistance from './StudyAssistance.vue';
 import StudyAnswerParts from './StudyAnswerParts.vue';
+import WorkedExample from './WorkedExample.vue';
 import { supportsAnswerParts } from '../answer-parts/documents';
 import { usesAnswerPartComparison } from '../study/comparison';
 
@@ -175,6 +176,10 @@ function toggleAnswerParts( ids ) {
         aria-label="Study response preview"
         readonly
         tabindex="-1"
+      />
+      <WorkedExample
+        v-if="typeId === 'problem' && typeSettings?.workedExample"
+        :example="typeSettings.workedExample"
       />
     </template>
   </section>

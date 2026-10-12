@@ -2,6 +2,7 @@ import {
   cloneConceptContent,
   createEmptyConceptContent
 } from '../rich-content/schema';
+import { cloneWorkedExample } from '../problem/workedExamples';
 
 const STANDARD_RECALL_ID = 'standard-recall';
 const DEFAULT_EXPLAIN_FOCUS = 'why';
@@ -27,6 +28,7 @@ export function createConceptEditorState( concept = null ) {
     problemCheckpoints: problem?.problem?.checkpoints?.length
       ? [ ...problem.problem.checkpoints ]
       : [ '' ],
+    problemWorkedExample: cloneWorkedExample( problem?.problem?.workedExample ),
     retrievalFormIds: concept
       ? [ ...new Set( concept.cards.map( conceptRetrievalFormId ) ) ]
       : [ STANDARD_RECALL_ID ],
@@ -56,6 +58,7 @@ export function cloneConceptEditorState( state ) {
       : fallback.explainFocus,
     explainKeyPoints: stringArray( state.explainKeyPoints, [ '' ]),
     problemCheckpoints: stringArray( state.problemCheckpoints, [ '' ]),
+    problemWorkedExample: cloneWorkedExample( state.problemWorkedExample ),
     retrievalFormIds: stringArray( state.retrievalFormIds ),
     tagIds: stringArray( state.tagIds ),
     typeAnswerAcceptedAnswers: stringArray( state.typeAnswerAcceptedAnswers, [ '' ]),
@@ -80,6 +83,7 @@ export function captureConceptEditorState( state ) {
     explainFocus: state.explainFocus,
     explainKeyPoints: [ ...state.explainKeyPoints ],
     problemCheckpoints: [ ...state.problemCheckpoints ],
+    problemWorkedExample: cloneWorkedExample( state.problemWorkedExample ),
     retrievalFormIds: [ ...state.retrievalFormIds ],
     tagIds: [ ...state.tagIds ],
     typeAnswerAcceptedAnswers: [ ...state.typeAnswerAcceptedAnswers ],
