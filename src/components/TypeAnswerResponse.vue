@@ -17,6 +17,11 @@ const props = defineProps({
     required: true
   },
 
+  optional: {
+    type: Boolean,
+    default: false
+  },
+
   revealed: {
     type: Boolean,
     required: true
@@ -28,7 +33,9 @@ const emit = defineEmits([ 'submit', 'update:modelValue' ]);
 const result = ref( null );
 const root = ref( null );
 
-const comparison = computed( () => props.revealed
+const comparison = computed( () => props.revealed && (
+  !props.optional || normalizeTypeAnswer( props.modelValue )
+)
   ? compareTypeAnswer( props.modelValue, props.acceptedAnswers )
   : null
 );
@@ -45,7 +52,10 @@ function focus() {
 }
 
 function submit( event ) {
-  if ( event?.isComposing || !normalizeTypeAnswer( props.modelValue ) ) {
+  if (
+    event?.isComposing
+    || ( !props.optional && !normalizeTypeAnswer( props.modelValue ) )
+  ) {
     return;
   }
 
@@ -56,24 +66,26 @@ function submit( event ) {
 
 <template>
   <section
+    v-if="!revealed || comparison"
     ref="root"
     class="type-answer-response"
+    :class="{ 'type-answer-response--optional': optional }"
   >
     <UFormField
       v-if="!revealed"
-      label="Your answer"
-      hint="Required before reveal"
-      required
+      :label="optional ? 'Your label' : 'Your answer'"
+      :hint="optional ? 'Optional' : 'Required before reveal'"
+      :required="!optional"
     >
       <UInput
         :model-value="modelValue"
         :maxlength="1000"
-        placeholder="Type your answer"
+        :placeholder="optional ? 'Type a label' : 'Type your answer'"
         autocomplete="off"
         autocapitalize="off"
         spellcheck="false"
         class="type-answer-response__input"
-        size="xl"
+        :size="optional ? 'md' : 'xl'"
         @update:model-value="emit( 'update:modelValue', $event )"
         @keydown.enter="submit"
       />

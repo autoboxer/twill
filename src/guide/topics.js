@@ -198,6 +198,7 @@ export const guideTopics = [
         title: 'Recall one target at a time',
         paragraphs: [
           'Each target creates a separate card with its own review date. During Study, identify the numbered point before selecting Reveal answer. The image stays visible while its expected label and alternatives appear below it. Other labels remain hidden.',
+          'You can type in Your label before revealing, or leave it empty and answer from memory. A typed response is compared with the expected label and accepted alternatives. Capitalization and extra spaces do not affect the match. Accents and punctuation do. Compare the meaning yourself and choose your grade. If you use help, the comparison uses your response before help.',
           'After you reveal an answer or use help, other cards from the same concept wait for another session. Their review dates do not change. Start another session when you want to practice another due target.',
           'Choose Forgot or Remembered for that target, not for the whole diagram. Hints and references count as help. Editing a label or moving its point keeps its review progress. Removing a target removes its card. Adding it again starts a new card.'
         ],

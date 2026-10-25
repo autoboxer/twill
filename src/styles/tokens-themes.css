@@ -89,6 +89,7 @@
   --ui-text-highlighted: var(--twill-text);
   --ui-text-inverted: var(--twill-background);
   --ui-primary: var(--twill-accent);
+  --ui-warning: var(--theme-amber);
   --twill-canvas-glow: color-mix(in srgb, var(--theme-accent) 15%, transparent);
   --twill-code-background: var(--theme-bg-deep);
   --twill-code-text: var(--theme-text);

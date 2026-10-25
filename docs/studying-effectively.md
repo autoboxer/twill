@@ -313,6 +313,17 @@ label and its alternatives appear below it. Other labels stay hidden. Grade only
 the target you attempted. Hints and references count as help, just as they do for
 other cards. The shared Answer field is not shown during a label review.
 
+You can enter a response in Your label before revealing. Leave it empty if you
+prefer to answer from memory. A typed response is compared with the expected
+label and its accepted alternatives. Capitalization and extra spaces do not
+affect the match. Accents and punctuation do. Differences are highlighted, but
+Twill does not judge the meaning or choose a grade. An answer can be correct
+without matching an authored alternative. Check it yourself before grading.
+
+If you open a hint or reference, the comparison uses your response before help.
+Your response and help state remain available when you pause or visit another
+screen in the same app session. They are not saved after you close the app.
+
 As with other cards that share a concept, revealing an answer or using help
 defers the remaining targets until another session. Their review dates do not
 change. Start another session to practice another due target.
@@ -704,8 +715,8 @@ steps.
 Answer-cued related cards are
 deferred for the remainder of the current session. Focused review sessions include
 only cards that are due. You can author image labels, preview them in the
-Library, and study each target on its own schedule. Typed label comparison,
-reconstruction controls, tools for
+Library, and study each target on its own schedule, with optional typed responses
+and comparison against accepted answers. Reconstruction controls, tools for
 creating examples, and records of learning across sessions are planned.
 They are not available controls. References to them above describe future
 possibilities.
