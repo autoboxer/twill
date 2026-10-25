@@ -246,6 +246,7 @@ pub(super) fn index_concept(
     let prompt_preview = bounded_excerpt(body.split_whitespace().collect::<Vec<_>>().join(" "));
 
     body.push('\n');
+    append_image_labels(&concept.content.prompt, &mut body);
 
     for document in [
         &concept.content.answer,
@@ -282,6 +283,30 @@ pub(super) fn index_concept(
     )?;
 
     Ok(())
+}
+
+fn append_image_labels(node: &Value, output: &mut String) {
+    if let Some(targets) = node["attrs"]["labelTargets"].as_array() {
+        for target in targets {
+            for field in ["label", "description"] {
+                output.push_str(target[field].as_str().unwrap_or_default());
+                output.push('\n');
+            }
+
+            if let Some(alternatives) = target["alternatives"].as_array() {
+                for alternative in alternatives {
+                    output.push_str(alternative.as_str().unwrap_or_default());
+                    output.push('\n');
+                }
+            }
+        }
+    }
+
+    if let Some(children) = node["content"].as_array() {
+        for child in children {
+            append_image_labels(child, output);
+        }
+    }
 }
 
 fn append_document_text(node: &Value, output: &mut String) {

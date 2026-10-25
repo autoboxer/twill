@@ -1,7 +1,8 @@
 export const MAXIMUM_ANSWER_PARTS = 100;
 
 export function supportsAnswerParts( card ) {
-  return Boolean( card && !card.template && collectAnswerParts( card.content.answer ).length );
+  return Boolean( card && !card.template && card.retrievalKind !== 'imageLabeling'
+    && collectAnswerParts( card.content.answer ).length );
 }
 
 export function collectAnswerParts( document ) {

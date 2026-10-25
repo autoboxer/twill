@@ -30,6 +30,18 @@ export function createImageLabelTarget() {
   return { id: createUuid(), x: 0.5, y: 0.5, label: '', alternatives: [], description: '' };
 }
 
+export function removeAllImageLabelTargets( document ) {
+  function visit( node ) {
+    return {
+      ...node,
+      ...( node.type === 'mediaImage' ? { attrs: { ...node.attrs, labelTargets: [] } } : {}),
+      ...( node.content ? { content: node.content.map( visit ) } : {})
+    };
+  }
+
+  return visit( document );
+}
+
 export function cloneImageLabelTargets( targets ) {
   return targets.map( target => ({ ...target, alternatives: [ ...target.alternatives ] }) );
 }

@@ -134,6 +134,10 @@ function collectMediaIds( node, mediaIds ) {
 }
 
 export function conceptRetrievalFormId( card ) {
+  if ( card.retrievalKind === 'imageLabeling' ) {
+    return 'image-labeling';
+  }
+
   if ( card.retrievalKind === 'explain' ) {
     return 'explain';
   }

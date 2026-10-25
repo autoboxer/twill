@@ -2,7 +2,7 @@ export const guideGroups = [
   { title: 'Getting started', topics: [ 'start', 'cards' ] },
   {
     title: 'Card types',
-    topics: [ 'recall', 'type-answer', 'cloze', 'image-occlusion', 'explain', 'problem' ]
+    topics: [ 'recall', 'type-answer', 'cloze', 'image-occlusion', 'image-labeling', 'explain', 'problem' ]
   },
   { title: 'Studying', topics: [ 'grading', 'feedback', 'sessions', 'card-quality' ] },
   { title: 'Working in Twill', topics: [ 'saving', 'shortcuts' ] }
@@ -177,17 +177,34 @@ export const guideTopics = [
         ],
         example: 'Hide the “mitochondrion” label on a cell diagram and identify the marked structure. Use a separate Explain question if its function also matters.',
         avoid: 'Recalling a label does not show that you understand the structure’s function. Practice its function separately when that matters.'
-      },
+      }
+    ],
+    related: [ 'image-labeling', 'explain', 'cards' ]
+  },
+  {
+    id: 'image-labeling',
+    title: 'Image labeling',
+    summary: 'Identify marked structures on an unlabeled image.',
+    sections: [
       {
         title: 'Prepare an unlabeled image',
         paragraphs: [
-          'Select Add labels below a Prompt image. Add a point, place it on the image, and enter its expected label. Enter accepted alternatives on separate lines. A position description can explain where to look without naming the answer.',
+          'Select Image labeling in the concept editor. Select Add labels below a Prompt image. Add a point, place it on the image, and enter its expected label. Enter accepted alternatives on separate lines. A position description can explain where to look without naming the answer.',
           'Use the arrow keys or percentage fields to adjust a point. Use Image zoom for small details. Select Apply labels, then save the concept. In the Library, select a numbered target to locate it and select Show labels to inspect its answers.'
         ],
-        avoid: 'This is a diagram preview. Separate scheduled reviews for image labels are planned.'
+        avoid: 'Use an image without printed answers. Check that the position description does not give away the label.'
+      },
+      {
+        title: 'Recall one target at a time',
+        paragraphs: [
+          'Each target creates a separate card with its own review date. During Study, identify the numbered point before selecting Reveal answer. The image stays visible while its expected label and alternatives appear below it. Other labels remain hidden.',
+          'After you reveal an answer or use help, other cards from the same concept wait for another session. Their review dates do not change. Start another session when you want to practice another due target.',
+          'Choose Forgot or Remembered for that target, not for the whole diagram. Hints and references count as help. Editing a label or moving its point keeps its review progress. Removing a target removes its card. Adding it again starts a new card.'
+        ],
+        avoid: 'Knowing a name does not show that you understand its function. Use Explain or linked practice for relationships and functions when they matter.'
       }
     ],
-    related: [ 'explain', 'cards' ]
+    related: [ 'image-occlusion', 'explain', 'grading' ]
   },
   {
     id: 'explain',

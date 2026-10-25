@@ -140,6 +140,7 @@ fn validate_concept_cards(
         .map(String::as_str)
         .collect::<HashSet<_>>();
     let mut forms = HashSet::new();
+    let mut image_labels = content.image_label_ids.clone();
     let mut template_ids = BTreeSet::new();
     let mut statement = connection.prepare(
         "SELECT retrieval_kind, configuration_json, template_id FROM cards
@@ -175,6 +176,13 @@ fn validate_concept_cards(
             RetrievalFormConfiguration::Problem(_) if !content.prompt_has_content => {
                 return Err(LibraryError::MissingProblemPrompt);
             }
+            RetrievalFormConfiguration::ImageLabeling(settings) => {
+                if !image_labels.remove(&settings.target_id) {
+                    return Err(LibraryError::InvalidRetrievalForm);
+                }
+
+                Some(settings.target_id)
+            }
             _ => template_id,
         };
 
@@ -183,7 +191,7 @@ fn validate_concept_cards(
         }
     }
 
-    if !cloze_groups.is_empty() || !occlusion_groups.is_empty() {
+    if !cloze_groups.is_empty() || !occlusion_groups.is_empty() || !image_labels.is_empty() {
         return Err(LibraryError::InvalidRetrievalForm);
     }
 
@@ -196,6 +204,7 @@ fn validate_concept_cards(
         forms.contains(&("type_answer", None)),
         !content.cloze_group_ids.is_empty(),
         !content.image_occlusion_group_ids.is_empty(),
+        !content.image_label_ids.is_empty(),
     )
 }
 

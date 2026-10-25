@@ -26,6 +26,7 @@ pub struct ValidatedContent {
     pub cloze_group_ids: Vec<String>,
     pub content: ConceptContent,
     pub image_occlusion_group_ids: Vec<String>,
+    pub image_label_ids: HashSet<String>,
     pub media_ids: HashSet<String>,
     pub prompt_has_content: bool,
     pub serialized: String,
@@ -99,6 +100,7 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
         prompt_has_content: rich_document_has_content(&content.prompt),
         content,
         image_occlusion_group_ids: state.image_occlusion_group_ids,
+        image_label_ids: state.image_label_ids,
         media_ids: state.media_ids,
         serialized,
     })

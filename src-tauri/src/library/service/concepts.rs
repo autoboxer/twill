@@ -19,8 +19,9 @@ use crate::library::retrieval_forms::{
     normalize_explain, normalize_problem, normalize_type_answer, RetrievalFormConfiguration,
 };
 use crate::library::{
-    ClozeSettings, ConceptDetail, CreateConceptInput, ImageOcclusionSettings, LibraryError,
-    LibraryResult, NamedItem, RetrievalFormKind, UpdateConceptInput,
+    ClozeSettings, ConceptDetail, CreateConceptInput, ImageLabelingSettings,
+    ImageOcclusionSettings, LibraryError, LibraryResult, NamedItem, RetrievalFormKind,
+    UpdateConceptInput,
 };
 
 const MAXIMUM_CONCEPT_TITLE_LENGTH: usize = 200;
@@ -106,6 +107,7 @@ pub(in crate::library) fn create_concept(
         type_answer.is_some(),
         !content.cloze_group_ids.is_empty(),
         !content.image_occlusion_group_ids.is_empty(),
+        !content.image_label_ids.is_empty(),
     )?;
 
     validate_selections(transaction, OrganizationKind::Deck, &deck_ids)?;
@@ -184,6 +186,17 @@ pub(in crate::library) fn create_concept(
         )?;
     }
 
+    for target_id in content.image_label_ids.iter().collect::<BTreeSet<_>>() {
+        create_card(
+            transaction,
+            &entity.id,
+            None,
+            RetrievalFormConfiguration::ImageLabeling(ImageLabelingSettings {
+                target_id: target_id.clone(),
+            }),
+        )?;
+    }
+
     for template_id in &template_ids {
         create_card(
             transaction,
@@ -242,6 +255,7 @@ pub(in crate::library) fn update_concept(
         type_answer.is_some(),
         !content.cloze_group_ids.is_empty(),
         !content.image_occlusion_group_ids.is_empty(),
+        !content.image_label_ids.is_empty(),
     )?;
 
     let current = query_concept(transaction, &id)?;
@@ -288,6 +302,18 @@ pub(in crate::library) fn update_concept(
         .iter()
         .cloned()
         .collect::<BTreeSet<_>>();
+    let current_image_label_ids = current
+        .cards
+        .iter()
+        .filter_map(|card| {
+            card.image_labeling.as_ref().map(|labeling| labeling.target_id.clone())
+        })
+        .collect::<BTreeSet<_>>();
+    let image_label_ids = content
+        .image_label_ids
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>();
     let current_template_ids = current
         .cards
         .iter()
@@ -305,6 +331,7 @@ pub(in crate::library) fn update_concept(
         && current_type_answer == type_answer
         && current_cloze_group_ids == cloze_group_ids
         && current_image_occlusion_group_ids == image_occlusion_group_ids
+        && current_image_label_ids == image_label_ids
         && current_template_ids == template_ids
     {
         return Ok(current);
@@ -347,6 +374,7 @@ pub(in crate::library) fn update_concept(
         type_answer.as_ref(),
         &cloze_group_ids,
         &image_occlusion_group_ids,
+        &image_label_ids,
     )?;
 
     let concept = query_concept(transaction, &id)?;

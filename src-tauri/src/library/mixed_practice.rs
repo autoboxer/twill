@@ -89,6 +89,7 @@ mod tests {
             problem: None,
             cloze: None,
             image_occlusion: None,
+            image_labeling: None,
             type_answer: None,
             template_id: None,
             scheduling_state,

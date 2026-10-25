@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ClozeSettings, ConceptContent, ExplainSettings, ImageOcclusionSettings, MediaSummary,
-    ProblemSettings, RetrievalFormKind, TemplateContent, TypeAnswerSettings,
+    ClozeSettings, ConceptContent, ExplainSettings, ImageLabelingSettings,
+    ImageOcclusionSettings, MediaSummary, ProblemSettings, RetrievalFormKind,
+    TemplateContent, TypeAnswerSettings,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -25,6 +26,7 @@ pub struct StudyCard {
     pub problem: Option<ProblemSettings>,
     pub cloze: Option<ClozeSettings>,
     pub image_occlusion: Option<ImageOcclusionSettings>,
+    pub image_labeling: Option<ImageLabelingSettings>,
     pub type_answer: Option<TypeAnswerSettings>,
     pub template_id: Option<String>,
     pub scheduling_state: SchedulingState,

@@ -1,9 +1,7 @@
 <script setup>
 import { computed, nextTick } from 'vue';
 
-import { retrievalFormIcon, retrievalFormLabel } from '../retrieval-forms/catalog';
-import { collectClozeGroups } from '../cloze/documents';
-import { collectImageOcclusionGroups } from '../image-occlusion/documents';
+import { retrievalFormIcon, retrievalFormName } from '../retrieval-forms/catalog';
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -29,12 +27,7 @@ async function restoreStudyFocus( event ) {
 }
 
 function cardLabel( card ) {
-  const groups = card.cloze ? collectClozeGroups( card.content.prompt )
-    : card.imageOcclusion ? collectImageOcclusionGroups( card.content.prompt ) : [];
-  const groupId = card.cloze?.groupId ?? card.imageOcclusion?.groupId;
-  const index = groups.findIndex( ( group ) => group.id === groupId );
-
-  return `${ retrievalFormLabel( card ) }${ index >= 0 ? ` ${ index + 1 }` : '' }`;
+  return retrievalFormName( card, card.content.prompt );
 }
 </script>
 

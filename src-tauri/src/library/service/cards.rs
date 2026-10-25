@@ -7,9 +7,9 @@ use crate::library::retrieval_forms::{
     parse_retrieval_form_configuration, RetrievalFormConfiguration,
 };
 use crate::library::{
-    CardSummary, ClozeSettings, ExplainSettings, ImageOcclusionSettings, LibraryError,
-    LibraryResult, NamedItem, ProblemSettings, RetrievalFormKind, SchedulingState,
-    TypeAnswerSettings,
+    CardSummary, ClozeSettings, ExplainSettings, ImageLabelingSettings,
+    ImageOcclusionSettings, LibraryError, LibraryResult, NamedItem, ProblemSettings,
+    RetrievalFormKind, SchedulingState, TypeAnswerSettings,
 };
 
 pub(super) fn create_card(
@@ -82,6 +82,7 @@ pub(in crate::library) fn validate_retrieval_form_selection(
     include_type_answer: bool,
     include_cloze: bool,
     include_image_occlusion: bool,
+    include_image_labeling: bool,
 ) -> LibraryResult<()> {
     if !include_standard_recall
         && !include_explain
@@ -89,6 +90,7 @@ pub(in crate::library) fn validate_retrieval_form_selection(
         && !include_type_answer
         && !include_cloze
         && !include_image_occlusion
+        && !include_image_labeling
         && template_ids.is_empty()
     {
         return Err(LibraryError::MissingRetrievalForm);
@@ -207,6 +209,7 @@ pub(super) fn query_cards(
                 problem: parsed.problem().cloned(),
                 cloze: parsed.cloze().cloned(),
                 image_occlusion: parsed.image_occlusion().cloned(),
+                image_labeling: parsed.image_labeling().cloned(),
                 type_answer: parsed.type_answer().cloned(),
                 template,
                 scheduling_state: SchedulingState::try_from(scheduling_state.as_str())?,
@@ -245,6 +248,7 @@ pub(super) fn apply_retrieval_forms(
     type_answer: Option<&TypeAnswerSettings>,
     cloze_group_ids: &BTreeSet<String>,
     image_occlusion_group_ids: &BTreeSet<String>,
+    image_label_ids: &BTreeSet<String>,
 ) -> LibraryResult<()> {
     for card in current_cards {
         let retained = match card.retrieval_kind {
@@ -263,6 +267,10 @@ pub(super) fn apply_retrieval_forms(
                 .image_occlusion
                 .as_ref()
                 .is_some_and(|occlusion| image_occlusion_group_ids.contains(&occlusion.group_id)),
+            RetrievalFormKind::ImageLabeling => card
+                .image_labeling
+                .as_ref()
+                .is_some_and(|labeling| image_label_ids.contains(&labeling.target_id)),
         };
 
         if !retained {
@@ -403,6 +411,26 @@ pub(super) fn apply_retrieval_forms(
                 None,
                 RetrievalFormConfiguration::ImageOcclusion(ImageOcclusionSettings {
                     group_id: group_id.clone(),
+                }),
+            )?;
+        }
+    }
+
+    let current_image_label_ids = current_cards
+        .iter()
+        .filter_map(|card| {
+            card.image_labeling.as_ref().map(|labeling| labeling.target_id.as_str())
+        })
+        .collect::<HashSet<_>>();
+
+    for target_id in image_label_ids {
+        if !current_image_label_ids.contains(target_id.as_str()) {
+            create_card(
+                transaction,
+                concept_id,
+                None,
+                RetrievalFormConfiguration::ImageLabeling(ImageLabelingSettings {
+                    target_id: target_id.clone(),
                 }),
             )?;
         }

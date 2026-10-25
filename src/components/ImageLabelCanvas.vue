@@ -9,7 +9,7 @@ const props = defineProps({
   number: { type: Number, default: 1 },
   editable: { type: Boolean, default: false }
 });
-const emit = defineEmits([ 'position' ]);
+const emit = defineEmits([ 'position', 'load' ]);
 const surface = ref( null );
 let drag = null;
 
@@ -103,7 +103,12 @@ function moveByKey( event ) {
 
 <template>
   <div ref="surface" class="image-label-canvas" @click="place">
-    <img :src="imageUrl" :alt="alt" draggable="false">
+    <img
+      :src="imageUrl"
+      :alt="alt"
+      draggable="false"
+      @load="emit( 'load', { width: $event.target.naturalWidth, height: $event.target.naturalHeight } )"
+    >
 
     <template v-if="target">
       <span

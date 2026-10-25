@@ -75,9 +75,98 @@ fn image_label_edits_preserve_media_schedules_and_reject_invalid_writes() {
     input["content"]["prompt"]["content"][0]["attrs"]["labelTargets"] = json!([]);
     let removed = library.update_concept(serde_json::from_value(input).unwrap()).unwrap();
 
-    assert_eq!(removed.cards, reviewed.cards);
+    assert_eq!(removed.cards, reviewed.cards.into_iter()
+        .filter(|card| card.retrieval_kind != RetrievalFormKind::ImageLabeling)
+        .collect::<Vec<_>>());
     assert_eq!(removed.media, reviewed.media);
     assert_eq!(std::fs::read_dir(reopened.media_directory()).unwrap().count(), 1);
+}
+
+#[test]
+fn image_labels_schedule_independently_and_preserve_target_identity() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let media = library.import_image(&png_bytes()).unwrap();
+    let first_id = uuid::Uuid::now_v7().to_string();
+    let second_id = uuid::Uuid::now_v7().to_string();
+    let target = |id: &str, label: &str| json!({
+        "id": id, "x": 0.5, "y": 0.5, "label": label,
+        "alternatives": [], "description": ""
+    });
+    let mut input = json!({
+        "title": "Independent image targets", "includeStandardRecall": false,
+        "content": { "schemaVersion": 1, "prompt": { "type": "doc", "content": [{
+            "type": "mediaImage", "attrs": { "mediaId": media.id, "labelTargets": [
+                target(&first_id, "Nucleus"), target(&second_id, "Membrane")
+            ] }
+        }] }, "answer": ConceptContent::default().answer }
+    });
+    let concept = library.create_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+    let find_card = |concept: &crate::library::ConceptDetail, target_id: &str| {
+        concept.cards.iter().find(|card| {
+            card.image_labeling.as_ref().is_some_and(|settings| settings.target_id == target_id)
+        }).unwrap().clone()
+    };
+    let first = find_card(&concept, &first_id);
+    let second = find_card(&concept, &second_id);
+    let queue = library.study_queue_at(concept.cards.iter().map(|card| card.due_at).max().unwrap()).unwrap();
+
+    assert_eq!(concept.cards.len(), 2);
+    assert_eq!(queue.cards.len(), 2);
+    assert_eq!(queue.media, vec![media]);
+    assert!(queue.cards.iter().all(|card| card.retrieval_kind == RetrievalFormKind::ImageLabeling
+        && card.image_labeling.is_some() && card.template_id.is_none()));
+
+    let review = library.record_review_at(RecordReviewInput {
+        card_id: first.id.clone(), rating: ReviewRating::Good, assisted: false,
+    }, first.due_at).unwrap();
+    let reviewed = library.concept(&concept.id).unwrap();
+    assert_eq!(find_card(&reviewed, &second_id), second);
+    assert_eq!(find_card(&reviewed, &first_id).review_count, 1);
+
+    input["id"] = json!(concept.id);
+    input["content"]["prompt"]["content"][0]["attrs"]["labelTargets"] = json!([
+        target(&second_id, "Plasma membrane"), target(&first_id, "Cell nucleus")
+    ]);
+    input["content"]["prompt"]["content"][0]["attrs"]["labelTargets"][1]["x"] = json!(0.9);
+    let reordered = library.update_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+    assert_eq!(reordered.cards, reviewed.cards);
+    assert_eq!(find_card(&reordered, &first_id).due_at, review.due_at);
+
+    let matches = library.search(LibraryQuery {
+        query: "Plasma".to_owned(),
+        card_type: Some(RetrievalFormKind::ImageLabeling),
+        ..Default::default()
+    }).unwrap();
+    assert_eq!(matches.concepts.len(), 1);
+    assert_eq!(matches.concepts[0].id, concept.id);
+
+    input["content"]["prompt"]["content"][0]["attrs"]["labelTargets"] = json!([target(&first_id, "Nucleus")]);
+    let removed = library.update_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+    assert_eq!(removed.cards, vec![find_card(&reviewed, &first_id)]);
+    assert!(library.search(LibraryQuery {
+        query: "Plasma".to_owned(), ..Default::default()
+    }).unwrap().concepts.is_empty());
+    assert!(store.entity(&second.id).unwrap().unwrap().deleted_at.is_some());
+    assert!(library.record_review(RecordReviewInput {
+        card_id: second.id.clone(), rating: ReviewRating::Good, assisted: false,
+    }).is_err());
+
+    let mut empty = input.clone();
+    empty["content"]["prompt"]["content"][0]["attrs"]["labelTargets"] = json!([]);
+    assert!(matches!(library.update_concept(serde_json::from_value(empty).unwrap()),
+        Err(LibraryError::MissingRetrievalForm)));
+    assert_eq!(library.concept(&concept.id).unwrap(), removed);
+
+    input["content"]["prompt"]["content"][0]["attrs"]["labelTargets"] = json!([
+        target(&first_id, "Nucleus"), target(&second_id, "Membrane")
+    ]);
+    let readded = library.update_concept(serde_json::from_value(input).unwrap()).unwrap();
+    let new_second = find_card(&readded, &second_id);
+    assert_ne!(new_second.id, second.id);
+    assert_eq!(new_second.review_count, 0);
+    assert_eq!(new_second.scheduling_state, SchedulingState::New);
+    assert_eq!(find_card(&readded, &first_id), find_card(&reviewed, &first_id));
 }
 
 #[test]

@@ -81,7 +81,8 @@ CREATE TABLE cards (
             'explain',
             'problem',
             'cloze',
-            'image_occlusion'
+            'image_occlusion',
+            'image_labeling'
         )
     ),
     configuration_json TEXT NOT NULL DEFAULT '{}' CHECK (
@@ -335,11 +336,16 @@ WHEN NOT EXISTS (
             AND existing_cards.retrieval_kind = NEW.retrieval_kind
             AND existing_cards.template_id IS NEW.template_id
             AND (
-                NEW.retrieval_kind NOT IN ('cloze', 'image_occlusion')
+                NEW.retrieval_kind NOT IN ('cloze', 'image_occlusion', 'image_labeling')
                 OR json_extract(
                     existing_cards.configuration_json,
                     '$.groupId'
                 ) = json_extract(NEW.configuration_json, '$.groupId')
+                OR (
+                    NEW.retrieval_kind = 'image_labeling'
+                    AND json_extract(existing_cards.configuration_json, '$.targetId')
+                        = json_extract(NEW.configuration_json, '$.targetId')
+                )
             )
             AND existing_entities.deleted_at IS NULL
     )
@@ -355,7 +361,7 @@ WHEN NEW.entity_id != OLD.entity_id
     OR NEW.retrieval_kind != OLD.retrieval_kind
     OR NEW.template_id IS NOT OLD.template_id
     OR (
-        OLD.retrieval_kind IN ('cloze', 'image_occlusion')
+        OLD.retrieval_kind IN ('cloze', 'image_occlusion', 'image_labeling')
         AND NEW.configuration_json != OLD.configuration_json
     )
     OR NEW.last_change_id = OLD.last_change_id
