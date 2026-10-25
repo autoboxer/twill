@@ -412,7 +412,7 @@
   text-transform: uppercase;
 }
 
-.retrieval-form-list__answers ul {
+.retrieval-form-list__answers > ul {
   display: grid;
   padding: 0;
   margin: 0;
@@ -420,7 +420,7 @@
   list-style: none;
 }
 
-.retrieval-form-list__answers ol {
+.retrieval-form-list__answers > ol {
   display: grid;
   padding: 0;
   margin: 0;
@@ -429,20 +429,21 @@
   list-style: none;
 }
 
-.retrieval-form-list__answers ol li {
+.retrieval-form-list__answers > ol > li {
   display: grid;
   grid-template-columns: 1.25rem minmax(0, 1fr);
   gap: 0.4rem;
   counter-increment: problem-checkpoint;
 }
 
-.retrieval-form-list__answers ol li::before {
+.retrieval-form-list__answers > ol > li::before {
   color: var(--ui-primary);
   content: counter(problem-checkpoint) '.';
   font-weight: 650;
 }
 
-.retrieval-form-list__answers li {
+.retrieval-form-list__answers > ul > li,
+.retrieval-form-list__answers > ol > li {
   padding: 0.35rem 0.55rem;
   color: var(--ui-text);
   font-size: 0.82rem;

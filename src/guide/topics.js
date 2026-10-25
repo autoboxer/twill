@@ -213,6 +213,32 @@ export const guideTopics = [
         ],
         example: 'A rate rises from 10% to 15%. State the increase in percentage points and relative percent. Answer: The rate increases by 5 percentage points. The relative increase is 50%, calculated using the original 10% as the denominator.',
         avoid: 'Following a visible solution is useful instruction, but not an independent solution. Try a different case without the solution when you want to check application.'
+      },
+      {
+        title: 'Prepare a worked example',
+        paragraphs: [
+          'In the Problem setup, select Add worked example. Give each step a prompt and a checked solution. You can add a principle question to an important step. Choose which solutions should stay visible in completion practice.',
+          'Use Full example and Completion preview to check your steps. The preview is also available under Worked example in the concept details. It does not change your study progress.'
+        ],
+        avoid: 'Use worked steps for a procedure you need to apply. You do not need a sequence of steps for every fact. Check that the solutions agree with the Answer.'
+      },
+      {
+        title: 'Choose the help you need',
+        paragraphs: [
+          'During Study, use Workpad to solve normally. Select Complete steps to fill the gaps in a worked solution, or Worked example to inspect all steps. In completion practice, you can show or hide any missing solution without losing your writing. Principle responses are optional.',
+          'Your work stays available when you change support, pause, or visit another view. Select Check solution to compare with the full Answer and checkpoints. Grade the attempt you made before help. Hiding help again does not turn supported work into an independent attempt.',
+          'After checking the solution, select Try another problem when a linked Problem card is available. Solve that different problem without revealing its solution. Extra practice keeps its own response and does not change review dates. Return to session to continue with your original attempt.'
+        ],
+        avoid: 'Completing a step after seeing its solution does not show independent recall. Try a different case, and practice again later. An app restart clears unfinished study work, but completed reviews remain saved.'
+      },
+      {
+        title: 'Find and correct a mistake',
+        paragraphs: [
+          'In the Problem setup, add an error example to your worked example. Write a plausible mistake, identify it, explain why it is wrong, and provide corrected work. Check the correction against a reliable source and the correct worked example.',
+          'During Study, select Find the error. Locate the error, explain it, and correct the work before selecting Show correction. Twill shows the authored correction but does not judge your writing. Your responses stay available when you hide the correction, change support, pause, or return from a linked problem.',
+          'Select Worked example whenever you need to review the correct method. Error practice counts as help for the current problem. Grade your original attempt before help, then try a different linked problem without its solution.'
+        ],
+        avoid: 'If the method is new, study the correct example first. An erroneous example should always be clearly labeled and paired with a checked correction.'
       }
     ],
     related: [ 'explain', 'feedback', 'grading' ]

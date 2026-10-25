@@ -186,6 +186,9 @@ pub enum LibraryError {
     #[error("problem card checkpoints must be unique")]
     DuplicateProblemCheckpoint,
 
+    #[error("{message}")]
+    InvalidWorkedExample { message: &'static str },
+
     #[error("this template is used by {retrieval_form_count} active retrieval forms")]
     TemplateInUse { retrieval_form_count: i64 },
 

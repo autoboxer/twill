@@ -7,6 +7,8 @@ import ClozePreview from './ClozePreview.vue';
 import ImageOcclusionPreview from './ImageOcclusionPreview.vue';
 import RichContentEditor from './RichContentEditor.vue';
 import ConceptCardPreview from './ConceptCardPreview.vue';
+import WorkedExampleEditor from './WorkedExampleEditor.vue';
+import { normalizeWorkedExample, workedExampleError } from '../problem/workedExamples';
 import StudyHelpButton from './StudyHelpButton.vue';
 import {
   collectClozeGroups,
@@ -120,6 +122,7 @@ const form = reactive({
   explainFocus: 'why',
   explainKeyPoints: [ '' ],
   problemCheckpoints: [ '' ],
+  problemWorkedExample: null,
   retrievalFormIds: [ STANDARD_RECALL_ID ],
   tagIds: [],
   typeAnswerAcceptedAnswers: [ '' ],
@@ -302,7 +305,8 @@ const previewTypeSettings = computed( () => {
 
   if ( activeSetupId.value === PROBLEM_ID ) {
     return {
-      checkpoints: form.problemCheckpoints.map( normalizeProblemCheckpoint ).filter( Boolean )
+      checkpoints: form.problemCheckpoints.map( normalizeProblemCheckpoint ).filter( Boolean ),
+      workedExample: normalizeWorkedExample( form.problemWorkedExample )
     };
   }
 
@@ -410,6 +414,9 @@ const problemCheckpointErrors = computed( () => {
 const problemCheckpointsValid = computed( () => (
   problemCheckpointErrors.value.every( ( error ) => !error )
 ) );
+const problemWorkedExampleError = computed( () => (
+  submitted.value && problemSelected.value ? workedExampleError( form.problemWorkedExample ) : ''
+) );
 const problemPromptError = computed( () => {
   if (
     !submitted.value
@@ -481,6 +488,7 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
   form.explainFocus = state.explainFocus;
   form.explainKeyPoints = state.explainKeyPoints;
   form.problemCheckpoints = state.problemCheckpoints;
+  form.problemWorkedExample = state.problemWorkedExample;
   form.retrievalFormIds = state.retrievalFormIds;
   form.tagIds = state.tagIds;
   form.typeAnswerAcceptedAnswers = state.typeAnswerAcceptedAnswers;
@@ -640,13 +648,14 @@ async function submit() {
     || Boolean( problemPromptError.value )
     || !explainKeyPointsValid.value
     || !problemCheckpointsValid.value
+    || Boolean( problemWorkedExampleError.value )
     || !acceptedAnswersValid.value
   ) {
     if ( !acceptedAnswersValid.value ) {
       activeSetupId.value = TYPE_ANSWER_ID;
     } else if ( !explainKeyPointsValid.value ) {
       activeSetupId.value = EXPLAIN_ID;
-    } else if ( !problemCheckpointsValid.value || problemPromptError.value ) {
+    } else if ( !problemCheckpointsValid.value || problemPromptError.value || problemWorkedExampleError.value ) {
       activeSetupId.value = PROBLEM_ID;
     } else if ( clozeError.value ) {
       activeSetupId.value = CLOZE_ID;
@@ -673,7 +682,8 @@ async function submit() {
     : null;
   const problem = problemSelected.value
     ? {
-      checkpoints: form.problemCheckpoints.map( normalizeProblemCheckpoint )
+      checkpoints: form.problemCheckpoints.map( normalizeProblemCheckpoint ),
+      workedExample: normalizeWorkedExample( form.problemWorkedExample )
     }
     : null;
 
@@ -1191,6 +1201,15 @@ defineExpose({ submit });
             class="problem-settings__add"
             @click="addProblemCheckpoint"
           />
+
+          <WorkedExampleEditor
+            v-model="form.problemWorkedExample"
+            :disabled="disabled"
+            :submitted="submitted"
+          />
+          <p v-if="problemWorkedExampleError" class="editor-field-error" role="alert">
+            {{ problemWorkedExampleError }}
+          </p>
         </div>
 
         <ConceptCardPreview

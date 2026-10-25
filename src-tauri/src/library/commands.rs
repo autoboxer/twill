@@ -71,6 +71,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::MissingProblemCheckpoint
             | LibraryError::MissingProblemPrompt
             | LibraryError::TooManyProblemCheckpoints { .. }
+            | LibraryError::InvalidWorkedExample { .. }
             | LibraryError::DuplicateProblemCheckpoint => "validation",
             LibraryError::DuplicateName { .. }
             | LibraryError::AuthoringMediaSessionClosed
@@ -201,6 +202,16 @@ pub(crate) fn get_linked_practice(
 ) -> CommandResult<LinkedPracticeCase> {
     PracticeLinkLibrary::new(local_data.inner())
         .practice(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_problem_practice_links(
+    local_data: State<'_, LocalDataStore>,
+    concept_id: String,
+) -> CommandResult<Vec<PracticeLink>> {
+    PracticeLinkLibrary::new(local_data.inner())
+        .problem_links(&concept_id)
         .map_err(Into::into)
 }
 

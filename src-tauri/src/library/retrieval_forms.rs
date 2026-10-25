@@ -3,6 +3,8 @@ use std::collections::HashSet;
 use serde_json::{Map, Value};
 use uuid::Uuid;
 
+mod worked_examples;
+
 use crate::library::{
     ClozeSettings, ExplainSettings, ImageOcclusionSettings, LibraryError, LibraryResult,
     ProblemSettings, RetrievalFormKind, TypeAnswerSettings,
@@ -201,7 +203,13 @@ pub(crate) fn normalize_problem(settings: ProblemSettings) -> LibraryResult<Prob
         checkpoints.push(checkpoint);
     }
 
-    Ok(ProblemSettings { checkpoints })
+    Ok(ProblemSettings {
+        checkpoints,
+        worked_example: settings
+            .worked_example
+            .map(worked_examples::normalize)
+            .transpose()?,
+    })
 }
 
 pub(crate) fn parse_retrieval_form_configuration(
@@ -302,6 +310,7 @@ mod tests {
             (
                 RetrievalFormConfiguration::Problem(ProblemSettings {
                     checkpoints: vec!["Check the units".to_owned()],
+                    worked_example: None,
                 }),
                 RetrievalFormKind::Problem,
                 json!({ "checkpoints": ["Check the units"] }),

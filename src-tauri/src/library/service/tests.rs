@@ -26,6 +26,186 @@ fn test_store() -> (TempDir, LocalDataStore) {
     (directory, store)
 }
 
+#[test]
+fn worked_example_edits_preserve_card_schedule_and_reject_invalid_writes() {
+    let (directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let input = json!({
+        "title": "Worked acceleration",
+        "includeStandardRecall": false,
+        "content": {
+            "schemaVersion": 1,
+            "prompt": { "type": "doc", "content": [{
+                "type": "paragraph", "content": [{
+                    "type": "text", "text": "Find the acceleration."
+                }]
+            }] },
+            "answer": { "type": "doc", "content": [{
+                "type": "paragraph", "content": [{ "type": "text", "text": "4 m/s²" }]
+            }] }
+        },
+        "problem": {
+            "checkpoints": ["Include units."],
+            "workedExample": { "steps": [{
+                "id": "0192abf7-22b3-7000-8000-000000000001",
+                "prompt": "  Apply the law.  ",
+                "solution": "  a = F / m\na = 4 m/s²  ",
+                "principlePrompt": "Why does this equation apply?",
+                "showInCompletion": true
+            }] }
+        }
+    });
+    let mut invalid = input.clone();
+
+    invalid["problem"]["workedExample"]["steps"][0]["solution"] = json!(" ");
+    assert!(library
+        .create_concept(serde_json::from_value(invalid).unwrap())
+        .is_err());
+    assert!(library.search(Default::default()).unwrap().concepts.is_empty());
+
+    let concept = library
+        .create_concept(serde_json::from_value(input).unwrap())
+        .unwrap();
+    let original_card = &concept.cards[0];
+    let review = library
+        .record_review(RecordReviewInput {
+            card_id: original_card.id.clone(),
+            rating: ReviewRating::Good,
+            assisted: false,
+        })
+        .unwrap();
+    let mut update = json!({
+        "id": concept.id,
+        "title": concept.title,
+        "content": concept.content,
+        "includeStandardRecall": false,
+        "problem": original_card.problem,
+    });
+
+    update["problem"]["workedExample"]["steps"][0]["showInCompletion"] = json!(false);
+    let updated = library
+        .update_concept(serde_json::from_value(update.clone()).unwrap())
+        .unwrap();
+    let card = &updated.cards[0];
+
+    assert_eq!(card.id, original_card.id);
+    assert_eq!(card.review_count, 1);
+    assert_eq!(card.due_at, review.due_at);
+    let example = card.problem.as_ref().unwrap().worked_example.as_ref().unwrap();
+    let step = &example.steps[0];
+
+    assert_eq!(step.id, "0192abf7-22b3-7000-8000-000000000001");
+    assert_eq!(step.prompt, "Apply the law.");
+    assert_eq!(step.solution, "a = F / m\na = 4 m/s²");
+    assert!(!step.show_in_completion);
+
+    update["problem"]["workedExample"]["steps"][0]["id"] = json!("invalid");
+    assert!(library
+        .update_concept(serde_json::from_value(update.clone()).unwrap())
+        .is_err());
+    assert_eq!(library.concept(&concept.id).unwrap(), updated);
+
+    drop(library);
+    drop(store);
+    let reopened = LocalDataStore::open(directory.path()).unwrap();
+
+    assert_eq!(
+        ConceptLibrary::new(&reopened).concept(&concept.id).unwrap(),
+        updated
+    );
+    update["problem"]["workedExample"] = serde_json::Value::Null;
+    let removed = ConceptLibrary::new(&reopened)
+        .update_concept(serde_json::from_value(update).unwrap())
+        .unwrap();
+
+    assert_eq!(removed.cards[0].id, original_card.id);
+    assert_eq!(removed.cards[0].review_count, 1);
+    assert!(removed.cards[0].problem.as_ref().unwrap().worked_example.is_none());
+}
+
+#[test]
+fn error_diagnosis_edits_are_atomic_and_preserve_the_reviewed_problem() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let input = json!({
+        "title": "Diagnose a force calculation", "includeStandardRecall": false,
+        "content": {
+            "schemaVersion": 1,
+            "prompt": { "type": "doc", "content": [{ "type": "paragraph", "content": [{
+                "type": "text", "text": "Find the acceleration for F = 12 N and m = 3 kg."
+            }] }] },
+            "answer": { "type": "doc", "content": [{ "type": "paragraph", "content": [{
+                "type": "text", "text": "a = 4 m/s²"
+            }] }] }
+        },
+        "problem": {
+            "checkpoints": ["Use a = F / m."],
+            "workedExample": {
+                "steps": [{
+                    "id": "0192abf7-22b3-7000-8000-000000000001",
+                    "prompt": "Find acceleration.", "solution": "a = F / m = 4 m/s²",
+                    "principlePrompt": "", "showInCompletion": false
+                }],
+                "errorDiagnosis": {
+                    "attempt": "a = m / F = 0.25 m/s²", "location": "Rearrangement.",
+                    "explanation": "Force must be divided by mass.",
+                    "correction": "a = F / m = 4 m/s²"
+                }
+            }
+        }
+    });
+    let mut invalid = input.clone();
+
+    invalid["problem"]["workedExample"]["errorDiagnosis"]["correction"] = json!(" ");
+    assert!(library
+        .create_concept(serde_json::from_value(invalid).unwrap())
+        .is_err());
+    assert!(library.search(Default::default()).unwrap().concepts.is_empty());
+
+    let concept = library
+        .create_concept(serde_json::from_value(input).unwrap())
+        .unwrap();
+    let card_id = concept.cards[0].id.clone();
+
+    library
+        .record_review(RecordReviewInput {
+            card_id: card_id.clone(),
+            rating: ReviewRating::Good,
+            assisted: false,
+        })
+        .unwrap();
+
+    let reviewed = library.concept(&concept.id).unwrap();
+    let changes_before = store.changes_after(0, 100).unwrap().len();
+    let mut edit = json!({
+        "id": concept.id, "title": concept.title, "content": concept.content,
+        "includeStandardRecall": false, "problem": reviewed.cards[0].problem
+    });
+
+    edit["problem"]["workedExample"]["errorDiagnosis"]["explanation"] = json!(" ");
+    assert!(library
+        .update_concept(serde_json::from_value(edit.clone()).unwrap())
+        .is_err());
+    assert_eq!(library.concept(&concept.id).unwrap(), reviewed);
+    assert_eq!(store.changes_after(0, 100).unwrap().len(), changes_before);
+
+    edit["problem"]["workedExample"]["errorDiagnosis"] = serde_json::Value::Null;
+    let removed = library
+        .update_concept(serde_json::from_value(edit).unwrap())
+        .unwrap();
+
+    assert_eq!(removed.cards[0].id, card_id);
+    assert_eq!(removed.cards[0].due_at, reviewed.cards[0].due_at);
+    assert_eq!(removed.cards[0].review_count, 1);
+    let example = removed.cards[0].problem.as_ref().unwrap().worked_example.as_ref().unwrap();
+
+    assert!(example.error_diagnosis.is_none());
+    assert_eq!(
+        example.steps,
+        reviewed.cards[0].problem.as_ref().unwrap().worked_example.as_ref().unwrap().steps
+    );
+}
+
 fn png_bytes() -> Vec<u8> {
     let mut bytes = Cursor::new(Vec::new());
 
@@ -1337,7 +1517,10 @@ fn problem_checkpoints_are_validated_normalized_and_queued() {
         content: content.clone(),
         include_standard_recall: false,
         template_ids: Vec::new(),
-        problem: Some(ProblemSettings { checkpoints }),
+        problem: Some(ProblemSettings {
+            checkpoints,
+            worked_example: None,
+        }),
         explain: None,
         type_answer: None,
     };
@@ -1352,6 +1535,7 @@ fn problem_checkpoints_are_validated_normalized_and_queued() {
             template_ids: Vec::new(),
             problem: Some(ProblemSettings {
                 checkpoints: vec!["Solve the problem.".to_owned()],
+                worked_example: None,
             }),
             explain: None,
             type_answer: None,
@@ -1443,6 +1627,7 @@ fn problem_edits_keep_schedules_and_readded_forms_start_fresh() {
             template_ids: Vec::new(),
             problem: Some(ProblemSettings {
                 checkpoints: vec!["Choose a kinematic equation.".to_owned()],
+                worked_example: None,
             }),
             explain: None,
             type_answer: None,
@@ -1473,6 +1658,7 @@ fn problem_edits_keep_schedules_and_readded_forms_start_fresh() {
                     "Choose a kinematic equation.".to_owned(),
                     "Substitute the known values.".to_owned(),
                 ],
+                worked_example: None,
             }),
             explain: None,
             type_answer: None,
@@ -1523,6 +1709,7 @@ fn problem_edits_keep_schedules_and_readded_forms_start_fresh() {
             template_ids: Vec::new(),
             problem: Some(ProblemSettings {
                 checkpoints: vec!["Check the units.".to_owned()],
+                worked_example: None,
             }),
             explain: None,
             type_answer: None,

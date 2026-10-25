@@ -9,6 +9,7 @@ import DeferredEditQueue from '../components/DeferredEditQueue.vue';
 import DeferredEditNoteDialog from '../components/DeferredEditNoteDialog.vue';
 import ExplainResponse from '../components/ExplainResponse.vue';
 import ProblemResponse from '../components/ProblemResponse.vue';
+import StudyProblemSteps from '../components/StudyProblemSteps.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
 import StudyAnswerParts from '../components/StudyAnswerParts.vue';
 import StudyAssistance from '../components/StudyAssistance.vue';
@@ -75,6 +76,7 @@ const {
   gradingModeError,
   gradingModeLocked,
   gradingModePending,
+  guidedProblem,
   hasCards,
   initialLoading,
   isComplete,
@@ -140,16 +142,28 @@ const {
   active: linkedAttempt,
   available: linkedPracticeAvailable,
   choose: chooseLinkedPractice,
+  chooseProblems: chooseProblemPractice,
   close: closeLinkedPracticePicker,
   error: linkedPracticeError,
   links: practiceLinks,
   loadLinks: reloadPracticeLinks,
   loading: linkedPracticeLoading,
   open: linkedPracticePickerOpen,
+  problemLinks,
+  problemsOnly: problemPracticePicker,
   results: linkedPracticeResults,
   select: selectPracticeLink,
   selectedCase: selectedPracticeCase
 } = linkedPractice;
+const {
+  state: guidedProblemState,
+  error: guidedProblemError,
+  chooseMode: chooseProblemMode,
+  toggleSolution: toggleProblemSolution,
+  setResponse: setProblemStepResponse,
+  setDiagnosisResponse,
+  toggleCorrection: toggleProblemCorrection
+} = guidedProblem;
 const {
   active: comparisonAttempt,
   error: caseComparisonError,
@@ -572,6 +586,24 @@ useStartupReady( initialLoading );
     />
 
     <UAlert
+      v-if="guidedProblemError"
+      title="This problem could not be resumed"
+      :description="guidedProblemError"
+      icon="i-lucide-circle-alert"
+      color="error"
+      variant="subtle"
+    />
+
+    <UAlert
+      v-if="linkedPracticeError && linkedPracticeActive && !linkedPracticePickerOpen"
+      title="This practice case could not be resumed"
+      description="Your work is preserved. Try resuming again."
+      icon="i-lucide-circle-alert"
+      color="error"
+      variant="subtle"
+    />
+
+    <UAlert
       v-if="deferredError"
       class="study-mode-error"
       title="Queued edits need attention"
@@ -911,9 +943,38 @@ useStartupReady( initialLoading );
             :revealed="answerRevealed"
             :checks="comparisonChecks"
             :disabled="actionsBlocked"
+            :guided-mode="guidedProblemState.mode"
             @update:model-value="studyResponse = $event"
             @compare="setComparison"
-          />
+          >
+            <template v-if="problemSettings.workedExample && !pretestActive" #guidance>
+              <StudyProblemSteps
+                :example="problemSettings.workedExample"
+                :state="guidedProblemState"
+                :revealed="answerRevealed"
+                :disabled="actionsBlocked"
+                @mode="chooseProblemMode"
+                @toggle="toggleProblemSolution"
+                @response="setProblemStepResponse"
+                @principle="( id, value ) => setProblemStepResponse( id, value, true )"
+                @diagnosis="setDiagnosisResponse"
+                @correction="toggleProblemCorrection"
+              />
+            </template>
+          </ProblemResponse>
+
+          <UButton
+            v-if="problemSettings?.workedExample && answerRevealed && !linkedPracticeActive && problemLinks.length"
+            leading-icon="i-lucide-arrow-right"
+            color="neutral"
+            variant="link"
+            size="sm"
+            :disabled="actionsBlocked"
+            data-twill-next-problem
+            @click="chooseProblemPractice"
+          >
+            Try another problem
+          </UButton>
 
           <StudyAssistance
             v-if="!pretestActive"
@@ -1328,6 +1389,7 @@ useStartupReady( initialLoading );
       :open="linkedPracticePickerOpen"
       :links="practiceLinks"
       :selected-case="selectedPracticeCase"
+      :problems-only="problemPracticePicker"
       :loading="linkedPracticeLoading || caseComparisonLoading"
       :error="caseComparisonError || linkedPracticeError"
       @close="closeLinkedPracticePicker"

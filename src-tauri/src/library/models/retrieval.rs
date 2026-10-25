@@ -98,4 +98,33 @@ pub struct ExplainSettings {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProblemSettings {
     pub checkpoints: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worked_example: Option<WorkedExample>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkedExample {
+    pub steps: Vec<WorkedStep>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_diagnosis: Option<ProblemErrorDiagnosis>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProblemErrorDiagnosis {
+    pub attempt: String,
+    pub location: String,
+    pub explanation: String,
+    pub correction: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkedStep {
+    pub id: String,
+    pub prompt: String,
+    pub solution: String,
+    pub principle_prompt: String,
+    pub show_in_completion: bool,
 }

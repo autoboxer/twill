@@ -11,9 +11,12 @@ export function useLinkedPractice({ sourceCard, answerRevealed, blocked }) {
   const loading = ref( false );
   const error = ref( '' );
   const results = ref([]);
+  const problemLinks = ref([]);
+  const problemsOnly = ref( false );
   const available = computed( () => !active.value && Boolean( sourceCard.value )
     && answerRevealed.value && !blocked.value );
   let sequence = 0;
+  let problemLinksSequence = 0;
   let disposed = false;
 
   function close() {
@@ -22,6 +25,7 @@ export function useLinkedPractice({ sourceCard, answerRevealed, blocked }) {
     selectedCase.value = null;
     loading.value = false;
     error.value = '';
+    problemsOnly.value = false;
   }
 
   async function choose() {
@@ -33,6 +37,39 @@ export function useLinkedPractice({ sourceCard, answerRevealed, blocked }) {
     open.value = true;
     links.value = [];
     await loadLinks();
+  }
+
+  async function chooseProblems() {
+    if ( !available.value || !problemLinks.value.length ) {
+      return;
+    }
+
+    close();
+    problemsOnly.value = true;
+    open.value = true;
+    links.value = [];
+    await loadLinks();
+  }
+
+  async function refreshProblemLinks() {
+    const token = ++problemLinksSequence;
+    const source = sourceCard.value;
+
+    problemLinks.value = [];
+
+    if ( !available.value || !source?.problem?.workedExample ) {
+      return;
+    }
+
+    try {
+      const result = await invoke( 'get_problem_practice_links', { conceptId: source.conceptId });
+
+      if ( !disposed && token === problemLinksSequence && sourceCard.value?.id === source.id ) {
+        problemLinks.value = result;
+      }
+    } catch {
+      // The general linked-practice picker remains available for retry and recovery
+    }
   }
 
   async function request( load, apply ) {
@@ -69,7 +106,9 @@ export function useLinkedPractice({ sourceCard, answerRevealed, blocked }) {
     selectedCase.value = null;
 
     return request(
-      () => invoke( 'get_practice_links', { conceptId: sourceCard.value.conceptId }),
+      () => invoke( problemsOnly.value ? 'get_problem_practice_links' : 'get_practice_links', {
+        conceptId: sourceCard.value.conceptId
+      }),
       ( result ) => {
         links.value = result;
         return true;
@@ -110,6 +149,7 @@ export function useLinkedPractice({ sourceCard, answerRevealed, blocked }) {
 
   function start( cardId, origin ) {
     const selected = selectedCase.value;
+    const problemRequested = problemsOnly.value;
 
     if ( !open.value || loading.value || !selected || active.value || blocked.value ) {
       return false;
@@ -131,7 +171,7 @@ export function useLinkedPractice({ sourceCard, answerRevealed, blocked }) {
 
       const card = result.cards.find( ( candidate ) => candidate.id === cardId );
 
-      if ( !card ) {
+      if ( !card || ( problemRequested && card.retrievalKind !== 'problem' ) ) {
         selectedCase.value = result;
         error.value = 'This card is no longer available. Choose another card.';
         return false;
@@ -174,6 +214,8 @@ export function useLinkedPractice({ sourceCard, answerRevealed, blocked }) {
     close();
     active.value = null;
     results.value = [];
+    problemLinksSequence += 1;
+    problemLinks.value = [];
   }
 
   function snapshot() {
@@ -212,13 +254,21 @@ export function useLinkedPractice({ sourceCard, answerRevealed, blocked }) {
             && card?.conceptLastChangeId === practice.card.conceptLastChangeId
             && JSON.stringify( card?.template ) === JSON.stringify( practice.card.template )
         };
-      } catch {
+      } catch ( cause ) {
+        if ( ![ 'notFound', 'validation' ].includes( cause?.code ) ) {
+          throw cause;
+        }
+
         try {
           const source = await invoke( 'get_concept', { conceptId: practice.sourceConceptId });
 
           return { valid: false, sourceChanged: source.archived || source.lastChangeId !== practice.sourceLastChangeId };
         } catch ( cause ) {
-          return { valid: false, sourceChanged: cause?.code === 'notFound' };
+          if ( cause?.code !== 'notFound' ) {
+            throw cause;
+          }
+
+          return { valid: false, sourceChanged: true };
         }
       }
     }, ( result ) => {
@@ -230,16 +280,19 @@ export function useLinkedPractice({ sourceCard, answerRevealed, blocked }) {
   }
 
   watch( () => sourceCard.value?.id, close, { flush: 'sync' });
+  watch([ () => sourceCard.value?.id, available ], refreshProblemLinks, { immediate: true });
 
   onBeforeUnmount( () => {
     disposed = true;
     sequence += 1;
+    problemLinksSequence += 1;
   });
 
   return {
     active,
     available,
     choose,
+    chooseProblems,
     close,
     error,
     finish,
@@ -247,6 +300,8 @@ export function useLinkedPractice({ sourceCard, answerRevealed, blocked }) {
     loadLinks,
     loading,
     open,
+    problemLinks,
+    problemsOnly,
     reset,
     restore,
     results,

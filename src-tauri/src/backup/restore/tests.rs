@@ -26,6 +26,62 @@ fn concept_input(title: &str) -> CreateConceptInput {
 }
 
 #[test]
+fn backup_round_trip_preserves_worked_steps_completion_visibility_and_error_diagnosis() {
+    let root = tempdir().unwrap();
+    let source = LocalDataStore::open(root.path().join("source")).unwrap();
+    let mut input = concept_input("Worked example round trip");
+
+    input.include_standard_recall = false;
+    input.content.prompt = json!({ "type": "doc", "content": [{
+        "type": "paragraph", "content": [{
+            "type": "text", "text": "Find the acceleration."
+        }]
+    }] });
+    let settings = json!({
+        "checkpoints": ["Include units."],
+        "workedExample": { "steps": [{
+            "id": "0192abf7-22b3-7000-8000-000000000001",
+            "prompt": "Apply Newton’s second law. 網",
+            "solution": "a = F / m\na = 4 m/s²",
+            "principlePrompt": "Why does the law apply?",
+            "showInCompletion": true
+        }, {
+            "id": "0192abf7-22b3-7000-8000-000000000002",
+            "prompt": "Check units.",
+            "solution": "N/kg = m/s²",
+            "principlePrompt": "",
+            "showInCompletion": false
+        }], "errorDiagnosis": {
+            "attempt": "a = m / F = 0.25 m/s²", "location": "Rearrangement.",
+            "explanation": "Force must be divided by mass. 網",
+            "correction": "a = F / m\na = 4 m/s²"
+        } }
+    });
+
+    input.problem = Some(serde_json::from_value(settings).unwrap());
+    let concept = ConceptLibrary::new(&source).create_concept(input).unwrap();
+    let archive = root.path().join("worked-example.twill");
+
+    create_backup(&source, &archive).unwrap();
+
+    let preview = inspect_backup(&archive).unwrap();
+    let profile = root.path().join("target");
+    let target = LocalDataStore::open(&profile).unwrap();
+
+    prepare_restore(&profile, &archive, &preview.fingerprint).unwrap();
+    drop(target);
+
+    let restored = open_with_restore(&profile, || Ok(LocalDataStore::open(&profile)?)).unwrap();
+    let library = ConceptLibrary::new(&restored);
+
+    assert_eq!(library.concept(&concept.id).unwrap().cards, concept.cards);
+    assert_eq!(
+        library.study_queue().unwrap().cards[0].problem,
+        concept.cards[0].problem
+    );
+}
+
+#[test]
 fn backup_round_trip_preserves_assistance_answer_parts_media_and_assisted_reviews() {
     let root = tempdir().unwrap();
     let source = LocalDataStore::open(root.path().join("source")).unwrap();
