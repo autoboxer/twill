@@ -830,6 +830,7 @@ defineExpose({ submit });
           :cloze-enabled="clozeSelected"
           :disabled="disabled"
           :image-occlusion-enabled="imageOcclusionSelected"
+          image-labels-enabled
         />
 
         <RichContentEditor

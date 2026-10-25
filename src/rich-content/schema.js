@@ -59,6 +59,8 @@ const MediaImage = Node.create({
       imageOcclusionDocument: null,
       imageOcclusionDisplay: null,
       imageEditingEnabled: null,
+      imageLabelsEnabled: false,
+      imageLabelsPreview: false,
       imageOcclusionEnabled: false
     };
   },
@@ -87,6 +89,10 @@ const MediaImage = Node.create({
           : {}
       },
       occlusionRegions: {
+        default: [],
+        rendered: false
+      },
+      labelTargets: {
         default: [],
         rendered: false
       },
@@ -276,6 +282,8 @@ export function richDocumentHasContent( document ) {
 export function createRichContentExtensions({
   codeBlockEditingEnabled = null,
   imageEditingEnabled = null,
+  imageLabelsEnabled = false,
+  imageLabelsPreview = false,
   imageOcclusionDocument = null,
   imageOcclusionDisplay = null,
   imageOcclusionEnabled = false,
@@ -334,6 +342,8 @@ export function createRichContentExtensions({
     AnswerPart,
     MediaImage.configure({
       imageEditingEnabled,
+      imageLabelsEnabled,
+      imageLabelsPreview,
       imageOcclusionDocument,
       imageOcclusionDisplay,
       imageOcclusionEnabled

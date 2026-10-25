@@ -378,6 +378,20 @@
   object-fit: contain;
 }
 
+.rich-image__frame--labeled {
+  display: block;
+  width: 100%;
+  min-height: 0;
+}
+
+.rich-image--labeled {
+  display: block;
+}
+
+.rich-image--labeled > .rich-image__controls {
+  margin-top: 0.55rem;
+}
+
 .rich-image__state {
   display: flex;
   min-height: 8rem;

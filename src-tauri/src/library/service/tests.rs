@@ -27,6 +27,60 @@ fn test_store() -> (TempDir, LocalDataStore) {
 }
 
 #[test]
+fn image_label_edits_preserve_media_schedules_and_reject_invalid_writes() {
+    let (directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let media = library.import_image(&png_bytes()).unwrap();
+    let target_id = uuid::Uuid::now_v7().to_string();
+    let mut input = json!({
+        "title": "Labeled cell diagram",
+        "content": { "schemaVersion": 1, "prompt": { "type": "doc", "content": [{
+            "type": "mediaImage", "attrs": { "mediaId": media.id, "labelTargets": [{
+                "id": target_id, "x": 0.3, "y": 0.4, "label": "Nucleus",
+                "alternatives": ["Cell nucleus"], "description": "The round structure."
+            }] }
+        }] }, "answer": ConceptContent::default().answer }
+    });
+    let concept = library.create_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+
+    library.record_review(RecordReviewInput {
+        card_id: concept.cards[0].id.clone(), rating: ReviewRating::Good, assisted: false,
+    }).unwrap();
+
+    let reviewed = library.concept(&concept.id).unwrap();
+    input["id"] = json!(concept.id);
+    input["content"]["prompt"]["content"][0]["attrs"]["labelTargets"][0]["x"] = json!(0.75);
+    let updated = library.update_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+
+    assert_eq!(updated.cards, reviewed.cards);
+    assert_eq!(updated.media, reviewed.media);
+    assert_eq!(updated.content.prompt["content"][0]["attrs"]["labelTargets"][0]["id"], target_id);
+
+    input["content"]["prompt"]["content"][0]["attrs"]["labelTargets"][0]["label"] = json!(" ");
+    assert!(library.update_concept(serde_json::from_value(input.clone()).unwrap()).is_err());
+    assert_eq!(library.concept(&concept.id).unwrap(), updated);
+
+    let mut invalid_create = input.clone();
+    invalid_create.as_object_mut().unwrap().remove("id");
+    assert!(library.create_concept(serde_json::from_value(invalid_create).unwrap()).is_err());
+    assert_eq!(library.search(Default::default()).unwrap().concepts.len(), 1);
+
+    drop(library);
+    drop(store);
+    let reopened = LocalDataStore::open(directory.path()).unwrap();
+    let library = ConceptLibrary::new(&reopened);
+
+    assert_eq!(library.concept(&concept.id).unwrap(), updated);
+
+    input["content"]["prompt"]["content"][0]["attrs"]["labelTargets"] = json!([]);
+    let removed = library.update_concept(serde_json::from_value(input).unwrap()).unwrap();
+
+    assert_eq!(removed.cards, reviewed.cards);
+    assert_eq!(removed.media, reviewed.media);
+    assert_eq!(std::fs::read_dir(reopened.media_directory()).unwrap().count(), 1);
+}
+
+#[test]
 fn worked_example_edits_preserve_card_schedule_and_reject_invalid_writes() {
     let (directory, store) = test_store();
     let library = ConceptLibrary::new(&store);

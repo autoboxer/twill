@@ -3,6 +3,8 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value};
 use uuid::Uuid;
 
+mod image_labels;
+
 use crate::library::{
     ConceptContent, LibraryError, LibraryResult, RICH_CONTENT_SCHEMA_VERSION,
 };
@@ -44,6 +46,7 @@ struct ValidationState {
     image_occlusion_group_ids: Vec<String>,
     image_occlusion_group_sources: HashMap<String, usize>,
     image_occlusion_region_ids: HashSet<String>,
+    image_label_ids: HashSet<String>,
     media_ids: HashSet<String>,
     node_count: usize,
     text_length: usize,
@@ -70,6 +73,7 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
         image_occlusion_group_ids: Vec::new(),
         image_occlusion_group_sources: HashMap::new(),
         image_occlusion_region_ids: HashSet::new(),
+        image_label_ids: HashSet::new(),
         media_ids: HashSet::new(),
         node_count: 0,
         text_length: 0,
@@ -605,7 +609,7 @@ fn validate_media_image(
     let attributes = required_attributes(object, field)?;
     ensure_keys(
         attributes,
-        &["mediaId", "alt", "title", "occlusionRegions", "width"],
+        &["mediaId", "alt", "title", "occlusionRegions", "labelTargets", "width"],
         field,
     )?;
 
@@ -628,6 +632,7 @@ fn validate_media_image(
         field,
     )?;
     validate_image_occlusion_regions(attributes, field, state)?;
+    image_labels::validate(attributes, field, &mut state.image_label_ids)?;
 
     if let Some(width) = attributes.get("width").filter(|value| !value.is_null()) {
         if !width.as_u64().is_some_and(|width| (32..=2048).contains(&width)) {

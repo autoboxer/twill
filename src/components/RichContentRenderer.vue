@@ -19,6 +19,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  imageLabelsPreview: {
+    type: Boolean,
+    default: false
+  },
   label: {
     type: String,
     required: true
@@ -26,6 +30,7 @@ const props = defineProps({
 });
 
 const extensions = createRichContentExtensions({
+  imageLabelsPreview: () => props.imageLabelsPreview,
   imageOcclusionDisplay: () => ({
     groupId: props.imageOcclusionGroupId,
     revealed: props.imageOcclusionRevealed

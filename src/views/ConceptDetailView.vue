@@ -518,6 +518,7 @@ useStartupReady( initialLoading );
           <RichContentRenderer
             :document="concept.content.prompt"
             label="Prompt"
+            image-labels-preview
           />
         </div>
 

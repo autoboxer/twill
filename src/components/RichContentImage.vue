@@ -3,6 +3,10 @@ import { NodeViewWrapper } from '@tiptap/vue-3';
 import { computed, ref } from 'vue';
 
 import ImageOcclusionCanvas from './ImageOcclusionCanvas.vue';
+import ImageLabelEditor from './ImageLabelEditor.vue';
+import ImageLabelCanvas from './ImageLabelCanvas.vue';
+import ImageLabelLegend from './ImageLabelLegend.vue';
+import { collectImageLabelTargets, imageLabelTargets } from '../image-labeling/targets';
 import { useMediaImage } from '../composables/useMediaImage';
 import { useImageResize } from '../composables/useImageResize';
 import { MINIMUM_IMAGE_WIDTH, MAXIMUM_IMAGE_WIDTH } from '../rich-content/images';
@@ -55,6 +59,22 @@ const {
 }, isEditable );
 const mediaId = computed( () => props.node.attrs.mediaId ?? '' );
 const occlusionDialogOpen = ref( false );
+const labelDialogOpen = ref( false );
+const labelTargets = computed( () => imageLabelTargets( props.node ) );
+const selectedLabelId = ref( '' );
+const selectedLabelIndex = computed( () => Math.max(
+  0, labelTargets.value.findIndex( target => target.id === selectedLabelId.value )
+) );
+const selectedLabel = computed( () => labelTargets.value[ selectedLabelIndex.value ]);
+const imageLabelsEnabled = computed( () => isEditable.value
+  && optionEnabled( props.extension.options.imageLabelsEnabled )
+);
+const imageLabelsPreview = computed( () => labelTargets.value.length
+  && ( imageLabelsEnabled.value || optionEnabled( props.extension.options.imageLabelsPreview ) )
+);
+const otherLabelTargetCount = computed( () => Math.max(
+  0, collectImageLabelTargets( promptDocument.value ).length - labelTargets.value.length
+) );
 const regions = computed( () => imageOcclusionRegions( props.node ) );
 const studyDisplay = computed( () => {
   const configuredDisplay = props.extension.options.imageOcclusionDisplay;
@@ -162,6 +182,10 @@ const capacityMessage = computed( () => {
 
 const { imageError, imageLoading, imageUrl } = useMediaImage( mediaId );
 
+function optionEnabled( option ) {
+  return Boolean( typeof option === 'function' ? option() : option );
+}
+
 function updateAlt( event ) {
   props.updateAttributes({
     alt: event.target.value || null
@@ -258,11 +282,16 @@ function regionCardLabel( region ) {
   <NodeViewWrapper
     as="figure"
     class="rich-image"
-    :class="{ 'rich-image--editable': isEditable, 'rich-image--sized': displayWidth !== null }"
+    :class="{
+      'rich-image--editable': isEditable,
+      'rich-image--sized': displayWidth !== null,
+      'rich-image--labeled': imageLabelsPreview && !studyGroupId
+    }"
   >
     <div
       ref="frame"
       class="rich-image__frame"
+      :class="{ 'rich-image__frame--labeled': imageLabelsPreview && !studyGroupId }"
       :style="displayWidth !== null ? { width: `${ displayWidth }px` } : undefined"
       data-drag-handle
     >
@@ -296,12 +325,20 @@ function regionCardLabel( region ) {
       />
 
       <img
-        v-else
+        v-else-if="!imageLabelsPreview"
         :src="imageUrl"
         :alt="alt"
         :title="node.attrs.title || undefined"
         draggable="false"
       >
+
+      <ImageLabelCanvas
+        v-else
+        :target="selectedLabel"
+        :number="selectedLabelIndex + 1"
+        :image-url="imageUrl"
+        :alt="alt"
+      />
 
       <button
         v-if="isEditable && !imageLoading && !imageError"
@@ -321,6 +358,13 @@ function regionCardLabel( region ) {
         <UIcon name="i-lucide-move-horizontal" />
       </button>
     </div>
+
+    <ImageLabelLegend
+      v-if="imageLabelsPreview && !imageLoading && !imageError && !studyGroupId"
+      :targets="labelTargets"
+      :selected-id="selectedLabel?.id"
+      @select="selectedLabelId = $event"
+    />
 
     <figcaption
       v-if="isEditable"
@@ -349,6 +393,19 @@ function regionCardLabel( region ) {
         @click="openOcclusionEditor"
       >
         {{ regions.length ? 'Edit masks' : 'Add masks' }}
+      </UButton>
+
+      <UButton
+        v-if="imageLabelsEnabled"
+        type="button"
+        leading-icon="i-lucide-map-pin"
+        color="neutral"
+        variant="subtle"
+        size="sm"
+        :disabled="imageLoading || Boolean( imageError )"
+        @click="labelDialogOpen = true"
+      >
+        {{ labelTargets.length ? 'Edit labels' : 'Add labels' }}
       </UButton>
 
       <label class="rich-image__width">
@@ -393,6 +450,16 @@ function regionCardLabel( region ) {
     <p v-if="widthError && isEditable" class="rich-editor-field__error" role="alert">
       {{ widthError }}
     </p>
+
+    <ImageLabelEditor
+      v-if="imageLabelsEnabled && imageUrl"
+      v-model:open="labelDialogOpen"
+      :targets="labelTargets"
+      :image-url="imageUrl"
+      :alt="alt"
+      :other-target-count="otherLabelTargetCount"
+      @save="updateAttributes({ labelTargets: $event })"
+    />
 
     <UModal
       v-model:open="occlusionDialogOpen"

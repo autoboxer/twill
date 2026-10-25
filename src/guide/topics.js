@@ -176,7 +176,15 @@ export const guideTopics = [
           'Check that captions, legends, and nearby labels do not reveal the answer. Practice with another accurate diagram if you need to recognize a structure in different images, rather than remember its location in one image.'
         ],
         example: 'Hide the “mitochondrion” label on a cell diagram and identify the marked structure. Use a separate Explain question if its function also matters.',
-        avoid: 'Recalling a label does not show that you understand the structure’s function. If the image has no labels to hide, write a question about the image instead.'
+        avoid: 'Recalling a label does not show that you understand the structure’s function. Practice its function separately when that matters.'
+      },
+      {
+        title: 'Prepare an unlabeled image',
+        paragraphs: [
+          'Select Add labels below a Prompt image. Add a point, place it on the image, and enter its expected label. Enter accepted alternatives on separate lines. A position description can explain where to look without naming the answer.',
+          'Use the arrow keys or percentage fields to adjust a point. Use Image zoom for small details. Select Apply labels, then save the concept. In the Library, select a numbered target to locate it and select Show labels to inspect its answers.'
+        ],
+        avoid: 'This is a diagram preview. Separate scheduled reviews for image labels are planned.'
       }
     ],
     related: [ 'explain', 'cards' ]

@@ -82,7 +82,7 @@ fn backup_round_trip_preserves_worked_steps_completion_visibility_and_error_diag
 }
 
 #[test]
-fn backup_round_trip_preserves_assistance_answer_parts_media_and_assisted_reviews() {
+fn backup_round_trip_preserves_assistance_answer_parts_image_labels_media_and_reviews() {
     let root = tempdir().unwrap();
     let source = LocalDataStore::open(root.path().join("source")).unwrap();
     let library = ConceptLibrary::new(&source);
@@ -93,6 +93,13 @@ fn backup_round_trip_preserves_assistance_answer_parts_media_and_assisted_review
     let media = library.import_image(image.get_ref()).unwrap();
     let mut input = concept_input("Help round trip");
     let group_id = uuid::Uuid::now_v7().to_string();
+    input.content.prompt = json!({ "type": "doc", "content": [{
+        "type": "mediaImage", "attrs": { "mediaId": media.id, "labelTargets": [{
+            "id": uuid::Uuid::now_v7().to_string(), "x": 0.2, "y": 0.8,
+            "label": "Nucleus 網", "alternatives": ["Cell nucleus"],
+            "description": "The round structure near the center."
+        }] }
+    }] });
     input.content.answer = json!({ "type": "doc", "content": [
         { "type": "answerPart", "attrs": { "id": uuid::Uuid::now_v7().to_string(), "groupId": group_id },
             "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "First target" }] }] },
@@ -130,6 +137,7 @@ fn backup_round_trip_preserves_assistance_answer_parts_media_and_assisted_review
     }).unwrap();
 
     assert_eq!(saved.content.assistance, concept.content.assistance);
+    assert_eq!(saved.content.prompt, concept.content.prompt);
     assert_eq!(saved.content.answer, concept.content.answer);
     assert_eq!(saved.media[0].id, media.id);
     assert!(assisted);

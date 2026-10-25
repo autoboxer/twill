@@ -44,6 +44,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  imageLabelsEnabled: {
+    type: Boolean,
+    default: false
+  },
   modelValue: {
     type: Object,
     required: true
@@ -180,6 +184,7 @@ const clozeGroupItems = computed( () => {
 const extensions = createRichContentExtensions({
   codeBlockEditingEnabled: () => !props.disabled,
   imageEditingEnabled: () => !props.disabled,
+  imageLabelsEnabled: () => props.imageLabelsEnabled,
   imageOcclusionDocument: () => document.value,
   imageOcclusionEnabled: () => props.imageOcclusionEnabled,
   onEditMath
