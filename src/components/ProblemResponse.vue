@@ -73,7 +73,7 @@ function focus() {
 
     <UFormField
       v-if="!revealed"
-      v-show="guidedMode !== 'completion'"
+      v-show="![ 'completion', 'diagnosis' ].includes( guidedMode )"
       label="Workpad"
     >
       <UTextarea

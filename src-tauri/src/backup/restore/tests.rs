@@ -26,7 +26,7 @@ fn concept_input(title: &str) -> CreateConceptInput {
 }
 
 #[test]
-fn backup_round_trip_preserves_worked_steps_and_completion_visibility() {
+fn backup_round_trip_preserves_worked_steps_completion_visibility_and_error_diagnosis() {
     let root = tempdir().unwrap();
     let source = LocalDataStore::open(root.path().join("source")).unwrap();
     let mut input = concept_input("Worked example round trip");
@@ -51,7 +51,11 @@ fn backup_round_trip_preserves_worked_steps_and_completion_visibility() {
             "solution": "N/kg = m/s²",
             "principlePrompt": "",
             "showInCompletion": false
-        }] }
+        }], "errorDiagnosis": {
+            "attempt": "a = m / F = 0.25 m/s²", "location": "Rearrangement.",
+            "explanation": "Force must be divided by mass. 網",
+            "correction": "a = F / m\na = 4 m/s²"
+        } }
     });
 
     input.problem = Some(serde_json::from_value(settings).unwrap());

@@ -230,6 +230,15 @@ export const guideTopics = [
           'After checking the solution, select Try another problem when a linked Problem card is available. Solve that different problem without revealing its solution. Extra practice keeps its own response and does not change review dates. Return to session to continue with your original attempt.'
         ],
         avoid: 'Completing a step after seeing its solution does not show independent recall. Try a different case, and practice again later. An app restart clears unfinished study work, but completed reviews remain saved.'
+      },
+      {
+        title: 'Find and correct a mistake',
+        paragraphs: [
+          'In the Problem setup, add an error example to your worked example. Write a plausible mistake, identify it, explain why it is wrong, and provide corrected work. Check the correction against a reliable source and the correct worked example.',
+          'During Study, select Find the error. Locate the error, explain it, and correct the work before selecting Show correction. Twill shows the authored correction but does not judge your writing. Your responses stay available when you hide the correction, change support, pause, or return from a linked problem.',
+          'Select Worked example whenever you need to review the correct method. Error practice counts as help for the current problem. Grade your original attempt before help, then try a different linked problem without its solution.'
+        ],
+        avoid: 'If the method is new, study the correct example first. An erroneous example should always be clearly labeled and paired with a checked correction.'
       }
     ],
     related: [ 'explain', 'feedback', 'grading' ]

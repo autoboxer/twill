@@ -44,11 +44,11 @@ and check trusted references. Not all learning needs to become a flashcard.
 | You need to recall a term in context. | Recall the term with help from its sentence. Check that it is not visible elsewhere. | Use Cloze. |
 | You know the definition but not why it matters. | Explain how it works, what it changes, or how it relates to another idea. | Use Explain. |
 | You confuse two similar things. | Identify the difference that matters, then apply it to another example. | Use Compare and contrast in Explain, or author a linked comparison with optional answer choices. |
-| You can follow a solution but cannot solve independently. | Study the method, complete part of a problem, then solve another. | Use Problem. Guided sequences are planned. |
+| You can follow a solution but cannot solve independently. | Study the method, complete part of a problem, then solve another. | Use Problem with a worked example, then try a linked problem. |
 | You know one example but struggle when the situation changes. | Practice choosing and applying the principle in a different situation. | Create separate Problem or Explain concepts and link them with a clear learning objective. |
 | You need to understand a diagram. | Identify its parts. Practice their functions or relationships separately if needed. | Use Image occlusion and Explain. Image labeling is planned. |
 | You remember facts but lose the overall structure. | Recall the important sequence or relationships, then check for missing ideas. | Use an Explain prompt with key points. More response options for this activity are planned. |
-| You repeat the same mistake. | Check your knowledge and reasoning, and make sure the question is clear and accurate. | Use feedback and Problem checkpoints. Flag unclear or incorrect cards with Needs improvement. |
+| You repeat the same mistake. | Check your knowledge and reasoning, and make sure the question is clear and accurate. | Use feedback, Problem checkpoints, or an authored Find the error activity. Flag unclear or incorrect cards with Needs improvement. |
 | Reviews are taking too much time. | Remove unnecessary content and card types. Continue to review important cards that are due. | Set a session limit, find and edit cards, or archive material you no longer need. |
 
 These starting points are alternatives. They are not a checklist to apply to
@@ -214,6 +214,29 @@ Removing help gradually can be useful, but the evidence
 does not support doing so for every example.
 [Atkinson et al., 2003](https://doi.org/10.1037/0022-0663.95.4.774),
 [Zamary & Rawson, 2018](https://doi.org/10.1007/s10648-018-9433-y).
+
+### You want to understand a recurring mistake
+
+Add an error example to an existing worked example in the Problem setup. Write
+an attempted solution containing a plausible mistake. Identify the error, explain
+why it is wrong, and supply corrected work. Verify the correction against a
+reliable source and the correct worked example. Twill cannot verify the reasoning
+for you.
+
+During Study, select Find the error. The example is explicitly labeled as
+containing an error. Locate the mistake, explain it, and write a correction.
+Select Show correction to compare your reasoning with the authored correction.
+You can hide it again without losing your writing, or select Worked example
+to review the correct method at any time. If the method is unfamiliar, study
+that correct example before trying to diagnose a mistake.
+
+This activity counts as help for the current problem, not an independent
+solution. Grade your original attempt before help. After Check solution, use
+Try another problem when a linked Problem card is available. Try that different,
+valid problem without its solution visible, and practice it again later.
+Your diagnosis responses follow the same pause and return behavior as other
+guided work. They are not automatically marked correct and are cleared by an
+app restart.
 
 ### You remember one example but cannot apply the principle elsewhere
 
@@ -648,11 +671,14 @@ objective and revisit them from Library. Study offers explicitly chosen extra
 linked practice without changing review dates. Library and Study also support
 authored two-case comparisons with optional responses, authored answer choices,
 corrective feedback and an expected explanation.
+Problem cards can include worked examples, completion steps, optional principle
+questions, and labeled error examples with authored corrections. These optional
+activities count as help, not separate scheduled forms or independently graded
+steps.
 Answer-cued related cards are
 deferred for the remainder of the current session. Focused review sessions include
-only cards that are due. Guided sequences,
-image labeling, reconstruction controls, tools for creating examples, and records
-of learning across sessions are planned.
+only cards that are due. Image labeling, reconstruction controls, tools for
+creating examples, and records of learning across sessions are planned.
 They are not available controls. References to them above describe future
 possibilities.
 

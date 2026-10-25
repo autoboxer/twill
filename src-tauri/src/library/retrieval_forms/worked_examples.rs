@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use uuid::Uuid;
 
-use crate::library::models::{WorkedExample, WorkedStep};
+use crate::library::models::{ProblemErrorDiagnosis, WorkedExample, WorkedStep};
 use crate::library::{LibraryError, LibraryResult};
 
 const MAXIMUM_STEPS: usize = 12;
@@ -34,6 +34,10 @@ pub(super) fn normalize(mut example: WorkedExample) -> LibraryResult<WorkedExamp
         normalize_step_text(step)?;
     }
 
+    if let Some(diagnosis) = &mut example.error_diagnosis {
+        normalize_error_diagnosis(diagnosis)?;
+    }
+
     Ok(example)
 }
 
@@ -50,6 +54,35 @@ fn normalize_step_text(step: &mut WorkedStep) -> LibraryResult<()> {
         "Principle question",
         MAXIMUM_PRINCIPLE_PROMPT_LENGTH,
         false,
+    )?;
+
+    Ok(())
+}
+
+fn normalize_error_diagnosis(diagnosis: &mut ProblemErrorDiagnosis) -> LibraryResult<()> {
+    diagnosis.attempt = normalize_text(
+        &diagnosis.attempt,
+        "Example with an error",
+        MAXIMUM_SOLUTION_LENGTH,
+        true,
+    )?;
+    diagnosis.location = normalize_text(
+        &diagnosis.location,
+        "Error location",
+        MAXIMUM_PROMPT_LENGTH,
+        true,
+    )?;
+    diagnosis.explanation = normalize_text(
+        &diagnosis.explanation,
+        "Error explanation",
+        MAXIMUM_SOLUTION_LENGTH,
+        true,
+    )?;
+    diagnosis.correction = normalize_text(
+        &diagnosis.correction,
+        "Corrected work",
+        MAXIMUM_SOLUTION_LENGTH,
+        true,
     )?;
 
     Ok(())
@@ -83,6 +116,7 @@ mod tests {
 
     fn example() -> WorkedExample {
         WorkedExample {
+            error_diagnosis: None,
             steps: vec![WorkedStep {
                 id: "0192abf7-22b3-7000-8000-000000000001".to_owned(),
                 prompt: "  Find the acceleration.  ".to_owned(),
@@ -182,6 +216,99 @@ mod tests {
         )
         .is_ok());
         settings["workedExample"]["steps"][0]["unexpected"] = serde_json::json!(true);
+        assert!(parse_retrieval_form_configuration(
+            RetrievalFormKind::Problem,
+            &settings.to_string()
+        )
+        .is_err());
+    }
+
+    fn diagnosis_configuration() -> serde_json::Value {
+        serde_json::json!({
+            "checkpoints": ["Include units."],
+            "workedExample": {
+                "steps": example().steps,
+                "errorDiagnosis": {
+                    "attempt": "  a = m / F\na = 3 / 12  ",
+                    "location": "  The rearrangement.  ",
+                    "explanation": "  Divide force by mass, not mass by force.  ",
+                    "correction": "  a = F / m\na = 4 m/s²  "
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn error_diagnosis_normalizes_text_and_preserves_a_correct_example() {
+        let settings = diagnosis_configuration();
+        let saved =
+            normalize(serde_json::from_value(settings["workedExample"].clone()).unwrap()).unwrap();
+        let diagnosis = saved.error_diagnosis.unwrap();
+
+        assert_eq!(diagnosis.attempt, "a = m / F\na = 3 / 12");
+        assert_eq!(diagnosis.location, "The rearrangement.");
+        assert_eq!(
+            diagnosis.explanation,
+            "Divide force by mass, not mass by force."
+        );
+        assert_eq!(diagnosis.correction, "a = F / m\na = 4 m/s²");
+        assert_eq!(saved.steps[0].solution, "a = F / m\na = 12 / 3 = 4 m/s²");
+    }
+
+    #[test]
+    fn diagnosis_requires_all_fields_with_unicode_limits_on_write_and_read() {
+        for field in ["attempt", "location", "explanation", "correction"] {
+            let maximum = if field == "location" { 280 } else { 2000 };
+            let mut settings = diagnosis_configuration();
+            settings["workedExample"]["errorDiagnosis"][field] =
+                serde_json::json!("🌿".repeat(maximum));
+            assert!(parse_retrieval_form_configuration(
+                RetrievalFormKind::Problem,
+                &settings.to_string()
+            )
+            .is_ok());
+
+            for invalid in [" \n ".to_owned(), "🌿".repeat(maximum + 1)] {
+                settings["workedExample"]["errorDiagnosis"][field] = serde_json::json!(invalid);
+                let example = serde_json::from_value(settings["workedExample"].clone()).unwrap();
+                assert!(normalize(example).is_err());
+                assert!(parse_retrieval_form_configuration(
+                    RetrievalFormKind::Problem,
+                    &settings.to_string()
+                )
+                .is_err());
+            }
+
+            settings["workedExample"]["errorDiagnosis"]
+                .as_object_mut()
+                .unwrap()
+                .remove(field);
+            assert!(parse_retrieval_form_configuration(
+                RetrievalFormKind::Problem,
+                &settings.to_string()
+            )
+            .is_err());
+        }
+
+        for invalid in [
+            serde_json::json!([]),
+            serde_json::json!("mistake"),
+            serde_json::json!({
+                "attempt": "a = m / F", "location": "Rearrangement", "explanation": "Reversed.",
+                "correction": "a = F / m", "unexpected": true
+            }),
+        ] {
+            let mut settings = diagnosis_configuration();
+            settings["workedExample"]["errorDiagnosis"] = invalid;
+            assert!(parse_retrieval_form_configuration(
+                RetrievalFormKind::Problem,
+                &settings.to_string()
+            )
+            .is_err());
+        }
+
+        let mut settings = diagnosis_configuration();
+        settings["workedExample"]["steps"] = serde_json::json!([]);
         assert!(parse_retrieval_form_configuration(
             RetrievalFormKind::Problem,
             &settings.to_string()

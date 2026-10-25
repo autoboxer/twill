@@ -1,6 +1,9 @@
 <script setup>
 import {
+  createErrorDiagnosis,
   createWorkedStep,
+  diagnosisFields,
+  errorDiagnosisErrors,
   MAXIMUM_WORKED_STEPS,
   MAXIMUM_STEP_PROMPT_LENGTH,
   MAXIMUM_STEP_SOLUTION_LENGTH,
@@ -16,7 +19,11 @@ const props = defineProps({
 const emit = defineEmits([ 'update:modelValue' ]);
 
 function updateSteps( steps ) {
-  emit( 'update:modelValue', { steps });
+  emit( 'update:modelValue', { ...props.modelValue, steps });
+}
+
+function updateDiagnosis( diagnosis ) {
+  emit( 'update:modelValue', { ...props.modelValue, errorDiagnosis: diagnosis });
 }
 
 function updateStep( id, field, value ) {
@@ -197,12 +204,68 @@ function lengthHint( value, maximum ) {
       >
         Add worked step
       </UButton>
+
+      <section class="worked-example-editor__diagnosis" data-twill-error-diagnosis-editor>
+        <div class="worked-example-editor__heading">
+          <h4>Find the error</h4>
+          <UButton
+            v-if="modelValue.errorDiagnosis"
+            type="button"
+            color="neutral"
+            variant="link"
+            size="sm"
+            :disabled="disabled"
+            @click="updateDiagnosis( null )"
+          >
+            Remove error example
+          </UButton>
+        </div>
+
+        <UButton
+          v-if="!modelValue.errorDiagnosis"
+          type="button"
+          color="neutral"
+          variant="subtle"
+          size="sm"
+          leading-icon="i-lucide-plus"
+          :disabled="disabled"
+          @click="updateDiagnosis( createErrorDiagnosis() )"
+        >
+          Add error example
+        </UButton>
+
+        <template v-else>
+          <p class="worked-example-editor__guidance">
+            Write a plausible mistake, explain it, and provide the corrected work. Check that the correction agrees with your worked example and Answer.
+          </p>
+          <UFormField
+            v-for="field in diagnosisFields"
+            :key="field.id"
+            :label="field.label"
+            :hint="lengthHint( modelValue.errorDiagnosis[ field.id ], field.maximum )"
+            :error="submitted ? errorDiagnosisErrors( modelValue.errorDiagnosis )[ field.id ] : false"
+            required
+          >
+            <UTextarea
+              :model-value="modelValue.errorDiagnosis[ field.id ]"
+              :aria-label="field.label"
+              :rows="2"
+              autoresize
+              :maxrows="8"
+              :disabled="disabled"
+              class="worked-example-editor__input"
+              @update:model-value="updateDiagnosis({ ...modelValue.errorDiagnosis, [ field.id ]: $event })"
+            />
+          </UFormField>
+        </template>
+      </section>
     </template>
   </section>
 </template>
 
 <style scoped>
 .worked-example-editor,
+.worked-example-editor__diagnosis,
 .worked-example-editor__steps,
 .worked-example-editor__steps > li {
   display: grid;
@@ -245,11 +308,17 @@ function lengthHint( value, maximum ) {
   border-top: 1px solid var(--ui-border);
 }
 
+.worked-example-editor__diagnosis {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--ui-border);
+}
+
 .worked-example-editor__input {
   width: 100%;
 }
 
-.worked-example-editor > button {
+.worked-example-editor > button,
+.worked-example-editor__diagnosis > button {
   justify-self: start;
 }
 </style>

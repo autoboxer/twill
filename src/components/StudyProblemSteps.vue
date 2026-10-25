@@ -1,4 +1,6 @@
 <script setup>
+import ProblemErrorDiagnosis from './ProblemErrorDiagnosis.vue';
+
 defineProps({
   example: { type: Object, required: true },
   state: { type: Object, required: true },
@@ -6,7 +8,7 @@ defineProps({
   disabled: { type: Boolean, default: false }
 });
 
-const emit = defineEmits([ 'mode', 'toggle', 'response', 'principle' ]);
+const emit = defineEmits([ 'mode', 'toggle', 'response', 'principle', 'diagnosis', 'correction' ]);
 const modes = [
   { id: 'workpad', label: 'Workpad' },
   { id: 'completion', label: 'Complete steps' },
@@ -30,9 +32,31 @@ const modes = [
       >
         {{ mode.label }}
       </UButton>
+      <UButton
+        v-if="example.errorDiagnosis"
+        type="button"
+        color="neutral"
+        :variant="state.mode === 'diagnosis' ? 'subtle' : 'ghost'"
+        size="sm"
+        :aria-pressed="state.mode === 'diagnosis'"
+        :disabled="disabled"
+        @click="emit( 'mode', 'diagnosis' )"
+      >
+        Find the error
+      </UButton>
     </div>
 
-    <ol v-if="state.mode !== 'workpad'" class="study-problem-steps__list">
+    <ProblemErrorDiagnosis
+      v-if="state.mode === 'diagnosis' && example.errorDiagnosis"
+      :diagnosis="example.errorDiagnosis"
+      :responses="state.diagnosis"
+      :revealed="state.correctionShown"
+      :checked="revealed"
+      :disabled="disabled"
+      @response="( field, value ) => emit( 'diagnosis', field, value )"
+      @toggle="emit( 'correction' )"
+    />
+    <ol v-else-if="state.mode !== 'workpad'" class="study-problem-steps__list">
       <li v-for="( step, index ) in example.steps" :key="step.id" :data-twill-step="step.id">
         <h3>{{ index + 1 }}. {{ step.prompt }}</h3>
 

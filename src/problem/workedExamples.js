@@ -5,6 +5,29 @@ export const MAXIMUM_STEP_PROMPT_LENGTH = 280;
 export const MAXIMUM_STEP_SOLUTION_LENGTH = 2000;
 export const MAXIMUM_PRINCIPLE_PROMPT_LENGTH = 500;
 
+export const diagnosisFields = [
+  {
+    id: 'attempt', label: 'Example with an error', maximum: MAXIMUM_STEP_SOLUTION_LENGTH,
+    requiredMessage: 'Write an example containing an error.'
+  },
+  {
+    id: 'location', label: 'Error location', maximum: MAXIMUM_STEP_PROMPT_LENGTH,
+    requiredMessage: 'Identify the error.'
+  },
+  {
+    id: 'explanation', label: 'Why it is wrong', maximum: MAXIMUM_STEP_SOLUTION_LENGTH,
+    requiredMessage: 'Explain why the step is wrong.'
+  },
+  {
+    id: 'correction', label: 'Corrected work', maximum: MAXIMUM_STEP_SOLUTION_LENGTH,
+    requiredMessage: 'Provide the corrected work.'
+  }
+];
+
+export function createErrorDiagnosis() {
+  return Object.fromEntries( diagnosisFields.map( ({ id }) => [ id, '' ]) );
+}
+
 export function createWorkedStep() {
   return {
     id: createUuid(),
@@ -20,7 +43,7 @@ export function cloneWorkedExample( example ) {
     return null;
   }
 
-  return {
+  const cloned = {
     steps: example.steps.map( ( step ) => ({
       id: typeof step?.id === 'string' ? step.id : createUuid(),
       prompt: textValue( step?.prompt ),
@@ -29,6 +52,14 @@ export function cloneWorkedExample( example ) {
       showInCompletion: step?.showInCompletion === true
     }) )
   };
+
+  if ( example.errorDiagnosis ) {
+    cloned.errorDiagnosis = Object.fromEntries( diagnosisFields.map( ({ id }) => (
+      [ id, textValue( example.errorDiagnosis[ id ]) ]
+    ) ) );
+  }
+
+  return cloned;
 }
 
 export function normalizeWorkedExample( example ) {
@@ -38,7 +69,7 @@ export function normalizeWorkedExample( example ) {
     return null;
   }
 
-  return {
+  const normalized = {
     steps: cloned.steps.map( ( step ) => ({
       ...step,
       prompt: step.prompt.trim(),
@@ -46,6 +77,20 @@ export function normalizeWorkedExample( example ) {
       principlePrompt: step.principlePrompt.trim()
     }) )
   };
+
+  if ( cloned.errorDiagnosis ) {
+    normalized.errorDiagnosis = Object.fromEntries( diagnosisFields.map( ({ id }) => (
+      [ id, cloned.errorDiagnosis[ id ].trim() ]
+    ) ) );
+  }
+
+  return normalized;
+}
+
+export function errorDiagnosisErrors( diagnosis ) {
+  return Object.fromEntries( diagnosisFields.map( ({ id, requiredMessage, maximum }) => (
+    [ id, fieldError( diagnosis[ id ], requiredMessage, maximum ) ]
+  ) ) );
 }
 
 export function workedStepErrors( step ) {
@@ -66,6 +111,7 @@ export function workedExampleError( example ) {
   }
 
   return example.steps.flatMap( ( step ) => Object.values( workedStepErrors( step ) ) )
+    .concat( example.errorDiagnosis ? Object.values( errorDiagnosisErrors( example.errorDiagnosis ) ) : [])
     .find( Boolean ) ?? '';
 }
 

@@ -2,7 +2,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 
 function emptyState() {
-  return { mode: 'workpad', started: false, responses: {}, principles: {}, revealed: [] };
+  return {
+    mode: 'workpad',
+    started: false,
+    responses: {},
+    principles: {},
+    revealed: [],
+    diagnosis: { location: '', explanation: '', correction: '' },
+    correctionShown: false
+  };
 }
 
 export function useGuidedProblem({ currentCard, answerRevealed, blocked, markAssistance, onExposed }) {
@@ -13,8 +21,13 @@ export function useGuidedProblem({ currentCard, answerRevealed, blocked, markAss
   let sequence = 0;
   let disposed = false;
 
+  function hasMode( mode ) {
+    return [ 'workpad', 'example', 'completion' ].includes( mode )
+      || ( mode === 'diagnosis' && Boolean( example.value?.errorDiagnosis ) );
+  }
+
   function chooseMode( mode ) {
-    if ( blocked.value || !example.value || ![ 'workpad', 'example', 'completion' ].includes( mode ) ) {
+    if ( blocked.value || !example.value || !hasMode( mode ) ) {
       return;
     }
 
@@ -25,6 +38,25 @@ export function useGuidedProblem({ currentCard, answerRevealed, blocked, markAss
     }
 
     state.value.mode = mode;
+  }
+
+  function setDiagnosisResponse( field, value ) {
+    if ( blocked.value || answerRevealed.value || state.value.mode !== 'diagnosis'
+      || !example.value?.errorDiagnosis || typeof value !== 'string'
+      || ![ 'location', 'explanation', 'correction' ].includes( field ) ) {
+      return;
+    }
+
+    state.value.diagnosis = { ...state.value.diagnosis, [ field ]: value };
+  }
+
+  function toggleCorrection() {
+    if ( blocked.value || answerRevealed.value || state.value.mode !== 'diagnosis'
+      || !example.value?.errorDiagnosis ) {
+      return;
+    }
+
+    state.value.correctionShown = !state.value.correctionShown;
   }
 
   function toggleSolution( id ) {
@@ -55,7 +87,8 @@ export function useGuidedProblem({ currentCard, answerRevealed, blocked, markAss
       ...state.value,
       responses: { ...state.value.responses },
       principles: { ...state.value.principles },
-      revealed: [ ...state.value.revealed ]
+      revealed: [ ...state.value.revealed ],
+      diagnosis: { ...state.value.diagnosis }
     };
   }
 
@@ -75,11 +108,15 @@ export function useGuidedProblem({ currentCard, answerRevealed, blocked, markAss
     ) );
 
     state.value = {
-      mode: [ 'workpad', 'example', 'completion' ].includes( saved.mode ) ? saved.mode : 'workpad',
+      mode: hasMode( saved.mode ) ? saved.mode : 'workpad',
       started: saved.started === true,
       responses: responses( saved.responses ),
       principles: responses( saved.principles ),
-      revealed: ( saved.revealed ?? []).filter( ( id ) => ids.has( id ) )
+      revealed: ( saved.revealed ?? []).filter( ( id ) => ids.has( id ) ),
+      diagnosis: Object.fromEntries([ 'location', 'explanation', 'correction' ].map( ( field ) => (
+        [ field, typeof saved.diagnosis?.[ field ] === 'string' ? saved.diagnosis[ field ] : '' ]
+      ) ) ),
+      correctionShown: saved.correctionShown === true
     };
   }
 
@@ -120,5 +157,8 @@ export function useGuidedProblem({ currentCard, answerRevealed, blocked, markAss
     sequence += 1;
   });
 
-  return { state, loading, error, chooseMode, toggleSolution, setResponse, snapshot, restore, validate };
+  return {
+    state, loading, error, chooseMode, toggleSolution, setResponse,
+    setDiagnosisResponse, toggleCorrection, snapshot, restore, validate
+  };
 }

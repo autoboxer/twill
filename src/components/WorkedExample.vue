@@ -1,14 +1,15 @@
 <script setup>
 import { ref, watch } from 'vue';
+import ProblemErrorDiagnosis from './ProblemErrorDiagnosis.vue';
 
 const props = defineProps({
   example: { type: Object, required: true }
 });
 
-const completion = ref( false );
+const mode = ref( 'full' );
 
 watch( () => props.example, () => {
-  completion.value = false;
+  mode.value = 'full';
 });
 </script>
 
@@ -18,29 +19,45 @@ watch( () => props.example, () => {
       <UButton
         type="button"
         color="neutral"
-        :variant="completion ? 'ghost' : 'subtle'"
+        :variant="mode === 'full' ? 'subtle' : 'ghost'"
         size="sm"
-        :aria-pressed="!completion"
-        @click="completion = false"
+        :aria-pressed="mode === 'full'"
+        @click="mode = 'full'"
       >
         Full example
       </UButton>
       <UButton
         type="button"
         color="neutral"
-        :variant="completion ? 'subtle' : 'ghost'"
+        :variant="mode === 'completion' ? 'subtle' : 'ghost'"
         size="sm"
-        :aria-pressed="completion"
-        @click="completion = true"
+        :aria-pressed="mode === 'completion'"
+        @click="mode = 'completion'"
       >
         Completion preview
       </UButton>
+      <UButton
+        v-if="example.errorDiagnosis"
+        type="button"
+        color="neutral"
+        :variant="mode === 'diagnosis' ? 'subtle' : 'ghost'"
+        size="sm"
+        :aria-pressed="mode === 'diagnosis'"
+        @click="mode = 'diagnosis'"
+      >
+        Find the error
+      </UButton>
     </div>
 
-    <ol class="worked-example__steps">
+    <ProblemErrorDiagnosis
+      v-if="mode === 'diagnosis' && example.errorDiagnosis"
+      :diagnosis="example.errorDiagnosis"
+      revealed
+    />
+    <ol v-else class="worked-example__steps">
       <li v-for="( step, index ) in example.steps" :key="step.id" :data-step-id="step.id">
         <h4>{{ index + 1 }}. {{ step.prompt }}</h4>
-        <p v-if="!completion || step.showInCompletion" class="worked-example__solution">{{ step.solution }}</p>
+        <p v-if="mode === 'full' || step.showInCompletion" class="worked-example__solution">{{ step.solution }}</p>
         <p v-else class="worked-example__hidden">This solution is hidden in completion practice.</p>
         <p v-if="step.principlePrompt" class="worked-example__principle">{{ step.principlePrompt }}</p>
       </li>

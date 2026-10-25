@@ -46,7 +46,7 @@ pub use practice_links::{
 };
 pub use retrieval::{
     CardSummary, ClozeSettings, ExplainSettings, ImageOcclusionSettings, ProblemSettings,
-    RetrievalFormKind, TypeAnswerSettings, WorkedExample, WorkedStep,
+    ProblemErrorDiagnosis, RetrievalFormKind, TypeAnswerSettings, WorkedExample, WorkedStep,
 };
 pub use study::{
     PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput, ReverseReviewInput,

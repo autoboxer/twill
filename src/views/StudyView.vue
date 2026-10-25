@@ -160,7 +160,9 @@ const {
   error: guidedProblemError,
   chooseMode: chooseProblemMode,
   toggleSolution: toggleProblemSolution,
-  setResponse: setProblemStepResponse
+  setResponse: setProblemStepResponse,
+  setDiagnosisResponse,
+  toggleCorrection: toggleProblemCorrection
 } = guidedProblem;
 const {
   active: comparisonAttempt,
@@ -955,6 +957,8 @@ useStartupReady( initialLoading );
                 @toggle="toggleProblemSolution"
                 @response="setProblemStepResponse"
                 @principle="( id, value ) => setProblemStepResponse( id, value, true )"
+                @diagnosis="setDiagnosisResponse"
+                @correction="toggleProblemCorrection"
               />
             </template>
           </ProblemResponse>
