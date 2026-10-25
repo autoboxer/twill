@@ -23,6 +23,11 @@ const props = defineProps({
     default: false
   },
 
+  guidedMode: {
+    type: String,
+    default: 'workpad'
+  },
+
   settings: {
     type: Object,
     required: true
@@ -44,7 +49,8 @@ function focus() {
     return;
   }
 
-  root.value?.querySelector( 'textarea' )?.focus();
+  [ ...( root.value?.querySelectorAll( 'textarea:not(:disabled):not([readonly])' ) ?? []) ]
+    .find( ( element ) => element.getClientRects().length )?.focus();
 }
 </script>
 
@@ -63,8 +69,11 @@ function focus() {
       </div>
     </header>
 
+    <slot name="guidance" />
+
     <UFormField
       v-if="!revealed"
+      v-show="guidedMode !== 'completion'"
       label="Workpad"
     >
       <UTextarea
@@ -73,6 +82,7 @@ function focus() {
         :rows="6"
         autoresize
         :maxrows="12"
+        :disabled="disabled"
         class="problem-response__input"
         @update:model-value="emit( 'update:modelValue', $event )"
       />

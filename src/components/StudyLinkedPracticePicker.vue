@@ -1,5 +1,5 @@
 <script setup>
-import { nextTick } from 'vue';
+import { computed, nextTick } from 'vue';
 
 import { retrievalFormIcon, retrievalFormLabel } from '../retrieval-forms/catalog';
 import { collectClozeGroups } from '../cloze/documents';
@@ -10,10 +10,14 @@ const props = defineProps({
   links: { type: Array, required: true },
   selectedCase: { type: Object, default: null },
   loading: { type: Boolean, default: false },
-  error: { type: String, default: '' }
+  error: { type: String, default: '' },
+  problemsOnly: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([ 'close', 'select', 'start', 'compare', 'back', 'closed' ]);
+const cards = computed( () => ( props.selectedCase?.cards ?? []).filter( ( card ) => (
+  !props.problemsOnly || card.retrievalKind === 'problem'
+) ) );
 
 async function restoreStudyFocus( event ) {
   event.preventDefault();
@@ -37,8 +41,8 @@ function cardLabel( card ) {
 <template>
   <UModal
     :open="open"
-    title="Linked practice"
-    description="Choose a related case for extra practice."
+    :title="problemsOnly ? 'Try another problem' : 'Linked practice'"
+    :description="problemsOnly ? 'Choose a related problem to solve without its solution.' : 'Choose a related case for extra practice.'"
     :content="{ onCloseAutoFocus: restoreStudyFocus }"
     :ui="{ overlay: 'z-70', content: 'z-71 rounded-md' }"
     @update:open="!$event && emit('close')"
@@ -60,7 +64,7 @@ function cardLabel( card ) {
           <p>{{ selectedCase.link.objective }}</p>
 
           <UButton
-            v-if="selectedCase.link.comparison"
+            v-if="selectedCase.link.comparison && !problemsOnly"
             leading-icon="i-lucide-columns-2"
             color="neutral"
             variant="subtle"
@@ -71,7 +75,7 @@ function cardLabel( card ) {
           </UButton>
 
           <ul class="linked-practice-picker__list">
-            <li v-for="card in selectedCase.cards" :key="card.id">
+            <li v-for="card in cards" :key="card.id">
               <UButton
                 :leading-icon="retrievalFormIcon( card )"
                 :disabled="loading"
@@ -86,7 +90,9 @@ function cardLabel( card ) {
             </li>
           </ul>
 
-          <p v-if="!selectedCase.cards.length && !loading">This case has no available cards.</p>
+          <p v-if="!cards.length && !loading">
+            {{ problemsOnly ? 'This case no longer has a Problem card.' : 'This case has no available cards.' }}
+          </p>
         </template>
 
         <template v-else-if="!loading">
@@ -109,7 +115,9 @@ function cardLabel( card ) {
             </li>
           </ul>
 
-          <p v-else-if="!error">No linked cases. Add a link from this concept in Library.</p>
+          <p v-else-if="!error">
+            {{ problemsOnly ? 'No linked problems are available.' : 'No linked cases. Add a link from this concept in Library.' }}
+          </p>
         </template>
       </div>
     </template>

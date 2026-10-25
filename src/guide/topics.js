@@ -218,9 +218,18 @@ export const guideTopics = [
         title: 'Prepare a worked example',
         paragraphs: [
           'In the Problem setup, select Add worked example. Give each step a prompt and a checked solution. You can add a principle question to an important step. Choose which solutions should stay visible in completion practice.',
-          'Use Full example and Completion preview to check your steps. The preview is also available under Worked example in the concept details. It does not change your study progress. Guided Study practice is planned.'
+          'Use Full example and Completion preview to check your steps. The preview is also available under Worked example in the concept details. It does not change your study progress.'
         ],
         avoid: 'Use worked steps for a procedure you need to apply. You do not need a sequence of steps for every fact. Check that the solutions agree with the Answer.'
+      },
+      {
+        title: 'Choose the help you need',
+        paragraphs: [
+          'During Study, use Workpad to solve normally. Select Complete steps to fill the gaps in a worked solution, or Worked example to inspect all steps. In completion practice, you can show or hide any missing solution without losing your writing. Principle responses are optional.',
+          'Your work stays available when you change support, pause, or visit another view. Select Check solution to compare with the full Answer and checkpoints. Grade the attempt you made before help. Hiding help again does not turn supported work into an independent attempt.',
+          'After checking the solution, select Try another problem when a linked Problem card is available. Solve that different problem without revealing its solution. Extra practice keeps its own response and does not change review dates. Return to session to continue with your original attempt.'
+        ],
+        avoid: 'Completing a step after seeing its solution does not show independent recall. Try a different case, and practice again later. An app restart clears unfinished study work, but completed reviews remain saved.'
       }
     ],
     related: [ 'explain', 'feedback', 'grading' ]

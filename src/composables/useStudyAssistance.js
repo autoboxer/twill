@@ -78,6 +78,7 @@ export function useStudyAssistance({
 
   return {
     assisted,
+    markAssistance,
     assistanceSnapshot,
     responseBeforeAssistance,
     restoreAssistance,

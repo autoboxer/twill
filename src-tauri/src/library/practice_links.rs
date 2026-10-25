@@ -27,6 +27,16 @@ impl<'store> PracticeLinkLibrary<'store> {
         })
     }
 
+    pub fn problem_links(&self, concept_id: &str) -> LibraryResult<Vec<PracticeLink>> {
+        self.store.read_result(|connection| {
+            if concept_archived(connection, concept_id)? {
+                return Err(invalid("Restore the current concept before linked practice."));
+            }
+
+            query_filtered_links(connection, concept_id, true)
+        })
+    }
+
     pub fn practice(&self, input: LinkedPracticeInput) -> LibraryResult<LinkedPracticeCase> {
         self.store.read_result(|connection| {
             if concept_archived(connection, &input.concept_id)? {
@@ -148,6 +158,14 @@ impl<'store> PracticeLinkLibrary<'store> {
 }
 
 fn query_links(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<PracticeLink>> {
+    query_filtered_links(connection, concept_id, false)
+}
+
+fn query_filtered_links(
+    connection: &Connection,
+    concept_id: &str,
+    problems_only: bool,
+) -> LibraryResult<Vec<PracticeLink>> {
     let mut statement = connection.prepare(
         "SELECT links.entity_id, concepts.entity_id, concepts.title,
             concepts.archived_at IS NOT NULL, links.objective, entities.last_change_id,
@@ -160,9 +178,16 @@ fn query_links(connection: &Connection, concept_id: &str) -> LibraryResult<Vec<P
         INNER JOIN entities AS targets ON targets.id = concepts.entity_id
         WHERE (links.first_concept_id = ?1 OR links.second_concept_id = ?1)
             AND entities.deleted_at IS NULL AND targets.deleted_at IS NULL
+            AND (?2 = 0 OR (concepts.archived_at IS NULL AND EXISTS (
+                SELECT 1 FROM cards
+                INNER JOIN entities AS card_entities ON card_entities.id = cards.entity_id
+                WHERE cards.concept_id = concepts.entity_id
+                    AND cards.retrieval_kind = 'problem'
+                    AND card_entities.deleted_at IS NULL
+            )))
         ORDER BY concepts.title COLLATE NOCASE, links.entity_id",
     )?;
-    let links = statement.query_map([concept_id], |row| {
+    let links = statement.query_map(params![concept_id, problems_only], |row| {
         Ok(PracticeLink {
             id: row.get(0)?,
             concept_id: row.get(1)?,

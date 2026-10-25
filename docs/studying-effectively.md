@@ -194,9 +194,23 @@ practice. Add a principle question only where explaining the method is useful.
 Use Full example and Completion preview in the editor or concept details to
 check the example. These previews do not change study progress.
 
-For now, create separate Problem concepts for independent attempts. Guided Study
-sequences that combine examples, completion work, and linked independent problems
-are planned. Removing help gradually can be useful, but the evidence
+During Study, Workpad is the default. Select Complete steps to fill the gaps,
+or Worked example to inspect the full procedure. Show or hide an individual
+solution as needed. Your step responses and optional principle responses stay
+available when you change support, pause, or visit another view. Check solution
+shows the full Answer and checkpoints. Hiding support does not erase Help used.
+Grade the attempt you made before help rather than the result after seeing a
+solution. An app restart clears unfinished attempts, but preserves completed
+reviews.
+
+Create a separate Problem concept for an independent application and link it to
+the original. After checking the original solution, select Try another problem
+when a linked Problem card is available. Its own solution starts hidden. This
+extra attempt has separate writing and checks without changing review dates.
+Return to session restores the original work. Reading an example and filling its
+gaps are supported practice, not proof that you can solve the same task unaided.
+
+Removing help gradually can be useful, but the evidence
 does not support doing so for every example.
 [Atkinson et al., 2003](https://doi.org/10.1037/0022-0663.95.4.774),
 [Zamary & Rawson, 2018](https://doi.org/10.1007/s10648-018-9433-y).

@@ -6,6 +6,7 @@ import { useDevicePreferences } from './useDevicePreferences';
 import { useRecallSession } from './useRecallSession';
 import { useStudyAssistance } from './useStudyAssistance';
 import { useStudyComparison } from './useStudyComparison';
+import { useGuidedProblem } from './useGuidedProblem';
 import { useCaseComparisonPractice } from './useCaseComparisonPractice';
 import { useLinkedPractice } from './useLinkedPractice';
 import { useNativeActionGuard } from './useNativeLifecycle';
@@ -120,7 +121,7 @@ export function useStudySession({
   const pretestActive = computed( () => !linkedPracticeActive.value && reviewPretestActive.value );
   const pretestTeachingActive = computed( () => !linkedPracticeActive.value && reviewPretestTeachingActive.value );
   const sessionBusy = computed( () => writePending.value || initialLoading.value || nativeActionPending.value
-    || linkedPractice.loading.value || caseComparison.loading.value );
+    || linkedPractice.loading.value || caseComparison.loading.value || guidedProblem.loading.value );
   const actionsBlocked = computed( () => sessionBusy.value || linkedPractice.open.value || Boolean( caseComparison.active.value )
     || sessionStatus.value !== 'active'
     || route.name !== 'study' );
@@ -139,6 +140,7 @@ export function useStudySession({
   const pausedAttempts = new Map();
   const {
     assisted,
+    markAssistance,
     assistanceSnapshot,
     responseBeforeAssistance,
     restoreAssistance,
@@ -160,6 +162,14 @@ export function useStudySession({
     restoreComparison,
     setComparison
   } = useStudyComparison({ currentCard, answerRevealed, actionsBlocked });
+
+  const guidedProblem = useGuidedProblem({
+    currentCard,
+    answerRevealed,
+    blocked: computed( () => actionsBlocked.value || pretestActive.value ),
+    markAssistance,
+    onExposed: () => exposeConcept( currentCard.value?.conceptId )
+  });
 
   const reviewMedia = ref([]);
   const studyMedia = computed( () => linkedPractice.active.value?.media ?? reviewMedia.value );
@@ -251,26 +261,9 @@ export function useStudySession({
 
     if ( resumableSession ) {
       restoreStudySession( resumableSession );
-      const validation = linkedPracticeActive.value ? await linkedPractice.validate() : { valid: true };
-
-      if ( !viewActive ) {
-        return;
-      }
-
-      if ( !validation.valid ) {
-        if ( validation.sourceChanged ) {
-          sessionChangedConceptIds.value = new Set([
-            ...sessionChangedConceptIds.value,
-            linkedPractice.active.value.sourceConceptId
-          ]);
-          excludeChangedConcepts();
-          sessionResumeNotice.value = 'The current concept changed or is no longer available. Start a new session to study updated cards.';
-        } else {
-          returnFromLinkedPractice();
-          sessionResumeNotice.value = 'The linked case changed or is no longer available. You have returned to your session.';
-        }
-      }
+      await validateLinkedPractice();
       await validateCaseComparison();
+      await validateGuidedProblem();
 
       if ( !viewActive ) {
         return;
@@ -321,7 +314,7 @@ export function useStudySession({
 
     await validateCaseComparison();
 
-    if ( !viewActive ) {
+    if ( !await validateLinkedPractice() || !await validateGuidedProblem() || !viewActive ) {
       return;
     }
 
@@ -742,6 +735,60 @@ export function useStudySession({
       && answerRevealed.value && !answerFeedbackPending.value;
   }
 
+  async function validateLinkedPractice() {
+    const practice = linkedPractice.active.value;
+
+    if ( !viewActive || !practice ) {
+      return true;
+    }
+
+    const status = await linkedPractice.validate();
+
+    if ( !viewActive || status.valid || linkedPractice.active.value !== practice ) {
+      return true;
+    }
+
+    if ( linkedPractice.error.value ) {
+      sessionStatus.value = 'paused';
+      return false;
+    }
+
+    if ( status.sourceChanged ) {
+      sessionChangedConceptIds.value = new Set([ ...sessionChangedConceptIds.value, practice.sourceConceptId ]);
+      excludeChangedConcepts();
+      sessionResumeNotice.value = 'The current concept changed or is no longer available. Start a new session to study updated cards.';
+    } else {
+      returnFromLinkedPractice();
+      sessionResumeNotice.value = 'The linked case changed or is no longer available. You have returned to your session.';
+    }
+
+    return true;
+  }
+
+  async function validateGuidedProblem() {
+    const card = currentCard.value;
+
+    if ( !viewActive || !card ) {
+      return true;
+    }
+
+    const valid = await guidedProblem.validate();
+
+    if ( !viewActive || valid || currentCard.value?.id !== card.id ) {
+      return true;
+    }
+
+    if ( guidedProblem.error.value ) {
+      sessionStatus.value = 'paused';
+      return false;
+    }
+
+    sessionChangedConceptIds.value = new Set([ ...sessionChangedConceptIds.value, card.conceptId ]);
+    excludeChangedConcepts();
+    sessionResumeNotice.value = 'The problem changed or is no longer available. Start a new session to study its updated solution.';
+    return true;
+  }
+
   async function startCaseComparison() {
     const selected = linkedPractice.selectedCase.value;
 
@@ -804,7 +851,8 @@ export function useStudySession({
     return {
       response: studyResponse.value,
       assistance: assistanceSnapshot(),
-      comparison: comparisonSnapshot()
+      comparison: comparisonSnapshot(),
+      guidedProblem: guidedProblem.snapshot()
     };
   }
 
@@ -812,6 +860,7 @@ export function useStudySession({
     studyResponse.value = saved?.response ?? '';
     restoreAssistance( saved?.assistance );
     restoreComparison( saved?.comparison );
+    guidedProblem.restore( saved?.guidedProblem );
   }
 
   function createStudySessionSnapshot() {
@@ -923,6 +972,7 @@ export function useStudySession({
     gradingModeError,
     gradingModeLocked,
     gradingModePending,
+    guidedProblem,
     hasCards,
     initialLoading,
     isComplete,

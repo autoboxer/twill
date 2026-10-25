@@ -36,6 +36,78 @@ pub(super) fn changes(store: &LocalDataStore) -> usize {
 }
 
 #[test]
+fn problem_links_only_offer_live_problem_cards_regardless_of_due_date() {
+    let (_directory, store) = setup();
+    let concepts = ConceptLibrary::new(&store);
+    let create_problem = |title| {
+        let input = serde_json::from_value(json!({
+            "title": title,
+            "content": {
+                "schemaVersion": 1,
+                "prompt": { "type": "doc", "content": [{
+                    "type": "paragraph", "content": [{ "type": "text", "text": "Solve the problem." }]
+                }] },
+                "answer": { "type": "doc", "content": [{ "type": "paragraph" }] }
+            },
+            "problem": { "checkpoints": ["Check the result."] }
+        }))
+        .unwrap();
+
+        concepts.create_concept(input).unwrap()
+    };
+    let source = create_problem("Source problem");
+    let related = create_problem("Related problem");
+    let recall = concept(&store, "Recall only");
+    let links = PracticeLinkLibrary::new(&store);
+
+    link(&store, &source.id, &related.id, "Apply the same method.").unwrap();
+    link(&store, &source.id, &recall.id, "Recall a definition.").unwrap();
+    let related_card = related
+        .cards
+        .iter()
+        .find(|card| card.problem.is_some())
+        .unwrap();
+
+    concepts
+        .record_review(RecordReviewInput {
+            card_id: related_card.id.clone(),
+            rating: ReviewRating::Good,
+            assisted: false,
+        })
+        .unwrap();
+    let before = changes(&store);
+
+    assert_eq!(links.problem_links(&source.id).unwrap().len(), 1);
+    assert_eq!(
+        links.problem_links(&source.id).unwrap()[0].concept_id,
+        related.id
+    );
+    assert_eq!(
+        links.problem_links(&related.id).unwrap()[0].concept_id,
+        source.id
+    );
+    assert_eq!(links.links(&source.id).unwrap().len(), 2);
+    assert_eq!(changes(&store), before);
+
+    concepts.set_concept_archived(&related.id, true).unwrap();
+    assert!(links.problem_links(&source.id).unwrap().is_empty());
+    assert_eq!(links.links(&source.id).unwrap().len(), 2);
+    concepts.set_concept_archived(&related.id, false).unwrap();
+    assert_eq!(links.problem_links(&source.id).unwrap().len(), 1);
+
+    let without_problem = serde_json::from_value(json!({
+        "id": related.id, "title": related.title, "content": related.content
+    }))
+    .unwrap();
+
+    concepts.update_concept(without_problem).unwrap();
+    assert!(links.problem_links(&source.id).unwrap().is_empty());
+    assert_eq!(links.links(&source.id).unwrap().len(), 2);
+    concepts.set_concept_archived(&source.id, true).unwrap();
+    assert!(links.problem_links(&source.id).is_err());
+}
+
+#[test]
 fn links_are_symmetric_independent_and_revision_checked() {
     let (_directory, store) = setup();
     let first = concept(&store, "Reliable file transfer");
