@@ -994,6 +994,7 @@ useStartupReady( initialLoading );
           <StudyAssistance
             v-if="!pretestActive"
             :content="currentCard.content"
+            :explain="explainSettings"
             :revealed="revealedAssistance"
             :disabled="actionsBlocked"
             @toggle="toggleAssistance"

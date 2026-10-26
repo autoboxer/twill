@@ -361,6 +361,15 @@ written attempt stays visible beside the criteria, with the full reference
 above it. Checks are optional and do not calculate a grade. Accept another
 valid wording or structure when the task allows it.
 
+If a blank page gives you no useful starting point, add optional structural
+prompts in the reconstruction setup. Write one heading or guiding question per
+line, such as “What begins the process?” or “What connects these parts?” Keep
+answers in the reference. Select Structure in the preview to check the prompts.
+During Study, selecting Structure counts as help and preserves the original
+unaided response. Hiding the prompts does not make the attempt independent
+again. Grade what you recalled before help, even if you complete the response
+afterward. Related cards wait for another session, as they do after other help.
+
 Drawing a map from memory can be useful, but it has not
 been shown to be consistently better than recalling ideas in prose. Adding a
 mapping step can also take more time without improving later results.
@@ -730,8 +739,9 @@ only cards that are due. You can author image labels, preview them in the
 Library, and study each target on its own schedule, with optional typed responses
 and comparison against accepted answers. Explain also supports reconstructing
 outlines, sequences, and relationships with a written or paper response and
-reference criteria. Dedicated optional structural prompts and a separate
-correction step are still planned. Tools for creating examples and records of
+reference criteria. Authors can add optional structural prompts, revealed as
+help during Study. A separate correction step is still planned.
+Tools for creating examples and records of
 learning across sessions are also planned.
 They are not available controls. References to them above describe future
 possibilities.

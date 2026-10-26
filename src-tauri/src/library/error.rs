@@ -174,6 +174,9 @@ pub enum LibraryError {
     #[error("explain card key points must be unique")]
     DuplicateExplainKeyPoint,
 
+    #[error("{message}")]
+    InvalidStructurePrompts { message: &'static str },
+
     #[error("problem cards require at least one checkpoint")]
     MissingProblemCheckpoint,
 

@@ -61,7 +61,7 @@ export function useStudyAssistance({
 
   function toggleAssistance( id ) {
     if ( actionsBlocked.value || pretestActive.value
-      || !assistanceDocuments( currentCard.value?.content ).some( ( item ) => item.id === id ) ) {
+      || !assistanceDocuments( currentCard.value?.content, currentCard.value?.explain ).some( ( item ) => item.id === id ) ) {
       return;
     }
 

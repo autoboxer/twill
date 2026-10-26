@@ -66,6 +66,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::TooManyAcceptedAnswers { .. }
             | LibraryError::DuplicateAcceptedAnswer
             | LibraryError::MissingExplainKeyPoint
+            | LibraryError::InvalidStructurePrompts { .. }
             | LibraryError::TooManyExplainKeyPoints { .. }
             | LibraryError::DuplicateExplainKeyPoint
             | LibraryError::MissingProblemCheckpoint

@@ -232,7 +232,9 @@ export const guideTopics = [
         ],
         paragraphs: [
           'For a diagram, add an image without answers to Prompt and describe the connections you want to reconstruct. A written description or paper sketch is enough. You do not need to draw inside Twill.',
-          'Judge the ideas, order, and connections that matter to the task. Different wording or another valid layout can be correct. A map or outline is an alternative to prose, not a required extra step.'
+          'Judge the ideas, order, and connections that matter to the task. Different wording or another valid layout can be correct. A map or outline is an alternative to prose, not a required extra step.',
+          'To offer a starting point, select Add structural prompts in the reconstruction setup. Write a heading or guiding question on each line, without its answer. You can add up to 12 prompts of 280 characters each. Select Structure in the preview to check them.',
+          'During Study, select Structure if you need those prompts. Revealing them counts as help. Hiding them does not undo that help. Your original response stays available for comparison, separate from anything you write afterward. Grade the attempt you made before help.'
         ],
         example: 'Ask for the three messages in a TCP handshake. Add one reference step for each message. Include why each acknowledgement follows the preceding message when that relationship matters.',
         avoid: 'Keep the task small enough to check fairly. Reconstructing an entire chapter in one card makes it difficult to identify and grade important gaps.'

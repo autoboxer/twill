@@ -22,6 +22,7 @@ export function createConceptEditorState( concept = null ) {
     content: cloneConceptContent( concept?.content ),
     deckIds: concept?.decks.map( ( deck ) => deck.id ) ?? [],
     explainFocus: explain?.explain?.focus ?? DEFAULT_EXPLAIN_FOCUS,
+    explainStructurePrompts: explain?.explain?.structurePrompts?.join( '\n' ) ?? '',
     explainKeyPoints: explain?.explain?.keyPoints?.length
       ? [ ...explain.explain.keyPoints ]
       : [ '' ],
@@ -57,6 +58,7 @@ export function cloneConceptEditorState( state ) {
       ? state.explainFocus
       : fallback.explainFocus,
     explainKeyPoints: stringArray( state.explainKeyPoints, [ '' ]),
+    explainStructurePrompts: typeof state.explainStructurePrompts === 'string' ? state.explainStructurePrompts : '',
     problemCheckpoints: stringArray( state.problemCheckpoints, [ '' ]),
     problemWorkedExample: cloneWorkedExample( state.problemWorkedExample ),
     retrievalFormIds: stringArray( state.retrievalFormIds ),
@@ -82,6 +84,7 @@ export function captureConceptEditorState( state ) {
     deckIds: [ ...state.deckIds ],
     explainFocus: state.explainFocus,
     explainKeyPoints: [ ...state.explainKeyPoints ],
+    explainStructurePrompts: state.explainStructurePrompts,
     problemCheckpoints: [ ...state.problemCheckpoints ],
     problemWorkedExample: cloneWorkedExample( state.problemWorkedExample ),
     retrievalFormIds: [ ...state.retrievalFormIds ],

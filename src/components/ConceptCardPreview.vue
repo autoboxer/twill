@@ -184,6 +184,7 @@ function toggleAnswerParts( ids ) {
       />
       <StudyAssistance
         :content="previewContent"
+        :explain="card.explain"
         :revealed="revealedAssistance"
         @toggle="toggleAssistance"
       />

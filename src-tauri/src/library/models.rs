@@ -45,7 +45,7 @@ pub use practice_links::{
     SetPracticeComparisonInput, UpdatePracticeLinkInput,
 };
 pub use retrieval::{
-    CardSummary, ClozeSettings, ExplainSettings, ImageLabelingSettings, ImageOcclusionSettings,
+    CardSummary, ClozeSettings, ExplainFocus, ExplainSettings, ImageLabelingSettings, ImageOcclusionSettings,
     ProblemSettings, ProblemErrorDiagnosis, RetrievalFormKind, TypeAnswerSettings,
     WorkedExample, WorkedStep,
 };
@@ -61,8 +61,6 @@ pub use templates::{
 
 #[cfg(test)]
 pub use concepts::AnswerFeedback;
-#[cfg(test)]
-pub use retrieval::ExplainFocus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

@@ -209,6 +209,16 @@
   width: min(100%, 20rem);
 }
 
+.structure-prompts-editor {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.structure-prompts-editor > button {
+  justify-self: start;
+}
+
 .type-answer-settings__add,
 .explain-settings__add,
 .problem-settings__add {

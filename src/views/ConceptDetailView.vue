@@ -11,6 +11,7 @@ import RichContentRenderer from '../components/RichContentRenderer.vue';
 import WorkedExample from '../components/WorkedExample.vue';
 import { useStartupReady } from '../composables/useStartupReady';
 import { explainFocusDetails } from '../explain/focus';
+import { reconstructionPrompts } from '../explain/prompts';
 import { collectClozeGroups } from '../cloze/documents';
 import {
   conceptLibraryErrorMessage,
@@ -639,6 +640,18 @@ useStartupReady( initialLoading );
                     {{ keyPoint }}
                   </li>
                 </component>
+
+                <details
+                  v-if="reconstructionPrompts( card.explain ).length"
+                  class="retrieval-form-list__structure"
+                >
+                  <summary>Structural prompts</summary>
+                  <ul>
+                    <li v-for="prompt in card.explain.structurePrompts" :key="prompt">
+                      {{ prompt }}
+                    </li>
+                  </ul>
+                </details>
               </div>
 
               <div

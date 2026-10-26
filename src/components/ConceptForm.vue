@@ -3,6 +3,7 @@ import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 import { retrievalForms } from '../retrieval-forms/catalog';
 import { explainFocusDetails, explainFocusItems } from '../explain/focus';
+import { normalizeStructurePrompts, structurePromptsError } from '../explain/prompts';
 
 import ClozePreview from './ClozePreview.vue';
 import ImageOcclusionPreview from './ImageOcclusionPreview.vue';
@@ -105,6 +106,7 @@ const form = reactive({
   content: createEmptyConceptContent(),
   deckIds: [],
   explainFocus: 'why',
+  explainStructurePrompts: '',
   explainKeyPoints: [ '' ],
   problemCheckpoints: [ '' ],
   problemWorkedExample: null,
@@ -126,6 +128,11 @@ const activeSetupId = ref( STANDARD_RECALL_ID );
 const previewOpen = ref( false );
 const editorElement = ref( null );
 const explainFocus = computed( () => explainFocusDetails( form.explainFocus ) );
+const structurePromptsOpen = ref( false );
+const selectedStructurePrompts = computed( () => explainFocus.value.reconstruction
+  ? normalizeStructurePrompts( form.explainStructurePrompts ) : []);
+const explainStructureError = computed( () => submitted.value && explainSelected.value && explainFocus.value.reconstruction
+  ? structurePromptsError( form.explainStructurePrompts ) : '' );
 
 const deckItems = computed( () => props.decks.map( ( deck ) => ({
   label: deck.name,
@@ -300,6 +307,7 @@ const previewTypeSettings = computed( () => {
   if ( activeSetupId.value === EXPLAIN_ID ) {
     return {
       focus: form.explainFocus,
+      structurePrompts: selectedStructurePrompts.value,
       keyPoints: form.explainKeyPoints.map( normalizeExplainKeyPoint ).filter( Boolean )
     };
   }
@@ -492,6 +500,8 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
   form.title = state.title;
   form.deckIds = state.deckIds;
   form.explainFocus = state.explainFocus;
+  form.explainStructurePrompts = state.explainStructurePrompts;
+  structurePromptsOpen.value = Boolean( state.explainStructurePrompts );
   form.explainKeyPoints = state.explainKeyPoints;
   form.problemCheckpoints = state.problemCheckpoints;
   form.problemWorkedExample = state.problemWorkedExample;
@@ -600,6 +610,11 @@ function addExplainKeyPoint() {
   form.explainKeyPoints.push( '' );
 }
 
+function removeStructurePrompts() {
+  form.explainStructurePrompts = '';
+  structurePromptsOpen.value = false;
+}
+
 function removeExplainKeyPoint( index ) {
   if ( form.explainKeyPoints.length === 1 ) {
     return;
@@ -668,13 +683,14 @@ async function submit() {
     || Boolean( imageLabelingError.value )
     || Boolean( problemPromptError.value )
     || !explainKeyPointsValid.value
+    || Boolean( explainStructureError.value )
     || !problemCheckpointsValid.value
     || Boolean( problemWorkedExampleError.value )
     || !acceptedAnswersValid.value
   ) {
     if ( !acceptedAnswersValid.value ) {
       activeSetupId.value = TYPE_ANSWER_ID;
-    } else if ( !explainKeyPointsValid.value ) {
+    } else if ( !explainKeyPointsValid.value || explainStructureError.value ) {
       activeSetupId.value = EXPLAIN_ID;
     } else if ( !problemCheckpointsValid.value || problemPromptError.value || problemWorkedExampleError.value ) {
       activeSetupId.value = PROBLEM_ID;
@@ -700,6 +716,7 @@ async function submit() {
   const explain = explainSelected.value
     ? {
       focus: form.explainFocus,
+      structurePrompts: selectedStructurePrompts.value,
       keyPoints: form.explainKeyPoints.map( normalizeExplainKeyPoint )
     }
     : null;
@@ -1163,6 +1180,47 @@ defineExpose({ submit });
             class="explain-settings__add"
             @click="addExplainKeyPoint"
           />
+
+          <div v-if="explainFocus.reconstruction" class="structure-prompts-editor">
+            <UButton
+              v-if="!structurePromptsOpen"
+              type="button"
+              color="neutral"
+              variant="link"
+              size="sm"
+              :disabled="disabled"
+              @click="structurePromptsOpen = true"
+            >
+              Add structural prompts
+            </UButton>
+            <template v-else>
+              <UFormField
+                label="Structural prompts"
+                description="Add a heading or guiding question on each line. Leave out the answers."
+                :error="explainStructureError || false"
+              >
+                <UTextarea
+                  v-model="form.explainStructurePrompts"
+                  aria-label="Structural prompts"
+                  :rows="3"
+                  :maxrows="8"
+                  autoresize
+                  class="w-full"
+                  :disabled="disabled"
+                />
+              </UFormField>
+              <UButton
+                type="button"
+                color="neutral"
+                variant="link"
+                size="sm"
+                :disabled="disabled"
+                @click="removeStructurePrompts"
+              >
+                Remove structural prompts
+              </UButton>
+            </template>
+          </div>
         </div>
 
         <div

@@ -1438,6 +1438,7 @@ fn explain_settings_are_validated_normalized_and_queued() {
         problem: None,
         explain: Some(ExplainSettings {
             focus: ExplainFocus::Why,
+            structure_prompts: Vec::new(),
             key_points,
         }),
         type_answer: None,
@@ -1511,6 +1512,7 @@ fn reconstruction_focus_round_trips_without_replacing_the_explain_card() {
             problem: None,
             explain: Some(ExplainSettings {
                 focus: ExplainFocus::Outline,
+                structure_prompts: Vec::new(),
                 key_points: vec!["The endpoints establish a connection.".to_owned()],
             }),
             type_answer: None,
@@ -1535,6 +1537,7 @@ fn reconstruction_focus_round_trips_without_replacing_the_explain_card() {
     ] {
         let settings = ExplainSettings {
             focus,
+            structure_prompts: vec!["  Who   initiates? ".to_owned(), "What follows? 網".to_owned()],
             key_points: vec![
                 "  Client   sends SYN. ".to_owned(),
                 "Server sends SYN ACK.".to_owned(),
@@ -1565,11 +1568,61 @@ fn reconstruction_focus_round_trips_without_replacing_the_explain_card() {
         assert_eq!(card.due_at, review.due_at);
         assert_eq!(card.explain.as_ref().unwrap().focus, focus);
         assert_eq!(
+            card.explain.as_ref().unwrap().structure_prompts,
+            ["Who initiates?", "What follows? 網"]
+        );
+        assert_eq!(
             card.explain.as_ref().unwrap().key_points,
             ["Client sends SYN.", "Server sends SYN ACK.", "Client sends ACK."]
         );
         assert_eq!(library.concept(&concept.id).unwrap().cards, updated.cards);
     }
+}
+
+#[test]
+fn structural_prompts_are_bounded_and_invalid_edits_leave_the_card_unchanged() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let concept = library.create_concept(serde_json::from_value(json!({
+        "title": "Outline with prompts", "includeStandardRecall": false,
+        "explain": {
+            "focus": "outline", "keyPoints": ["A main idea and its supporting evidence."],
+            "structurePrompts": (0..12).map(|index| format!("{index}{}", "網".repeat(278))).collect::<Vec<_>>()
+        }
+    })).unwrap()).unwrap();
+    let mut input = json!({
+        "id": concept.id, "title": concept.title, "includeStandardRecall": false,
+        "explain": concept.cards[0].explain
+    });
+
+    for prompts in [
+        json!([""]),
+        json!(["  \n\t "]),
+        json!(["First idea", " FIRST   IDEA "]),
+        json!(["網".repeat(281)]),
+        json!((0..13).map(|index| format!("Prompt {index}")).collect::<Vec<_>>()),
+    ] {
+        input["explain"]["structurePrompts"] = prompts;
+        let error = library.update_concept(serde_json::from_value(input.clone()).unwrap()).unwrap_err();
+        assert!(matches!(error, LibraryError::InvalidStructurePrompts { .. }
+            | LibraryError::EmptyValue { .. } | LibraryError::ValueTooLong { .. }));
+        assert_eq!(library.concept(&concept.id).unwrap(), concept);
+    }
+
+    input["explain"]["focus"] = json!("why");
+    input["explain"]["structurePrompts"] = json!(["A heading"]);
+    assert!(matches!(
+        library.update_concept(serde_json::from_value(input.clone()).unwrap()),
+        Err(LibraryError::InvalidStructurePrompts { .. })
+    ));
+    assert_eq!(library.concept(&concept.id).unwrap(), concept);
+
+    input["explain"]["structurePrompts"] = json!([]);
+    let cleared = library.update_concept(serde_json::from_value(input).unwrap()).unwrap();
+    assert_eq!(cleared.cards[0].id, concept.cards[0].id);
+    assert_eq!(cleared.cards[0].due_at, concept.cards[0].due_at);
+    assert!(cleared.cards[0].explain.as_ref().unwrap().structure_prompts.is_empty());
+    assert!(serde_json::to_value(&cleared.cards[0].explain).unwrap().get("structurePrompts").is_none());
 }
 
 #[test]
@@ -1587,6 +1640,7 @@ fn explain_edits_keep_schedules_and_readded_forms_start_fresh() {
             problem: None,
             explain: Some(ExplainSettings {
                 focus: ExplainFocus::Why,
+                structure_prompts: Vec::new(),
                 key_points: vec!["Earth's axis is tilted.".to_owned()],
             }),
             type_answer: None,
@@ -1615,6 +1669,7 @@ fn explain_edits_keep_schedules_and_readded_forms_start_fresh() {
             problem: None,
             explain: Some(ExplainSettings {
                 focus: ExplainFocus::CauseAndEffect,
+                structure_prompts: Vec::new(),
                 key_points: vec![
                     "Earth's axis is tilted.".to_owned(),
                     "The hemispheres receive different sunlight.".to_owned(),
@@ -1672,6 +1727,7 @@ fn explain_edits_keep_schedules_and_readded_forms_start_fresh() {
             problem: None,
             explain: Some(ExplainSettings {
                 focus: ExplainFocus::CompareAndContrast,
+                structure_prompts: Vec::new(),
                 key_points: vec!["Summer and winter receive different light.".to_owned()],
             }),
             type_answer: None,
