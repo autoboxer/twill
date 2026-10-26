@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use super::{ClozeSettings, ImageOcclusionSettings, NamedItem, RetrievalFormKind};
+use super::{
+    ClozeSettings, ImageLabelingSettings, ImageOcclusionSettings, NamedItem, RetrievalFormKind,
+};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,6 +75,7 @@ pub struct CardQualityQueueItem {
     pub template: Option<NamedItem>,
     pub cloze: Option<ClozeSettings>,
     pub image_occlusion: Option<ImageOcclusionSettings>,
+    pub image_labeling: Option<ImageLabelingSettings>,
     pub source: CardQualitySource,
     pub kind: CardQualityKind,
     pub note: String,

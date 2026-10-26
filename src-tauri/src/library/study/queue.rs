@@ -163,6 +163,7 @@ pub fn query_selected_study_queue(
                 problem: parsed.problem().cloned(),
                 cloze: parsed.cloze().cloned(),
                 image_occlusion: parsed.image_occlusion().cloned(),
+                image_labeling: parsed.image_labeling().cloned(),
                 type_answer: parsed.type_answer().cloned(),
                 template_id,
                 scheduling_state: SchedulingState::try_from(state.as_str())?,
@@ -204,7 +205,9 @@ pub fn query_selected_study_queue(
                 .is_some_and(|id| custom_template_ids.contains(id))
                 || matches!(
                     card.retrieval_kind,
-                    RetrievalFormKind::Problem | RetrievalFormKind::ImageOcclusion
+                    RetrievalFormKind::Problem
+                        | RetrievalFormKind::ImageOcclusion
+                        | RetrievalFormKind::ImageLabeling
                 )
         })
         .map(|card| card.concept_id.clone())

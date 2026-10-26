@@ -16,9 +16,10 @@ import {
   useConceptLibrary
 } from '../composables/useConceptLibrary';
 import { collectImageOcclusionGroups } from '../image-occlusion/documents';
+import { collectImageLabelTargets } from '../image-labeling/targets';
 import { libraryNavigationQuery } from '../library/search';
 import { richDocumentHasContent } from '../rich-content/schema';
-import { retrievalFormIcon, retrievalFormLabel } from '../retrieval-forms/catalog';
+import { retrievalFormIcon, retrievalFormName as cardFormName } from '../retrieval-forms/catalog';
 import { assistanceDocuments } from '../study/assistance';
 
 const route = useRoute();
@@ -87,6 +88,7 @@ const imageOcclusionGroups = computed( () => collectImageOcclusionGroups(
 const imageOcclusionGroupsById = computed( () => new Map(
   imageOcclusionGroups.value.map( ( group, index ) => [ group.id, { group, index }])
 ) );
+const imageLabels = computed( () => collectImageLabelTargets( concept.value?.content.prompt ) );
 const answerFeedbackDocuments = computed( () => [
   {
     document: concept.value?.content.feedback?.explanation,
@@ -270,24 +272,14 @@ function formattedDueDate( timestamp ) {
 }
 
 function retrievalFormName( card ) {
-  const label = retrievalFormLabel( card );
-
-  if ( card.retrievalKind === 'cloze' ) {
-    const group = clozeGroupDetails( card );
-
-    return group ? `${ label } ${ group.index + 1 }` : label;
-  }
-
-  if ( card.retrievalKind === 'imageOcclusion' ) {
-    const group = imageOcclusionGroupDetails( card );
-
-    return group ? `${ label } ${ group.index + 1 }` : label;
-  }
-
-  return label;
+  return cardFormName( card, concept.value?.content.prompt );
 }
 
 function retrievalFormDescription( card ) {
+  if ( card.imageLabeling ) {
+    return imageLabels.value.find( target => target.id === card.imageLabeling.targetId )?.label ?? 'Image target';
+  }
+
   if ( card.retrievalKind === 'cloze' ) {
     const count = clozeGroupDetails( card )?.group.passages.length ?? 0;
 
@@ -518,6 +510,7 @@ useStartupReady( initialLoading );
           <RichContentRenderer
             :document="concept.content.prompt"
             label="Prompt"
+            image-labels-preview
           />
         </div>
 

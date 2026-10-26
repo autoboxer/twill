@@ -82,7 +82,7 @@ fn backup_round_trip_preserves_worked_steps_completion_visibility_and_error_diag
 }
 
 #[test]
-fn backup_round_trip_preserves_assistance_answer_parts_media_and_assisted_reviews() {
+fn backup_round_trip_preserves_assistance_answer_parts_image_labels_media_and_reviews() {
     let root = tempdir().unwrap();
     let source = LocalDataStore::open(root.path().join("source")).unwrap();
     let library = ConceptLibrary::new(&source);
@@ -93,6 +93,13 @@ fn backup_round_trip_preserves_assistance_answer_parts_media_and_assisted_review
     let media = library.import_image(image.get_ref()).unwrap();
     let mut input = concept_input("Help round trip");
     let group_id = uuid::Uuid::now_v7().to_string();
+    input.content.prompt = json!({ "type": "doc", "content": [{
+        "type": "mediaImage", "attrs": { "mediaId": media.id, "labelTargets": [{
+            "id": uuid::Uuid::now_v7().to_string(), "x": 0.2, "y": 0.8,
+            "label": "Nucleus 網", "alternatives": ["Cell nucleus"],
+            "description": "The round structure near the center."
+        }] }
+    }] });
     input.content.answer = json!({ "type": "doc", "content": [
         { "type": "answerPart", "attrs": { "id": uuid::Uuid::now_v7().to_string(), "groupId": group_id },
             "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "First target" }] }] },
@@ -107,10 +114,11 @@ fn backup_round_trip_preserves_assistance_answer_parts_media_and_assisted_review
     }] });
     let concept = library.create_concept(input).unwrap();
     let review = library.record_review(RecordReviewInput {
-        card_id: concept.cards[0].id.clone(),
+        card_id: concept.cards.iter().find(|card| card.image_labeling.is_some()).unwrap().id.clone(),
         rating: ReviewRating::Again,
         assisted: true,
     }).unwrap();
+    let reviewed = library.concept(&concept.id).unwrap();
     let archive = root.path().join("help.twill");
 
     create_backup(&source, &archive).unwrap();
@@ -130,6 +138,8 @@ fn backup_round_trip_preserves_assistance_answer_parts_media_and_assisted_review
     }).unwrap();
 
     assert_eq!(saved.content.assistance, concept.content.assistance);
+    assert_eq!(saved.cards, reviewed.cards);
+    assert_eq!(saved.content.prompt, concept.content.prompt);
     assert_eq!(saved.content.answer, concept.content.answer);
     assert_eq!(saved.media[0].id, media.id);
     assert!(assisted);
@@ -165,6 +175,10 @@ fn generated_fixture() -> (TempDir, std::path::PathBuf) {
                     "id": "0192abf7-22b3-7000-8000-000000000002",
                     "groupId": "0192abf7-22b3-7000-8000-000000000003",
                     "x": 0.1, "y": 0.1, "width": 0.2, "height": 0.2
+                }],
+                "labelTargets": [{
+                    "id": "0192abf7-22b3-7000-8000-000000000004",
+                    "x": 0.5, "y": 0.5, "label": "Nucleus", "alternatives": [], "description": ""
                 }]
             } }
         ] });
@@ -569,6 +583,9 @@ fn generated_retrieval_cards_must_match_the_concept() {
     let (root, archive) = generated_fixture();
     let cases = [
         ("unknown-cloze-group", "UPDATE cards SET configuration_json = '{\"groupId\":\"0192abf7-22b3-7000-8000-000000000099\"}' WHERE retrieval_kind = 'cloze'"),
+        ("unknown-image-target", "UPDATE cards SET configuration_json = '{\"targetId\":\"0192abf7-22b3-7000-8000-000000000099\"}' WHERE retrieval_kind = 'image_labeling'"),
+        ("missing-image-target-card", "UPDATE entities SET deleted_at = updated_at WHERE id IN (SELECT entity_id FROM cards WHERE retrieval_kind = 'image_labeling')"),
+        ("duplicate-image-target-card", "UPDATE cards SET retrieval_kind = 'image_labeling', configuration_json = (SELECT configuration_json FROM cards WHERE retrieval_kind = 'image_labeling') WHERE retrieval_kind = 'type_answer'"),
         ("unknown-occlusion-group", "UPDATE cards SET configuration_json = '{\"groupId\":\"0192abf7-22b3-7000-8000-000000000099\"}' WHERE retrieval_kind = 'image_occlusion'"),
         ("missing-cloze-card", "UPDATE entities SET deleted_at = updated_at WHERE id IN (SELECT entity_id FROM cards WHERE retrieval_kind = 'cloze')"),
         ("missing-occlusion-card", "UPDATE entities SET deleted_at = updated_at WHERE id IN (SELECT entity_id FROM cards WHERE retrieval_kind = 'image_occlusion')"),
@@ -667,7 +684,7 @@ fn problem_cards_require_nonempty_prompts_after_restore() {
 fn valid_retrieval_forms_and_historical_links_restore() {
     let (root, archive) = generated_fixture();
 
-    assert_eq!(inspect_backup(&archive).unwrap().counts.cards, 7);
+    assert_eq!(inspect_backup(&archive).unwrap().counts.cards, 8);
 
     let store = LocalDataStore::open(root.path().join("source")).unwrap();
     let library = ConceptLibrary::new(&store);

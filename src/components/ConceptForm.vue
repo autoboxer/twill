@@ -5,6 +5,8 @@ import { retrievalForms } from '../retrieval-forms/catalog';
 
 import ClozePreview from './ClozePreview.vue';
 import ImageOcclusionPreview from './ImageOcclusionPreview.vue';
+import ImageLabelPreview from './ImageLabelPreview.vue';
+import { collectImageLabelTargets, removeAllImageLabelTargets } from '../image-labeling/targets';
 import RichContentEditor from './RichContentEditor.vue';
 import ConceptCardPreview from './ConceptCardPreview.vue';
 import WorkedExampleEditor from './WorkedExampleEditor.vue';
@@ -33,6 +35,7 @@ import {
 const CLOZE_ID = 'cloze';
 const EXPLAIN_ID = 'explain';
 const IMAGE_OCCLUSION_ID = 'image-occlusion';
+const IMAGE_LABELING_ID = 'image-labeling';
 const PROBLEM_ID = 'problem';
 const STANDARD_RECALL_ID = 'standard-recall';
 const TYPE_ANSWER_ID = 'type-answer';
@@ -181,6 +184,11 @@ const builtInRetrievalFormItems = [
     description: 'Hides selected regions of a Prompt image.',
     label: retrievalForms.imageOcclusion.label,
     value: IMAGE_OCCLUSION_ID
+  },
+  {
+    description: 'Identifies each marked point on an unlabeled Prompt image.',
+    label: retrievalForms.imageLabeling.label,
+    value: IMAGE_LABELING_ID
   }
 ];
 
@@ -235,6 +243,10 @@ watch( selectedSetups, ( items ) => {
 });
 
 function cardCount( id ) {
+  if ( id === IMAGE_LABELING_ID ) {
+    return imageLabelTargets.value.length;
+  }
+
   if ( id === CLOZE_ID ) {
     return clozeGroups.value.length;
   }
@@ -276,6 +288,8 @@ const imageOcclusionSelected = computed( () => (
   form.retrievalFormIds.includes( IMAGE_OCCLUSION_ID )
 ) );
 const typeAnswerSelected = computed( () => form.retrievalFormIds.includes( TYPE_ANSWER_ID ) );
+const imageLabelTargets = computed( () => collectImageLabelTargets( form.content.prompt ) );
+const imageLabelingSelected = computed( () => form.retrievalFormIds.includes( IMAGE_LABELING_ID ) );
 const selectedContent = computed( () => {
   let prompt = form.content.prompt;
 
@@ -285,6 +299,10 @@ const selectedContent = computed( () => {
 
   if ( !imageOcclusionSelected.value && imageOcclusionGroups.value.length ) {
     prompt = removeAllImageOcclusionRegions( prompt );
+  }
+
+  if ( !imageLabelingSelected.value && imageLabelTargets.value.length ) {
+    prompt = removeAllImageLabelTargets( prompt );
   }
 
   return { ...form.content, prompt };
@@ -456,6 +474,11 @@ const imageOcclusionError = computed( () => {
 
   return 'Add at least one mask to a Prompt image.';
 });
+
+const imageLabelingError = computed( () => (
+  submitted.value && imageLabelingSelected.value && !imageLabelTargets.value.length
+    ? 'Add at least one label to a Prompt image.' : ''
+) );
 
 const removedRetrievalForms = computed( () => {
   if ( props.mode !== 'edit' || !props.concept ) {
@@ -645,6 +668,7 @@ async function submit() {
     || !form.retrievalFormIds.length
     || Boolean( clozeError.value )
     || Boolean( imageOcclusionError.value )
+    || Boolean( imageLabelingError.value )
     || Boolean( problemPromptError.value )
     || !explainKeyPointsValid.value
     || !problemCheckpointsValid.value
@@ -661,6 +685,8 @@ async function submit() {
       activeSetupId.value = CLOZE_ID;
     } else if ( imageOcclusionError.value ) {
       activeSetupId.value = IMAGE_OCCLUSION_ID;
+    } else if ( imageLabelingError.value ) {
+      activeSetupId.value = IMAGE_LABELING_ID;
     }
 
     await nextTick();
@@ -695,12 +721,7 @@ async function submit() {
     problem,
     tagIds: [ ...form.tagIds ],
     templateIds: form.retrievalFormIds.filter( ( id ) => (
-      id !== CLOZE_ID
-      && id !== EXPLAIN_ID
-      && id !== IMAGE_OCCLUSION_ID
-      && id !== PROBLEM_ID
-      && id !== STANDARD_RECALL_ID
-      && id !== TYPE_ANSWER_ID
+      !builtInRetrievalFormItems.some( item => item.value === id )
     ) ),
     typeAnswer,
     title: form.title
@@ -830,6 +851,7 @@ defineExpose({ submit });
           :cloze-enabled="clozeSelected"
           :disabled="disabled"
           :image-occlusion-enabled="imageOcclusionSelected"
+          :image-labels-enabled="imageLabelingSelected"
         />
 
         <RichContentEditor
@@ -978,6 +1000,10 @@ defineExpose({ submit });
 
       <ClozePreview v-if="activeSetupId === CLOZE_ID" :document="form.content.prompt" />
       <ImageOcclusionPreview v-else-if="activeSetupId === IMAGE_OCCLUSION_ID" :document="form.content.prompt" />
+      <ImageLabelPreview v-else-if="activeSetupId === IMAGE_LABELING_ID" :document="form.content.prompt" />
+      <p v-if="imageLabelingError && activeSetupId === IMAGE_LABELING_ID" class="editor-field-error">
+        {{ imageLabelingError }}
+      </p>
 
       <div class="card-setup__workspace">
         <div
@@ -1213,7 +1239,7 @@ defineExpose({ submit });
         </div>
 
         <ConceptCardPreview
-          v-if="activeSetupId !== CLOZE_ID && activeSetupId !== IMAGE_OCCLUSION_ID"
+          v-if="![ CLOZE_ID, IMAGE_OCCLUSION_ID, IMAGE_LABELING_ID ].includes( activeSetupId )"
           :key="activeSetupId"
           :type-id="activeSetupId"
           :type-settings="previewTypeSettings"

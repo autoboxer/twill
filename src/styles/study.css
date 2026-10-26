@@ -343,6 +343,24 @@
   width: 100%;
 }
 
+.type-answer-response.type-answer-response--optional {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.type-answer-response--optional .type-answer-comparison__heading > span {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 4px;
+}
+
+.type-answer-response--optional .type-answer-comparison__rows > div {
+  padding: 0.65rem;
+  border-radius: 4px;
+}
+
 .explain-response,
 .problem-response {
   display: grid;

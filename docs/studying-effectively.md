@@ -46,7 +46,7 @@ and check trusted references. Not all learning needs to become a flashcard.
 | You confuse two similar things. | Identify the difference that matters, then apply it to another example. | Use Compare and contrast in Explain, or author a linked comparison with optional answer choices. |
 | You can follow a solution but cannot solve independently. | Study the method, complete part of a problem, then solve another. | Use Problem with a worked example, then try a linked problem. |
 | You know one example but struggle when the situation changes. | Practice choosing and applying the principle in a different situation. | Create separate Problem or Explain concepts and link them with a clear learning objective. |
-| You need to understand a diagram. | Identify its parts. Practice their functions or relationships separately if needed. | Use Image occlusion and Explain. Image labeling is planned. |
+| You need to understand a diagram. | Identify its parts. Practice their functions or relationships separately if needed. | Use Image labeling for unlabeled diagrams, Image occlusion for printed labels, and Explain for relationships. |
 | You remember facts but lose the overall structure. | Recall the important sequence or relationships, then check for missing ideas. | Use an Explain prompt with key points. More response options for this activity are planned. |
 | You repeat the same mistake. | Check your knowledge and reasoning, and make sure the question is clear and accurate. | Use feedback, Problem checkpoints, or an authored Find the error activity. Flag unclear or incorrect cards with Needs improvement. |
 | Reviews are taking too much time. | Remove unnecessary content and card types. Continue to review important cards that are due. | Set a session limit, find and edit cards, or archive material you no longer need. |
@@ -295,10 +295,47 @@ you need to do, not just to make it different.
 - Group masks when you need to recall their hidden content together. Check parts
   you consistently miss, even when you know most of the diagram.
 
-The planned Image Labeling feature will let you add answers to an unlabeled
-image. Image occlusion currently hides content already in an image. Selecting
-from a word bank is different from naming a structure independently. There is
-no evidence here that Twill’s planned labeling interface is better than occlusion.
+To prepare an unlabeled diagram, select Image labeling in the concept editor,
+insert an image into Prompt and select Add
+labels. Add a point for each structure, place it on the image, and enter its
+expected label. You can enter accepted alternatives on separate lines. An
+optional position description should explain where to look without naming the
+answer. Use the arrow keys or percentage fields for precise placement, and use
+Image zoom for small details. Apply labels, then save the concept.
+
+In the Library, select a numbered target to locate it on the same image. Select
+Show labels to inspect the answers and alternatives. This preview does not grade
+an attempt.
+
+Each target creates its own scheduled card. In Study, identify the numbered point
+before selecting Reveal answer. The image remains visible while the expected
+label and its alternatives appear below it. Other labels stay hidden. Grade only
+the target you attempted. Hints and references count as help, just as they do for
+other cards. The shared Answer field is not shown during a label review.
+
+You can enter a response in Your label before revealing. Leave it empty if you
+prefer to answer from memory. A typed response is compared with the expected
+label and its accepted alternatives. Capitalization and extra spaces do not
+affect the match. Accents and punctuation do. Differences are highlighted, but
+Twill does not judge the meaning or choose a grade. An answer can be correct
+without matching an authored alternative. Check it yourself before grading.
+
+If you open a hint or reference, the comparison uses your response before help.
+Your response and help state remain available when you pause or visit another
+screen in the same app session. They are not saved after you close the app.
+
+As with other cards that share a concept, revealing an answer or using help
+defers the remaining targets until another session. Their review dates do not
+change. Start another session to practice another due target.
+
+Editing labels or moving points keeps their review progress. Removing a target
+removes its card. Recreating it starts a new card. Use another accurate diagram
+and separate function questions when you need more than recognition of a familiar
+position.
+
+Image occlusion hides content already in an image. Selecting from a word bank
+is different from naming a structure independently. There is no evidence here
+that Twill’s labeling interface is better than occlusion.
 
 ### You know the pieces but lose the overall picture
 
@@ -677,7 +714,9 @@ activities count as help, not separate scheduled forms or independently graded
 steps.
 Answer-cued related cards are
 deferred for the remainder of the current session. Focused review sessions include
-only cards that are due. Image labeling, reconstruction controls, tools for
+only cards that are due. You can author image labels, preview them in the
+Library, and study each target on its own schedule, with optional typed responses
+and comparison against accepted answers. Reconstruction controls, tools for
 creating examples, and records of learning across sessions are planned.
 They are not available controls. References to them above describe future
 possibilities.

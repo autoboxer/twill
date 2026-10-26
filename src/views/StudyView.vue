@@ -36,6 +36,7 @@ import { emptyStudySelection, studySelectionFromLibrary } from '../study/selecti
 import { retrievalFormLabel as studyCardName } from '../retrieval-forms/catalog';
 import { supportsAnswerParts } from '../answer-parts/documents';
 import { usesAnswerPartComparison } from '../study/comparison';
+import { collectImageLabelTargets } from '../image-labeling/targets';
 
 const commands = useCommands();
 const { resolvedMotion } = useAppearance();
@@ -208,6 +209,18 @@ const {
 
 const builderDisabled = computed( () => sessionBusy.value || deferredStartPending.value );
 const selectiveAnswer = computed( () => supportsAnswerParts( currentCard.value ) );
+const imageLabelAnswers = computed( () => {
+  const card = currentCard.value;
+
+  if ( card?.retrievalKind !== 'imageLabeling' ) {
+    return [];
+  }
+
+  const target = collectImageLabelTargets( card.content.prompt )
+    .find( ( target ) => target.id === card.imageLabeling?.targetId );
+
+  return target ? [ target.label, ...target.alternatives ] : [];
+});
 const comparisonResponse = computed( () => (
   answerRevealed.value && assisted.value ? responseBeforeAssistance.value : studyResponse.value
 ) );
@@ -914,10 +927,11 @@ useStartupReady( initialLoading );
           />
 
           <TypeAnswerResponse
-            v-if="typeAnswerSettings"
+            v-if="typeAnswerSettings || imageLabelAnswers.length"
             ref="typeAnswerResponse"
             :model-value="comparisonResponse"
-            :accepted-answers="typeAnswerSettings.acceptedAnswers"
+            :accepted-answers="typeAnswerSettings?.acceptedAnswers ?? imageLabelAnswers"
+            :optional="!typeAnswerSettings"
             :revealed="answerRevealed"
             @update:model-value="studyResponse = $event"
             @submit="showAnswer"

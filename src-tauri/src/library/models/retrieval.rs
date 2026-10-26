@@ -12,6 +12,7 @@ pub struct CardSummary {
     pub problem: Option<ProblemSettings>,
     pub cloze: Option<ClozeSettings>,
     pub image_occlusion: Option<ImageOcclusionSettings>,
+    pub image_labeling: Option<ImageLabelingSettings>,
     pub type_answer: Option<TypeAnswerSettings>,
     pub template: Option<NamedItem>,
     pub scheduling_state: SchedulingState,
@@ -29,6 +30,7 @@ pub enum RetrievalFormKind {
     Problem,
     Cloze,
     ImageOcclusion,
+    ImageLabeling,
 }
 
 impl RetrievalFormKind {
@@ -40,6 +42,7 @@ impl RetrievalFormKind {
             Self::Problem => "problem",
             Self::Cloze => "cloze",
             Self::ImageOcclusion => "image_occlusion",
+            Self::ImageLabeling => "image_labeling",
         }
     }
 }
@@ -55,6 +58,7 @@ impl TryFrom<&str> for RetrievalFormKind {
             "problem" => Ok(Self::Problem),
             "cloze" => Ok(Self::Cloze),
             "image_occlusion" => Ok(Self::ImageOcclusion),
+            "image_labeling" => Ok(Self::ImageLabeling),
             _ => Err(LibraryError::InvalidRetrievalFormKind(value.to_owned())),
         }
     }
@@ -70,6 +74,12 @@ pub struct ClozeSettings {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ImageOcclusionSettings {
     pub group_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ImageLabelingSettings {
+    pub target_id: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

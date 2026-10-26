@@ -6,8 +6,8 @@ use uuid::Uuid;
 mod worked_examples;
 
 use crate::library::{
-    ClozeSettings, ExplainSettings, ImageOcclusionSettings, LibraryError, LibraryResult,
-    ProblemSettings, RetrievalFormKind, TypeAnswerSettings,
+    ClozeSettings, ExplainSettings, ImageLabelingSettings, ImageOcclusionSettings,
+    LibraryError, LibraryResult, ProblemSettings, RetrievalFormKind, TypeAnswerSettings,
 };
 
 const MAXIMUM_ACCEPTED_ANSWERS: usize = 20;
@@ -26,6 +26,7 @@ pub(crate) enum RetrievalFormConfiguration {
     Problem(ProblemSettings),
     Cloze(ClozeSettings),
     ImageOcclusion(ImageOcclusionSettings),
+    ImageLabeling(ImageLabelingSettings),
 }
 
 impl RetrievalFormConfiguration {
@@ -37,6 +38,7 @@ impl RetrievalFormConfiguration {
             Self::Problem(_) => RetrievalFormKind::Problem,
             Self::Cloze(_) => RetrievalFormKind::Cloze,
             Self::ImageOcclusion(_) => RetrievalFormKind::ImageOcclusion,
+            Self::ImageLabeling(_) => RetrievalFormKind::ImageLabeling,
         }
     }
 
@@ -48,6 +50,7 @@ impl RetrievalFormConfiguration {
             Self::Problem(settings) => serde_json::to_string(settings).map_err(Into::into),
             Self::Cloze(settings) => serde_json::to_string(settings).map_err(Into::into),
             Self::ImageOcclusion(settings) => serde_json::to_string(settings).map_err(Into::into),
+            Self::ImageLabeling(settings) => serde_json::to_string(settings).map_err(Into::into),
         }
     }
 
@@ -82,6 +85,13 @@ impl RetrievalFormConfiguration {
     pub fn image_occlusion(&self) -> Option<&ImageOcclusionSettings> {
         match self {
             Self::ImageOcclusion(settings) => Some(settings),
+            _ => None,
+        }
+    }
+
+    pub fn image_labeling(&self) -> Option<&ImageLabelingSettings> {
+        match self {
+            Self::ImageLabeling(settings) => Some(settings),
             _ => None,
         }
     }
@@ -261,6 +271,17 @@ pub(crate) fn parse_retrieval_form_configuration(
 
             Ok(RetrievalFormConfiguration::ImageOcclusion(settings))
         }
+        RetrievalFormKind::ImageLabeling => {
+            let settings: ImageLabelingSettings = serde_json::from_str(configuration)?;
+
+            if !Uuid::parse_str(&settings.target_id)
+                .is_ok_and(|id| id.to_string() == settings.target_id)
+            {
+                return Err(LibraryError::InvalidRetrievalForm);
+            }
+
+            Ok(RetrievalFormConfiguration::ImageLabeling(settings))
+        }
     }
 }
 
@@ -279,8 +300,8 @@ mod tests {
     use super::{parse_retrieval_form_configuration, RetrievalFormConfiguration};
     use crate::library::models::ExplainFocus;
     use crate::library::{
-        ClozeSettings, ExplainSettings, ImageOcclusionSettings, ProblemSettings, RetrievalFormKind,
-        TypeAnswerSettings,
+        ClozeSettings, ExplainSettings, ImageLabelingSettings, ImageOcclusionSettings,
+        ProblemSettings, RetrievalFormKind, TypeAnswerSettings,
     };
 
     #[test]
@@ -329,6 +350,13 @@ mod tests {
                 RetrievalFormKind::ImageOcclusion,
                 json!({ "groupId": group_id }),
             ),
+            (
+                RetrievalFormConfiguration::ImageLabeling(ImageLabelingSettings {
+                    target_id: group_id.to_owned(),
+                }),
+                RetrievalFormKind::ImageLabeling,
+                json!({ "targetId": group_id }),
+            ),
         ];
 
         for (form, kind, expected) in cases {
@@ -349,6 +377,7 @@ mod tests {
                 parsed.problem().is_some(),
                 parsed.cloze().is_some(),
                 parsed.image_occlusion().is_some(),
+                parsed.image_labeling().is_some(),
             ]
             .into_iter()
             .filter(|populated| *populated)
@@ -390,6 +419,9 @@ mod tests {
             ),
             (RetrievalFormKind::Cloze, r#"{"groupId":"invalid"}"#),
             (RetrievalFormKind::ImageOcclusion, r#"{"groupId":""}"#),
+            (RetrievalFormKind::ImageLabeling, r#"{"targetId":""}"#),
+            (RetrievalFormKind::ImageLabeling, r#"{"groupId":"0192abf7-22b3-7000-8000-000000000001"}"#),
+            (RetrievalFormKind::ImageLabeling, r#"{"targetId":"0192ABF7-22B3-7000-8000-000000000001"}"#),
         ];
 
         for (kind, configuration) in cases {

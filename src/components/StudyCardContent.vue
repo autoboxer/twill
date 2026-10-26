@@ -9,6 +9,8 @@ import { createCustomTemplateDocument } from '../templates/customFrame';
 import { templateFields } from '../templates/defaults';
 import { createStudyTemplateFields } from '../templates/studyFields';
 import RichContentRenderer from './RichContentRenderer.vue';
+import StudyImageLabel from './StudyImageLabel.vue';
+import { collectImageLabelTargets } from '../image-labeling/targets';
 
 const props = defineProps({
   answerRevealed: {
@@ -44,6 +46,12 @@ let renderRequestSequence = 0;
 
 const side = computed( () => props.answerRevealed ? 'answer' : 'front' );
 const isCloze = computed( () => props.card.retrievalKind === 'cloze' );
+const isImageLabeling = computed( () => props.card.retrievalKind === 'imageLabeling' );
+const imageLabelTargets = computed( () => isImageLabeling.value
+  ? collectImageLabelTargets( props.card.content.prompt ) : []);
+const imageLabelIndex = computed( () => imageLabelTargets.value.findIndex( target => (
+  target.id === props.card.imageLabeling?.targetId
+) ) );
 const isExplain = computed( () => props.card.retrievalKind === 'explain' );
 const isProblem = computed( () => props.card.retrievalKind === 'problem' );
 const isImageOcclusion = computed( () => (
@@ -269,8 +277,15 @@ function normalizeBytes( value ) {
     role="group"
     tabindex="-1"
   >
+    <StudyImageLabel
+      v-if="isImageLabeling"
+      :key="card.id"
+      :target="imageLabelTargets[ imageLabelIndex ]"
+      :number="imageLabelIndex + 1"
+      :revealed="answerRevealed"
+    />
     <div
-      v-if="isStandard || isVisual"
+      v-else-if="isStandard || isVisual"
       :key="`${ card.id }-visual`"
       class="study-template__visual"
       :class="`study-template__visual--${ visualAppearance.alignment }`"
