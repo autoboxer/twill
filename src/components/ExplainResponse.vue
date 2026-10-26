@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import StudyIdeaList from './StudyIdeaList.vue';
+import { explainFocusDetails } from '../explain/focus';
 
 const props = defineProps({
   modelValue: {
@@ -35,12 +36,7 @@ const result = ref( null );
 const root = ref( null );
 
 const hasResponse = computed( () => Boolean( props.modelValue.trim() ) );
-const focusInstruction = computed( () => ({
-  causeAndEffect: 'Explain the causes and effects',
-  compareAndContrast: 'Compare and contrast',
-  how: 'Explain how',
-  why: 'Explain why'
-})[ props.settings.focus ] ?? 'Build an explanation' );
+const focusDetails = computed( () => explainFocusDetails( props.settings.focus ) );
 
 defineExpose({ focus });
 
@@ -58,6 +54,7 @@ function focus() {
   <section
     ref="root"
     class="explain-response"
+    :data-twill-reconstruction="focusDetails.reconstruction || undefined"
   >
     <header class="explain-response__heading">
       <span aria-hidden="true">
@@ -65,21 +62,22 @@ function focus() {
       </span>
 
       <div>
-        <strong>{{ focusInstruction }}</strong>
+        <strong>{{ focusDetails.instruction }}</strong>
       </div>
     </header>
 
     <UFormField
       v-if="!revealed"
-      label="Scratchpad"
+      :label="focusDetails.inputLabel"
     >
       <UTextarea
         :model-value="modelValue"
-        placeholder="Write an explanation"
+        :placeholder="focusDetails.placeholder"
         :rows="5"
         autoresize
         :maxrows="10"
         class="explain-response__input"
+        :disabled="disabled"
         @update:model-value="emit( 'update:modelValue', $event )"
       />
     </UFormField>
@@ -89,11 +87,11 @@ function focus() {
       ref="result"
       class="explain-comparison"
       role="group"
-      aria-label="Compare your explanation"
+      :aria-label="focusDetails.comparison"
       tabindex="-1"
     >
       <div class="explain-comparison__heading">
-        <strong>Compare your explanation</strong>
+        <strong>{{ focusDetails.comparison }}</strong>
       </div>
 
       <div
@@ -101,7 +99,7 @@ function focus() {
         :class="{ 'explain-comparison__content--written': hasResponse }"
       >
         <div v-if="hasResponse">
-          <span>Your explanation</span>
+          <span>{{ focusDetails.response }}</span>
 
           <p class="explain-comparison__attempt">
             {{ modelValue }}
@@ -109,11 +107,13 @@ function focus() {
         </div>
 
         <div>
-          <span>Key points</span>
+          <span>{{ focusDetails.criteria }}</span>
 
           <StudyIdeaList
             :items="settings.keyPoints"
             kind="idea"
+            :ordered="settings.focus === 'sequence'"
+            :item-label="focusDetails.reconstruction ? focusDetails.criterion.toLowerCase() : ''"
             :checks="checks"
             :written-response="hasResponse"
             :disabled="disabled"

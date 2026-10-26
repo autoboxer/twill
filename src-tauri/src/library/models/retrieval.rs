@@ -95,6 +95,9 @@ pub enum ExplainFocus {
     How,
     CauseAndEffect,
     CompareAndContrast,
+    Outline,
+    Sequence,
+    Relationships,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

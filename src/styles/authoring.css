@@ -199,6 +199,7 @@
   flex: 1;
 }
 
+.explain-key-point-row__actions,
 .problem-checkpoint-row__actions {
   display: grid;
   gap: 0.1rem;

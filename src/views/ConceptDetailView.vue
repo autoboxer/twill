@@ -10,6 +10,7 @@ import PageHeader from '../components/PageHeader.vue';
 import RichContentRenderer from '../components/RichContentRenderer.vue';
 import WorkedExample from '../components/WorkedExample.vue';
 import { useStartupReady } from '../composables/useStartupReady';
+import { explainFocusDetails } from '../explain/focus';
 import { collectClozeGroups } from '../cloze/documents';
 import {
   conceptLibraryErrorMessage,
@@ -294,10 +295,9 @@ function retrievalFormDescription( card ) {
 
   if ( card.retrievalKind === 'explain' ) {
     const count = card.explain.keyPoints.length;
+    const focus = explainFocusDetails( card.explain.focus );
 
-    return `${ explainFocusLabel( card.explain.focus ) } · ${ count } key ${ count === 1
-      ? 'point'
-      : 'points' }`;
+    return `${ focus.label } · ${ count } ${ focus.criterion.toLowerCase() }${ count === 1 ? '' : 's' }`;
   }
 
   if ( card.retrievalKind === 'problem' ) {
@@ -321,15 +321,6 @@ function clozeGroupDetails( card ) {
 
 function imageOcclusionGroupDetails( card ) {
   return imageOcclusionGroupsById.value.get( card.imageOcclusion?.groupId );
-}
-
-function explainFocusLabel( focus ) {
-  return {
-    causeAndEffect: 'Cause and effect',
-    compareAndContrast: 'Compare and contrast',
-    how: 'How',
-    why: 'Why'
-  }[ focus ] ?? 'Explain';
 }
 
 function clozePassageLabel( passage ) {
@@ -638,16 +629,16 @@ useStartupReady( initialLoading );
                 v-if="card.explain"
                 class="retrieval-form-list__answers"
               >
-                <span>Key points</span>
+                <span>{{ explainFocusDetails( card.explain.focus ).criteria }}</span>
 
-                <ul>
+                <component :is="card.explain.focus === 'sequence' ? 'ol' : 'ul'">
                   <li
                     v-for="keyPoint in card.explain.keyPoints"
                     :key="keyPoint"
                   >
                     {{ keyPoint }}
                   </li>
-                </ul>
+                </component>
               </div>
 
               <div

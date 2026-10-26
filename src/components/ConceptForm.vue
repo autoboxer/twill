@@ -2,6 +2,7 @@
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 import { retrievalForms } from '../retrieval-forms/catalog';
+import { explainFocusDetails, explainFocusItems } from '../explain/focus';
 
 import ClozePreview from './ClozePreview.vue';
 import ImageOcclusionPreview from './ImageOcclusionPreview.vue';
@@ -45,25 +46,6 @@ const MAXIMUM_EXPLAIN_KEY_POINTS = 12;
 const MAXIMUM_EXPLAIN_KEY_POINT_LENGTH = 280;
 const MAXIMUM_PROBLEM_CHECKPOINTS = 12;
 const MAXIMUM_PROBLEM_CHECKPOINT_LENGTH = 280;
-
-const explainFocusItems = [
-  {
-    label: 'Why',
-    value: 'why'
-  },
-  {
-    label: 'How',
-    value: 'how'
-  },
-  {
-    label: 'Cause and effect',
-    value: 'causeAndEffect'
-  },
-  {
-    label: 'Compare and contrast',
-    value: 'compareAndContrast'
-  }
-];
 
 const props = defineProps({
   concept: {
@@ -143,6 +125,7 @@ const descriptionsOpen = ref( false );
 const activeSetupId = ref( STANDARD_RECALL_ID );
 const previewOpen = ref( false );
 const editorElement = ref( null );
+const explainFocus = computed( () => explainFocusDetails( form.explainFocus ) );
 
 const deckItems = computed( () => props.decks.map( ( deck ) => ({
   label: deck.name,
@@ -379,11 +362,11 @@ const explainKeyPointErrors = computed( () => {
 
   return normalizedPoints.map( ( keyPoint, index ) => {
     if ( !keyPoint ) {
-      return 'Enter a key point.';
+      return `Enter the ${ explainFocus.value.criterion.toLowerCase() }.`;
     }
 
     if ( Array.from( keyPoint ).length > MAXIMUM_EXPLAIN_KEY_POINT_LENGTH ) {
-      return `Key points cannot exceed ${ MAXIMUM_EXPLAIN_KEY_POINT_LENGTH } characters.`;
+      return `Use ${ MAXIMUM_EXPLAIN_KEY_POINT_LENGTH } characters or fewer.`;
     }
 
     const comparisonPoint = keyPoint.toLowerCase();
@@ -392,7 +375,7 @@ const explainKeyPointErrors = computed( () => {
     ) );
 
     if ( duplicateIndex !== index ) {
-      return 'Key points must be unique.';
+      return 'Each entry must be different.';
     }
 
     return '';
@@ -623,6 +606,20 @@ function removeExplainKeyPoint( index ) {
   }
 
   form.explainKeyPoints.splice( index, 1 );
+}
+
+async function moveExplainKeyPoint( index, direction ) {
+  const destination = index + direction;
+
+  if ( props.disabled || destination < 0 || destination >= form.explainKeyPoints.length ) {
+    return;
+  }
+
+  const [ point ] = form.explainKeyPoints.splice( index, 1 );
+  form.explainKeyPoints.splice( destination, 0, point );
+
+  await nextTick();
+  editorElement.value?.querySelectorAll( '.explain-key-point-row textarea' )[ destination ]?.focus();
 }
 
 function addProblemCheckpoint() {
@@ -1073,7 +1070,7 @@ defineExpose({ submit });
         >
           <div class="explain-settings__heading">
             <div>
-              <h3>Explanation guide</h3>
+              <h3>{{ explainFocus.guide }}</h3>
             </div>
 
             <span>
@@ -1099,7 +1096,7 @@ defineExpose({ submit });
             <UFormField
               v-for="( keyPoint, index ) in form.explainKeyPoints"
               :key="index"
-              :label="`Key point ${ index + 1 }`"
+              :label="`${ explainFocus.criterion } ${ index + 1 }`"
               :error="explainKeyPointErrors[ index ] || false"
               :hint="`${ explainKeyPointLength( keyPoint ) } / ${ MAXIMUM_EXPLAIN_KEY_POINT_LENGTH }`"
               required
@@ -1107,7 +1104,7 @@ defineExpose({ submit });
               <div class="explain-key-point-row">
                 <UTextarea
                   v-model="form.explainKeyPoints[ index ]"
-                  placeholder="Expected idea"
+                  :placeholder="explainFocus.criterionPlaceholder"
                   :rows="2"
                   autoresize
                   :maxrows="5"
@@ -1115,24 +1112,50 @@ defineExpose({ submit });
                   :disabled="disabled"
                 />
 
-                <UButton
-                  type="button"
-                  icon="i-lucide-x"
-                  :aria-label="`Remove key point ${ index + 1 }`"
-                  color="neutral"
-                  variant="ghost"
-                  size="lg"
-                  square
-                  :disabled="disabled || form.explainKeyPoints.length === 1"
-                  @click="removeExplainKeyPoint( index )"
-                />
+                <div class="explain-key-point-row__actions">
+                  <template v-if="form.explainFocus === 'sequence'">
+                    <UButton
+                      type="button"
+                      icon="i-lucide-chevron-up"
+                      :aria-label="`Move step ${ index + 1 } up`"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      square
+                      :disabled="disabled || index === 0"
+                      @click="moveExplainKeyPoint( index, -1 )"
+                    />
+                    <UButton
+                      type="button"
+                      icon="i-lucide-chevron-down"
+                      :aria-label="`Move step ${ index + 1 } down`"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      square
+                      :disabled="disabled || index === form.explainKeyPoints.length - 1"
+                      @click="moveExplainKeyPoint( index, 1 )"
+                    />
+                  </template>
+                  <UButton
+                    type="button"
+                    icon="i-lucide-x"
+                    :aria-label="`Remove ${ explainFocus.criterion.toLowerCase() } ${ index + 1 }`"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    square
+                    :disabled="disabled || form.explainKeyPoints.length === 1"
+                    @click="removeExplainKeyPoint( index )"
+                  />
+                </div>
               </div>
             </UFormField>
           </div>
 
           <UButton
             type="button"
-            label="Add key point"
+            :label="explainFocus.addCriterion"
             leading-icon="i-lucide-plus"
             color="neutral"
             variant="subtle"

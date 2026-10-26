@@ -37,6 +37,7 @@ import { retrievalFormLabel as studyCardName } from '../retrieval-forms/catalog'
 import { supportsAnswerParts } from '../answer-parts/documents';
 import { usesAnswerPartComparison } from '../study/comparison';
 import { collectImageLabelTargets } from '../image-labeling/targets';
+import { explainFocusDetails } from '../explain/focus';
 
 const commands = useCommands();
 const { resolvedMotion } = useAppearance();
@@ -363,7 +364,7 @@ const revealActionLabel = computed( () => {
   }
 
   if ( explainSettings.value ) {
-    return 'Compare explanation';
+    return explainFocusDetails( explainSettings.value.focus ).reveal;
   }
 
   if ( problemSettings.value ) {

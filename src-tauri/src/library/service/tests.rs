@@ -1497,6 +1497,82 @@ fn explain_settings_are_validated_normalized_and_queued() {
 }
 
 #[test]
+fn reconstruction_focus_round_trips_without_replacing_the_explain_card() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let concept = library
+        .create_concept(CreateConceptInput {
+            title: "TCP handshake".to_owned(),
+            deck_ids: Vec::new(),
+            tag_ids: Vec::new(),
+            content: Default::default(),
+            include_standard_recall: false,
+            template_ids: Vec::new(),
+            problem: None,
+            explain: Some(ExplainSettings {
+                focus: ExplainFocus::Outline,
+                key_points: vec!["The endpoints establish a connection.".to_owned()],
+            }),
+            type_answer: None,
+        })
+        .unwrap();
+    let original = &concept.cards[0];
+    let review = library
+        .record_review_at(
+            RecordReviewInput {
+                assisted: false,
+                card_id: original.id.clone(),
+                rating: ReviewRating::Good,
+            },
+            original.due_at,
+        )
+        .unwrap();
+
+    for focus in [
+        ExplainFocus::Sequence,
+        ExplainFocus::Relationships,
+        ExplainFocus::Outline,
+    ] {
+        let settings = ExplainSettings {
+            focus,
+            key_points: vec![
+                "  Client   sends SYN. ".to_owned(),
+                "Server sends SYN ACK.".to_owned(),
+                "Client sends ACK.".to_owned(),
+            ],
+        };
+        let serialized = serde_json::to_value(&settings).unwrap();
+        let decoded: ExplainSettings = serde_json::from_value(serialized).unwrap();
+        let updated = library
+            .update_concept(UpdateConceptInput {
+                id: concept.id.clone(),
+                title: concept.title.clone(),
+                deck_ids: Vec::new(),
+                tag_ids: Vec::new(),
+                content: concept.content.clone(),
+                include_standard_recall: false,
+                template_ids: Vec::new(),
+                problem: None,
+                explain: Some(decoded),
+                type_answer: None,
+            })
+            .unwrap();
+
+        assert_eq!(updated.cards.len(), 1);
+        let card = &updated.cards[0];
+        assert_eq!(card.id, original.id);
+        assert_eq!(card.review_count, 1);
+        assert_eq!(card.due_at, review.due_at);
+        assert_eq!(card.explain.as_ref().unwrap().focus, focus);
+        assert_eq!(
+            card.explain.as_ref().unwrap().key_points,
+            ["Client sends SYN.", "Server sends SYN ACK.", "Client sends ACK."]
+        );
+        assert_eq!(library.concept(&concept.id).unwrap().cards, updated.cards);
+    }
+}
+
+#[test]
 fn explain_edits_keep_schedules_and_readded_forms_start_fresh() {
     let (_directory, store) = test_store();
     let library = ConceptLibrary::new(&store);

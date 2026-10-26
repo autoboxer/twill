@@ -47,7 +47,7 @@ and check trusted references. Not all learning needs to become a flashcard.
 | You can follow a solution but cannot solve independently. | Study the method, complete part of a problem, then solve another. | Use Problem with a worked example, then try a linked problem. |
 | You know one example but struggle when the situation changes. | Practice choosing and applying the principle in a different situation. | Create separate Problem or Explain concepts and link them with a clear learning objective. |
 | You need to understand a diagram. | Identify its parts. Practice their functions or relationships separately if needed. | Use Image labeling for unlabeled diagrams, Image occlusion for printed labels, and Explain for relationships. |
-| You remember facts but lose the overall structure. | Recall the important sequence or relationships, then check for missing ideas. | Use an Explain prompt with key points. More response options for this activity are planned. |
+| You remember facts but lose the overall structure. | Recall the important sequence or relationships, then check for missing ideas. | Use Reconstruct an outline, Reconstruct a sequence, or Reconstruct relationships in Explain. |
 | You repeat the same mistake. | Check your knowledge and reasoning, and make sure the question is clear and accurate. | Use feedback, Problem checkpoints, or an authored Find the error activity. Flag unclear or incorrect cards with Needs improvement. |
 | Reviews are taking too much time. | Remove unnecessary content and card types. Continue to review important cards that are due. | Set a session limit, find and edit cards, or archive material you no longer need. |
 
@@ -348,8 +348,20 @@ that Twill’s labeling interface is better than occlusion.
 - Use a few structural prompts if a blank page gives you no useful starting
   point. When judging your response, consider how those prompts helped you.
 
-Use an Explain question with key points for this activity now. More response
-options are planned. Drawing a map from memory can be useful, but it has not
+In the concept editor, select Explain and choose Reconstruct an outline,
+Reconstruct a sequence, or Reconstruct relationships in Prompt focus. Write a
+bounded task in Prompt and a checked reference in Answer. Add the essential
+ideas, steps, or connections in Reference structure. Arrange sequence steps
+with their move buttons. For an outline, include where the important ideas
+belong. For a relationship, name the connected ideas and describe the connection.
+
+During Study, write your response with line breaks and indentation, or answer
+mentally or on paper. Select Compare reconstruction when you are ready. Your
+written attempt stays visible beside the criteria, with the full reference
+above it. Checks are optional and do not calculate a grade. Accept another
+valid wording or structure when the task allows it.
+
+Drawing a map from memory can be useful, but it has not
 been shown to be consistently better than recalling ideas in prose. Adding a
 mapping step can also take more time without improving later results.
 [Blunt & Karpicke, 2014](https://doi.org/10.1037/a0035934),
@@ -716,8 +728,11 @@ Answer-cued related cards are
 deferred for the remainder of the current session. Focused review sessions include
 only cards that are due. You can author image labels, preview them in the
 Library, and study each target on its own schedule, with optional typed responses
-and comparison against accepted answers. Reconstruction controls, tools for
-creating examples, and records of learning across sessions are planned.
+and comparison against accepted answers. Explain also supports reconstructing
+outlines, sequences, and relationships with a written or paper response and
+reference criteria. Dedicated optional structural prompts and a separate
+correction step are still planned. Tools for creating examples and records of
+learning across sessions are also planned.
 They are not available controls. References to them above describe future
 possibilities.
 

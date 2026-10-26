@@ -210,7 +210,7 @@ export const guideTopics = [
   {
     id: 'explain',
     title: 'Explain',
-    summary: 'Explain how something works, how ideas relate, or why they differ.',
+    summary: 'Explain an idea or reconstruct how several ideas fit together.',
     sections: [
       {
         title: 'Define a good explanation',
@@ -221,6 +221,21 @@ export const guideTopics = [
         ],
         example: 'Prompt: Why can packet loss delay later TCP data even when those later packets arrive? Key point: The ordered byte stream waits for missing earlier data to be recovered.',
         avoid: 'A question such as “Explain everything about networking” is too broad to judge. Ask a specific question and focus on the ideas needed to answer it.'
+      },
+      {
+        title: 'Reconstruct a topic',
+        steps: [
+          'Select Explain in the concept editor. In Prompt focus, choose Reconstruct an outline, Reconstruct a sequence, or Reconstruct relationships.',
+          'Write a bounded task in Prompt and a checked reference in Answer. Add the essential ideas, ordered steps, or relationships that a good response needs. Use Move step up or Move step down to change the reference sequence.',
+          'During Study, reconstruct the topic before selecting Compare reconstruction. Write in Your reconstruction, answer mentally, or use paper. You can use line breaks and indentation to organize your response.',
+          'Compare your original response with the reference and its essential structure. Mark important gaps with the optional checks, then choose one grade for the whole attempt.'
+        ],
+        paragraphs: [
+          'For a diagram, add an image without answers to Prompt and describe the connections you want to reconstruct. A written description or paper sketch is enough. You do not need to draw inside Twill.',
+          'Judge the ideas, order, and connections that matter to the task. Different wording or another valid layout can be correct. A map or outline is an alternative to prose, not a required extra step.'
+        ],
+        example: 'Ask for the three messages in a TCP handshake. Add one reference step for each message. Include why each acknowledgement follows the preceding message when that relationship matters.',
+        avoid: 'Keep the task small enough to check fairly. Reconstructing an entire chapter in one card makes it difficult to identify and grade important gaps.'
       }
     ],
     related: [ 'problem', 'feedback', 'grading' ]
