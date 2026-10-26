@@ -361,6 +361,22 @@ written attempt stays visible beside the criteria, with the full reference
 above it. Checks are optional and do not calculate a grade. Accept another
 valid wording or structure when the task allows it.
 
+Select Add correction to write what you would change without replacing your
+original response. Revisit lists the reference ideas you marked as missing or
+partial. Unchecked ideas are not treated as gaps. You can leave the correction
+blank and work mentally or on paper. Check and grade your original attempt,
+not what you wrote after seeing the reference.
+
+Use Linked practice in the card header to choose a relevant connected case.
+If the question or reference needs improving, select Card issue or Edit later
+and describe the change needed. Forgetting an idea is not itself a reason to
+change the card. Twill does not create cards or choose a grade from your gaps.
+
+Hiding the correction keeps its text. Pause, visits to other screens, and a
+return from linked practice also preserve it. Undo restores the correction
+alongside the original attempt and checks. A fresh attempt starts without that
+correction. Responses and corrections are not saved after an app restart.
+
 If a blank page gives you no useful starting point, add optional structural
 prompts in the reconstruction setup. Write one heading or guiding question per
 line, such as “What begins the process?” or “What connects these parts?” Keep
@@ -740,7 +756,9 @@ Library, and study each target on its own schedule, with optional typed response
 and comparison against accepted answers. Explain also supports reconstructing
 outlines, sequences, and relationships with a written or paper response and
 reference criteria. Authors can add optional structural prompts, revealed as
-help during Study. A separate correction step is still planned.
+help during Study. After comparison, you can write a separate correction and
+revisit the ideas you marked as missing or partial without changing the
+original attempt or its grade.
 Tools for creating examples and records of
 learning across sessions are also planned.
 They are not available controls. References to them above describe future

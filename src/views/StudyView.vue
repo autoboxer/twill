@@ -112,6 +112,7 @@ const {
   ratingCounts,
   recordAssessment,
   recordMasteryAssessment,
+  reconstructionReview,
   recoveryError,
   resumeSession,
   responseBeforeAssistance,
@@ -166,6 +167,11 @@ const {
   setDiagnosisResponse,
   toggleCorrection: toggleProblemCorrection
 } = guidedProblem;
+const {
+  state: reconstructionState,
+  toggle: toggleReconstructionReview,
+  setCorrection: setReconstructionCorrection
+} = reconstructionReview;
 const {
   active: comparisonAttempt,
   error: caseComparisonError,
@@ -945,9 +951,12 @@ useStartupReady( initialLoading );
             :settings="explainSettings"
             :revealed="answerRevealed"
             :checks="comparisonChecks"
+            :review="reconstructionState"
             :disabled="actionsBlocked"
             @update:model-value="studyResponse = $event"
             @compare="setComparison"
+            @toggle-review="toggleReconstructionReview"
+            @correction="setReconstructionCorrection"
           />
 
           <ProblemResponse
