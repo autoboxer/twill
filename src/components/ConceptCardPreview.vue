@@ -9,6 +9,8 @@ import StudyCardContent from './StudyCardContent.vue';
 import StudyAssistance from './StudyAssistance.vue';
 import StudyAnswerParts from './StudyAnswerParts.vue';
 import WorkedExample from './WorkedExample.vue';
+import ExplainResponse from './ExplainResponse.vue';
+import { explainFocusDetails } from '../explain/focus';
 import { supportsAnswerParts } from '../answer-parts/documents';
 import { usesAnswerPartComparison } from '../study/comparison';
 
@@ -36,6 +38,13 @@ const revealedAnswerParts = ref([]);
 const retry = ref( 0 );
 const previewContent = shallowRef({ ...props.content });
 const previewTitle = ref( props.title );
+const previewResponse = ref( '' );
+const reconstruction = computed( () => props.typeId === 'explain'
+  && explainFocusDetails( props.typeSettings?.focus ).reconstruction );
+
+watch([ () => props.typeId, () => props.typeSettings?.focus ], () => {
+  previewResponse.value = '';
+});
 
 watch([
   () => props.content.prompt,
@@ -159,14 +168,23 @@ function toggleAnswerParts( ids ) {
         @compare="setComparison"
       />
       <CardAnswerDetails
-        v-if="revealed"
+        v-if="revealed && !reconstruction"
         :card="card"
         comparison-enabled
         :checks="comparisonChecks"
         @compare="setComparison"
       />
+      <ExplainResponse
+        v-if="reconstruction"
+        v-model="previewResponse"
+        :settings="typeSettings"
+        :revealed="revealed"
+        :checks="comparisonChecks"
+        @compare="setComparison"
+      />
       <StudyAssistance
         :content="previewContent"
+        :explain="card.explain"
         :revealed="revealedAssistance"
         @toggle="toggleAssistance"
       />

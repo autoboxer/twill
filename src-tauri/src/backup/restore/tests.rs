@@ -26,6 +26,43 @@ fn concept_input(title: &str) -> CreateConceptInput {
 }
 
 #[test]
+fn backup_round_trip_preserves_reconstruction_prompts() {
+    let root = tempdir().unwrap();
+    let source = LocalDataStore::open(root.path().join("source")).unwrap();
+    let library = ConceptLibrary::new(&source);
+    let mut concepts = Vec::new();
+
+    for focus in ["outline", "sequence", "relationships"] {
+        let input = serde_json::from_value(json!({
+            "title": focus, "includeStandardRecall": false,
+            "explain": {
+                "focus": focus, "keyPoints": ["Describe the essential structure."],
+                "structurePrompts": ["What begins the process?", "What connects the parts? 網"]
+            }
+        })).unwrap();
+        concepts.push(library.create_concept(input).unwrap());
+    }
+
+    let archive = root.path().join("reconstruction.twill");
+    create_backup(&source, &archive).unwrap();
+    let preview = inspect_backup(&archive).unwrap();
+    let profile = root.path().join("target");
+    let target = LocalDataStore::open(&profile).unwrap();
+    prepare_restore(&profile, &archive, &preview.fingerprint).unwrap();
+    drop(target);
+
+    let restored = open_with_restore(&profile, || Ok(LocalDataStore::open(&profile)?)).unwrap();
+    let library = ConceptLibrary::new(&restored);
+    let queue = library.study_queue().unwrap();
+
+    for concept in concepts {
+        assert_eq!(library.concept(&concept.id).unwrap(), concept);
+        let queued = queue.cards.iter().find(|card| card.id == concept.cards[0].id).unwrap();
+        assert_eq!(queued.explain, concept.cards[0].explain);
+    }
+}
+
+#[test]
 fn backup_round_trip_preserves_worked_steps_completion_visibility_and_error_diagnosis() {
     let root = tempdir().unwrap();
     let source = LocalDataStore::open(root.path().join("source")).unwrap();

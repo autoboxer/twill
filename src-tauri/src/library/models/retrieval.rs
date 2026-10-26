@@ -95,6 +95,9 @@ pub enum ExplainFocus {
     How,
     CauseAndEffect,
     CompareAndContrast,
+    Outline,
+    Sequence,
+    Relationships,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -102,6 +105,8 @@ pub enum ExplainFocus {
 pub struct ExplainSettings {
     pub focus: ExplainFocus,
     pub key_points: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub structure_prompts: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

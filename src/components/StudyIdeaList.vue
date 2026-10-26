@@ -10,6 +10,14 @@ defineProps({
     type: String,
     required: true
   },
+  ordered: {
+    type: Boolean,
+    default: false
+  },
+  itemLabel: {
+    type: String,
+    default: ''
+  },
   checks: {
     type: Object,
     default: () => ({})
@@ -29,7 +37,7 @@ const emit = defineEmits([ 'compare' ]);
 
 <template>
   <component
-    :is="kind === 'checkpoint' ? 'ol' : 'ul'"
+    :is="ordered || kind === 'checkpoint' ? 'ol' : 'ul'"
     class="study-idea-list"
   >
     <li
@@ -39,7 +47,7 @@ const emit = defineEmits([ 'compare' ]);
     >
       <span class="study-idea-list__text">{{ item }}</span>
       <StudyIdeaCheck
-        :label="`${ kind } ${ index + 1 }`"
+        :label="`${ itemLabel || kind } ${ index + 1 }`"
         :model-value="checks[ `${ kind }:${ index }` ]"
         :written-response="writtenResponse"
         :disabled="disabled"

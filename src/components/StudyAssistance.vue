@@ -6,12 +6,13 @@ import RichContentRenderer from './RichContentRenderer.vue';
 
 const props = defineProps({
   content: { type: Object, required: true },
+  explain: { type: Object, default: null },
   revealed: { type: Array, required: true },
   disabled: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([ 'toggle' ]);
-const documents = computed( () => assistanceDocuments( props.content ) );
+const documents = computed( () => assistanceDocuments( props.content, props.explain ) );
 </script>
 
 <template>
@@ -28,7 +29,7 @@ const documents = computed( () => assistanceDocuments( props.content ) );
         color="neutral"
         variant="link"
         size="sm"
-        :leading-icon="item.id === 'hint' ? 'i-lucide-lightbulb' : 'i-lucide-book-open'"
+        :leading-icon="item.icon"
         :disabled="disabled"
         :aria-expanded="revealed.includes( item.id )"
         :aria-controls="`study-help-${ item.id }`"

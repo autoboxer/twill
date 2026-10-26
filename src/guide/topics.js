@@ -210,7 +210,7 @@ export const guideTopics = [
   {
     id: 'explain',
     title: 'Explain',
-    summary: 'Explain how something works, how ideas relate, or why they differ.',
+    summary: 'Explain an idea or reconstruct how several ideas fit together.',
     sections: [
       {
         title: 'Define a good explanation',
@@ -221,6 +221,26 @@ export const guideTopics = [
         ],
         example: 'Prompt: Why can packet loss delay later TCP data even when those later packets arrive? Key point: The ordered byte stream waits for missing earlier data to be recovered.',
         avoid: 'A question such as “Explain everything about networking” is too broad to judge. Ask a specific question and focus on the ideas needed to answer it.'
+      },
+      {
+        title: 'Reconstruct a topic',
+        steps: [
+          'Select Explain in the concept editor. In Prompt focus, choose Reconstruct an outline, Reconstruct a sequence, or Reconstruct relationships.',
+          'Write a bounded task in Prompt and a checked reference in Answer. Add the essential ideas, ordered steps, or relationships that a good response needs. Use Move step up or Move step down to change the reference sequence.',
+          'During Study, reconstruct the topic before selecting Compare reconstruction. Write in Your reconstruction, answer mentally, or use paper. You can use line breaks and indentation to organize your response.',
+          'Compare your original response with the reference and its essential structure. Mark important gaps with the optional checks.',
+          'Select Add correction to write what you would change. Revisit lists the ideas you marked as missing or partial. You can also correct your response mentally or on paper. Choose one grade for the original attempt, not the correction.'
+        ],
+        paragraphs: [
+          'For a diagram, add an image without answers to Prompt and describe the connections you want to reconstruct. A written description or paper sketch is enough. You do not need to draw inside Twill.',
+          'Judge the ideas, order, and connections that matter to the task. Different wording or another valid layout can be correct. A map or outline is an alternative to prose, not a required extra step.',
+          'To offer a starting point, select Add structural prompts in the reconstruction setup. Write a heading or guiding question on each line, without its answer. You can add up to 12 prompts of 280 characters each. Select Structure in the preview to check them.',
+          'During Study, select Structure if you need those prompts. Revealing them counts as help. Hiding them does not undo that help. Your original response stays available for comparison, separate from anything you write afterward. Grade the attempt you made before help.',
+          'To practice a connection you missed, use Linked practice in the card header and choose a relevant linked case. If the question or reference needs work, use Card issue or Edit later. A gap in your recall does not necessarily mean the card needs changing.',
+          'Your correction stays available when you hide it, pause, visit another screen, or return from linked practice. Undo restores it with the original attempt. Corrections are not saved after you restart the app.'
+        ],
+        example: 'Ask for the three messages in a TCP handshake. Add one reference step for each message. Include why each acknowledgement follows the preceding message when that relationship matters.',
+        avoid: 'Keep the task small enough to check fairly. Reconstructing an entire chapter in one card makes it difficult to identify and grade important gaps.'
       }
     ],
     related: [ 'problem', 'feedback', 'grading' ]

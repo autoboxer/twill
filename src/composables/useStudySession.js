@@ -6,6 +6,7 @@ import { useDevicePreferences } from './useDevicePreferences';
 import { useRecallSession } from './useRecallSession';
 import { useStudyAssistance } from './useStudyAssistance';
 import { useStudyComparison } from './useStudyComparison';
+import { useReconstructionReview } from './useReconstructionReview';
 import { useGuidedProblem } from './useGuidedProblem';
 import { useCaseComparisonPractice } from './useCaseComparisonPractice';
 import { useLinkedPractice } from './useLinkedPractice';
@@ -162,6 +163,8 @@ export function useStudySession({
     restoreComparison,
     setComparison
   } = useStudyComparison({ currentCard, answerRevealed, actionsBlocked });
+
+  const reconstructionReview = useReconstructionReview({ currentCard, answerRevealed, actionsBlocked });
 
   const guidedProblem = useGuidedProblem({
     currentCard,
@@ -852,6 +855,7 @@ export function useStudySession({
       response: studyResponse.value,
       assistance: assistanceSnapshot(),
       comparison: comparisonSnapshot(),
+      reconstruction: reconstructionReview.snapshot(),
       guidedProblem: guidedProblem.snapshot()
     };
   }
@@ -860,6 +864,7 @@ export function useStudySession({
     studyResponse.value = saved?.response ?? '';
     restoreAssistance( saved?.assistance );
     restoreComparison( saved?.comparison );
+    reconstructionReview.restore( saved?.reconstruction );
     guidedProblem.restore( saved?.guidedProblem );
   }
 
@@ -1007,6 +1012,7 @@ export function useStudySession({
     ratingCounts,
     recordAssessment,
     recordMasteryAssessment,
+    reconstructionReview,
     recoveryError,
     resumeSession,
     responseBeforeAssistance,

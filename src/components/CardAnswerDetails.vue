@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import StudyIdeaList from './StudyIdeaList.vue';
+import { explainFocusDetails } from '../explain/focus';
 
 const props = defineProps({
   card: {
@@ -27,7 +28,15 @@ const details = computed( () => {
   }
 
   if ( props.card.explain ) {
-    return { label: 'Key points', items: props.card.explain.keyPoints, kind: 'idea' };
+    const focus = explainFocusDetails( props.card.explain.focus );
+
+    return {
+      label: focus.criteria,
+      items: props.card.explain.keyPoints,
+      itemLabel: focus.reconstruction ? focus.criterion.toLowerCase() : '',
+      ordered: props.card.explain.focus === 'sequence',
+      kind: 'idea'
+    };
   }
 
   if ( props.card.problem ) {
@@ -46,6 +55,8 @@ const details = computed( () => {
       v-if="comparisonEnabled && details.kind"
       :items="details.items"
       :kind="details.kind"
+      :ordered="details.ordered"
+      :item-label="details.itemLabel"
       :checks="checks"
       @compare="( id, value ) => emit( 'compare', id, value )"
     />

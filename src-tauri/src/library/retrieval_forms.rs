@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 mod worked_examples;
 
+use crate::library::models::ExplainFocus;
 use crate::library::{
     ClozeSettings, ExplainSettings, ImageLabelingSettings, ImageOcclusionSettings,
     LibraryError, LibraryResult, ProblemSettings, RetrievalFormKind, TypeAnswerSettings,
@@ -14,6 +15,8 @@ const MAXIMUM_ACCEPTED_ANSWERS: usize = 20;
 const MAXIMUM_ACCEPTED_ANSWER_LENGTH: usize = 500;
 const MAXIMUM_EXPLAIN_KEY_POINTS: usize = 12;
 const MAXIMUM_EXPLAIN_KEY_POINT_LENGTH: usize = 280;
+const MAXIMUM_STRUCTURE_PROMPTS: usize = 12;
+const MAXIMUM_STRUCTURE_PROMPT_LENGTH: usize = 280;
 const MAXIMUM_PROBLEM_CHECKPOINTS: usize = 12;
 const MAXIMUM_PROBLEM_CHECKPOINT_LENGTH: usize = 280;
 const EMPTY_CONFIGURATION: &str = "{}";
@@ -98,6 +101,8 @@ impl RetrievalFormConfiguration {
 }
 
 pub(crate) fn normalize_explain(settings: ExplainSettings) -> LibraryResult<ExplainSettings> {
+    let structure_prompts = normalize_structure_prompts(settings.focus, settings.structure_prompts)?;
+
     if settings.key_points.is_empty() {
         return Err(LibraryError::MissingExplainKeyPoint);
     }
@@ -135,7 +140,58 @@ pub(crate) fn normalize_explain(settings: ExplainSettings) -> LibraryResult<Expl
     Ok(ExplainSettings {
         focus: settings.focus,
         key_points,
+        structure_prompts,
     })
+}
+
+fn normalize_structure_prompts(
+    focus: ExplainFocus,
+    prompts: Vec<String>,
+) -> LibraryResult<Vec<String>> {
+    if !prompts.is_empty()
+        && !matches!(
+            focus,
+            ExplainFocus::Outline | ExplainFocus::Sequence | ExplainFocus::Relationships
+        )
+    {
+        return Err(LibraryError::InvalidStructurePrompts {
+            message: "structural prompts are only available for reconstruction",
+        });
+    }
+
+    if prompts.len() > MAXIMUM_STRUCTURE_PROMPTS {
+        return Err(LibraryError::InvalidStructurePrompts {
+            message: "use 12 structural prompts or fewer",
+        });
+    }
+
+    let mut unique = HashSet::new();
+    let mut normalized = Vec::with_capacity(prompts.len());
+
+    for prompt in prompts {
+        let prompt = prompt.split_whitespace().collect::<Vec<_>>().join(" ");
+
+        if prompt.is_empty() {
+            return Err(LibraryError::EmptyValue { field: "Structural prompt" });
+        }
+
+        if prompt.chars().count() > MAXIMUM_STRUCTURE_PROMPT_LENGTH {
+            return Err(LibraryError::ValueTooLong {
+                field: "Structural prompt",
+                maximum: MAXIMUM_STRUCTURE_PROMPT_LENGTH,
+            });
+        }
+
+        if !unique.insert(prompt.to_lowercase()) {
+            return Err(LibraryError::InvalidStructurePrompts {
+                message: "each structural prompt must be different",
+            });
+        }
+
+        normalized.push(prompt);
+    }
+
+    Ok(normalized)
 }
 
 pub(crate) fn normalize_type_answer(
@@ -323,6 +379,7 @@ mod tests {
             (
                 RetrievalFormConfiguration::Explain(ExplainSettings {
                     focus: ExplainFocus::CauseAndEffect,
+                    structure_prompts: Vec::new(),
                     key_points: vec!["Heat increases motion".to_owned()],
                 }),
                 RetrievalFormKind::Explain,

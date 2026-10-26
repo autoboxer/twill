@@ -404,6 +404,23 @@
   gap: 0.4rem;
 }
 
+.retrieval-form-list__structure {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.retrieval-form-list__structure summary {
+  cursor: pointer;
+}
+
+.retrieval-form-list__structure ul {
+  display: grid;
+  gap: 0.35rem;
+  padding-left: 1.25rem;
+  margin-top: 0.5rem;
+  list-style: disc;
+}
+
 .retrieval-form-list__answers > span {
   color: var(--ui-text-dimmed);
   font-size: 0.72rem;

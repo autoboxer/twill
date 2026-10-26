@@ -37,6 +37,7 @@ import { retrievalFormLabel as studyCardName } from '../retrieval-forms/catalog'
 import { supportsAnswerParts } from '../answer-parts/documents';
 import { usesAnswerPartComparison } from '../study/comparison';
 import { collectImageLabelTargets } from '../image-labeling/targets';
+import { explainFocusDetails } from '../explain/focus';
 
 const commands = useCommands();
 const { resolvedMotion } = useAppearance();
@@ -111,6 +112,7 @@ const {
   ratingCounts,
   recordAssessment,
   recordMasteryAssessment,
+  reconstructionReview,
   recoveryError,
   resumeSession,
   responseBeforeAssistance,
@@ -165,6 +167,11 @@ const {
   setDiagnosisResponse,
   toggleCorrection: toggleProblemCorrection
 } = guidedProblem;
+const {
+  state: reconstructionState,
+  toggle: toggleReconstructionReview,
+  setCorrection: setReconstructionCorrection
+} = reconstructionReview;
 const {
   active: comparisonAttempt,
   error: caseComparisonError,
@@ -363,7 +370,7 @@ const revealActionLabel = computed( () => {
   }
 
   if ( explainSettings.value ) {
-    return 'Compare explanation';
+    return explainFocusDetails( explainSettings.value.focus ).reveal;
   }
 
   if ( problemSettings.value ) {
@@ -944,9 +951,12 @@ useStartupReady( initialLoading );
             :settings="explainSettings"
             :revealed="answerRevealed"
             :checks="comparisonChecks"
+            :review="reconstructionState"
             :disabled="actionsBlocked"
             @update:model-value="studyResponse = $event"
             @compare="setComparison"
+            @toggle-review="toggleReconstructionReview"
+            @correction="setReconstructionCorrection"
           />
 
           <ProblemResponse
@@ -993,6 +1003,7 @@ useStartupReady( initialLoading );
           <StudyAssistance
             v-if="!pretestActive"
             :content="currentCard.content"
+            :explain="explainSettings"
             :revealed="revealedAssistance"
             :disabled="actionsBlocked"
             @toggle="toggleAssistance"

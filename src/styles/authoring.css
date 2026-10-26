@@ -199,6 +199,7 @@
   flex: 1;
 }
 
+.explain-key-point-row__actions,
 .problem-checkpoint-row__actions {
   display: grid;
   gap: 0.1rem;
@@ -206,6 +207,16 @@
 
 .explain-settings__focus {
   width: min(100%, 20rem);
+}
+
+.structure-prompts-editor {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.structure-prompts-editor > button {
+  justify-self: start;
 }
 
 .type-answer-settings__add,

@@ -2,6 +2,8 @@
 import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 import { retrievalForms } from '../retrieval-forms/catalog';
+import { explainFocusDetails, explainFocusItems } from '../explain/focus';
+import { normalizeStructurePrompts, structurePromptsError } from '../explain/prompts';
 
 import ClozePreview from './ClozePreview.vue';
 import ImageOcclusionPreview from './ImageOcclusionPreview.vue';
@@ -45,25 +47,6 @@ const MAXIMUM_EXPLAIN_KEY_POINTS = 12;
 const MAXIMUM_EXPLAIN_KEY_POINT_LENGTH = 280;
 const MAXIMUM_PROBLEM_CHECKPOINTS = 12;
 const MAXIMUM_PROBLEM_CHECKPOINT_LENGTH = 280;
-
-const explainFocusItems = [
-  {
-    label: 'Why',
-    value: 'why'
-  },
-  {
-    label: 'How',
-    value: 'how'
-  },
-  {
-    label: 'Cause and effect',
-    value: 'causeAndEffect'
-  },
-  {
-    label: 'Compare and contrast',
-    value: 'compareAndContrast'
-  }
-];
 
 const props = defineProps({
   concept: {
@@ -123,6 +106,7 @@ const form = reactive({
   content: createEmptyConceptContent(),
   deckIds: [],
   explainFocus: 'why',
+  explainStructurePrompts: '',
   explainKeyPoints: [ '' ],
   problemCheckpoints: [ '' ],
   problemWorkedExample: null,
@@ -143,6 +127,12 @@ const descriptionsOpen = ref( false );
 const activeSetupId = ref( STANDARD_RECALL_ID );
 const previewOpen = ref( false );
 const editorElement = ref( null );
+const explainFocus = computed( () => explainFocusDetails( form.explainFocus ) );
+const structurePromptsOpen = ref( false );
+const selectedStructurePrompts = computed( () => explainFocus.value.reconstruction
+  ? normalizeStructurePrompts( form.explainStructurePrompts ) : []);
+const explainStructureError = computed( () => submitted.value && explainSelected.value && explainFocus.value.reconstruction
+  ? structurePromptsError( form.explainStructurePrompts ) : '' );
 
 const deckItems = computed( () => props.decks.map( ( deck ) => ({
   label: deck.name,
@@ -317,6 +307,7 @@ const previewTypeSettings = computed( () => {
   if ( activeSetupId.value === EXPLAIN_ID ) {
     return {
       focus: form.explainFocus,
+      structurePrompts: selectedStructurePrompts.value,
       keyPoints: form.explainKeyPoints.map( normalizeExplainKeyPoint ).filter( Boolean )
     };
   }
@@ -379,11 +370,11 @@ const explainKeyPointErrors = computed( () => {
 
   return normalizedPoints.map( ( keyPoint, index ) => {
     if ( !keyPoint ) {
-      return 'Enter a key point.';
+      return `Enter the ${ explainFocus.value.criterion.toLowerCase() }.`;
     }
 
     if ( Array.from( keyPoint ).length > MAXIMUM_EXPLAIN_KEY_POINT_LENGTH ) {
-      return `Key points cannot exceed ${ MAXIMUM_EXPLAIN_KEY_POINT_LENGTH } characters.`;
+      return `Use ${ MAXIMUM_EXPLAIN_KEY_POINT_LENGTH } characters or fewer.`;
     }
 
     const comparisonPoint = keyPoint.toLowerCase();
@@ -392,7 +383,7 @@ const explainKeyPointErrors = computed( () => {
     ) );
 
     if ( duplicateIndex !== index ) {
-      return 'Key points must be unique.';
+      return 'Each entry must be different.';
     }
 
     return '';
@@ -509,6 +500,8 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
   form.title = state.title;
   form.deckIds = state.deckIds;
   form.explainFocus = state.explainFocus;
+  form.explainStructurePrompts = state.explainStructurePrompts;
+  structurePromptsOpen.value = Boolean( state.explainStructurePrompts );
   form.explainKeyPoints = state.explainKeyPoints;
   form.problemCheckpoints = state.problemCheckpoints;
   form.problemWorkedExample = state.problemWorkedExample;
@@ -617,12 +610,31 @@ function addExplainKeyPoint() {
   form.explainKeyPoints.push( '' );
 }
 
+function removeStructurePrompts() {
+  form.explainStructurePrompts = '';
+  structurePromptsOpen.value = false;
+}
+
 function removeExplainKeyPoint( index ) {
   if ( form.explainKeyPoints.length === 1 ) {
     return;
   }
 
   form.explainKeyPoints.splice( index, 1 );
+}
+
+async function moveExplainKeyPoint( index, direction ) {
+  const destination = index + direction;
+
+  if ( props.disabled || destination < 0 || destination >= form.explainKeyPoints.length ) {
+    return;
+  }
+
+  const [ point ] = form.explainKeyPoints.splice( index, 1 );
+  form.explainKeyPoints.splice( destination, 0, point );
+
+  await nextTick();
+  editorElement.value?.querySelectorAll( '.explain-key-point-row textarea' )[ destination ]?.focus();
 }
 
 function addProblemCheckpoint() {
@@ -671,13 +683,14 @@ async function submit() {
     || Boolean( imageLabelingError.value )
     || Boolean( problemPromptError.value )
     || !explainKeyPointsValid.value
+    || Boolean( explainStructureError.value )
     || !problemCheckpointsValid.value
     || Boolean( problemWorkedExampleError.value )
     || !acceptedAnswersValid.value
   ) {
     if ( !acceptedAnswersValid.value ) {
       activeSetupId.value = TYPE_ANSWER_ID;
-    } else if ( !explainKeyPointsValid.value ) {
+    } else if ( !explainKeyPointsValid.value || explainStructureError.value ) {
       activeSetupId.value = EXPLAIN_ID;
     } else if ( !problemCheckpointsValid.value || problemPromptError.value || problemWorkedExampleError.value ) {
       activeSetupId.value = PROBLEM_ID;
@@ -703,6 +716,7 @@ async function submit() {
   const explain = explainSelected.value
     ? {
       focus: form.explainFocus,
+      structurePrompts: selectedStructurePrompts.value,
       keyPoints: form.explainKeyPoints.map( normalizeExplainKeyPoint )
     }
     : null;
@@ -1073,7 +1087,7 @@ defineExpose({ submit });
         >
           <div class="explain-settings__heading">
             <div>
-              <h3>Explanation guide</h3>
+              <h3>{{ explainFocus.guide }}</h3>
             </div>
 
             <span>
@@ -1099,7 +1113,7 @@ defineExpose({ submit });
             <UFormField
               v-for="( keyPoint, index ) in form.explainKeyPoints"
               :key="index"
-              :label="`Key point ${ index + 1 }`"
+              :label="`${ explainFocus.criterion } ${ index + 1 }`"
               :error="explainKeyPointErrors[ index ] || false"
               :hint="`${ explainKeyPointLength( keyPoint ) } / ${ MAXIMUM_EXPLAIN_KEY_POINT_LENGTH }`"
               required
@@ -1107,7 +1121,7 @@ defineExpose({ submit });
               <div class="explain-key-point-row">
                 <UTextarea
                   v-model="form.explainKeyPoints[ index ]"
-                  placeholder="Expected idea"
+                  :placeholder="explainFocus.criterionPlaceholder"
                   :rows="2"
                   autoresize
                   :maxrows="5"
@@ -1115,24 +1129,50 @@ defineExpose({ submit });
                   :disabled="disabled"
                 />
 
-                <UButton
-                  type="button"
-                  icon="i-lucide-x"
-                  :aria-label="`Remove key point ${ index + 1 }`"
-                  color="neutral"
-                  variant="ghost"
-                  size="lg"
-                  square
-                  :disabled="disabled || form.explainKeyPoints.length === 1"
-                  @click="removeExplainKeyPoint( index )"
-                />
+                <div class="explain-key-point-row__actions">
+                  <template v-if="form.explainFocus === 'sequence'">
+                    <UButton
+                      type="button"
+                      icon="i-lucide-chevron-up"
+                      :aria-label="`Move step ${ index + 1 } up`"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      square
+                      :disabled="disabled || index === 0"
+                      @click="moveExplainKeyPoint( index, -1 )"
+                    />
+                    <UButton
+                      type="button"
+                      icon="i-lucide-chevron-down"
+                      :aria-label="`Move step ${ index + 1 } down`"
+                      color="neutral"
+                      variant="ghost"
+                      size="sm"
+                      square
+                      :disabled="disabled || index === form.explainKeyPoints.length - 1"
+                      @click="moveExplainKeyPoint( index, 1 )"
+                    />
+                  </template>
+                  <UButton
+                    type="button"
+                    icon="i-lucide-x"
+                    :aria-label="`Remove ${ explainFocus.criterion.toLowerCase() } ${ index + 1 }`"
+                    color="neutral"
+                    variant="ghost"
+                    size="sm"
+                    square
+                    :disabled="disabled || form.explainKeyPoints.length === 1"
+                    @click="removeExplainKeyPoint( index )"
+                  />
+                </div>
               </div>
             </UFormField>
           </div>
 
           <UButton
             type="button"
-            label="Add key point"
+            :label="explainFocus.addCriterion"
             leading-icon="i-lucide-plus"
             color="neutral"
             variant="subtle"
@@ -1140,6 +1180,47 @@ defineExpose({ submit });
             class="explain-settings__add"
             @click="addExplainKeyPoint"
           />
+
+          <div v-if="explainFocus.reconstruction" class="structure-prompts-editor">
+            <UButton
+              v-if="!structurePromptsOpen"
+              type="button"
+              color="neutral"
+              variant="link"
+              size="sm"
+              :disabled="disabled"
+              @click="structurePromptsOpen = true"
+            >
+              Add structural prompts
+            </UButton>
+            <template v-else>
+              <UFormField
+                label="Structural prompts"
+                description="Add a heading or guiding question on each line. Leave out the answers."
+                :error="explainStructureError || false"
+              >
+                <UTextarea
+                  v-model="form.explainStructurePrompts"
+                  aria-label="Structural prompts"
+                  :rows="3"
+                  :maxrows="8"
+                  autoresize
+                  class="w-full"
+                  :disabled="disabled"
+                />
+              </UFormField>
+              <UButton
+                type="button"
+                color="neutral"
+                variant="link"
+                size="sm"
+                :disabled="disabled"
+                @click="removeStructurePrompts"
+              >
+                Remove structural prompts
+              </UButton>
+            </template>
+          </div>
         </div>
 
         <div
