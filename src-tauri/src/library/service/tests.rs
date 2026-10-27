@@ -1498,6 +1498,98 @@ fn explain_settings_are_validated_normalized_and_queued() {
 }
 
 #[test]
+fn example_generation_focus_preserves_the_explain_card_and_schedule() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let mut input = json!({
+        "title": "Positive correlation", "includeStandardRecall": false,
+        "content": { "schemaVersion": 1,
+            "prompt": { "type": "doc", "content": [{ "type": "paragraph", "content": [{
+                "type": "text", "text": "Give an example of positive correlation."
+            }] }] },
+            "answer": { "type": "doc", "content": [{ "type": "paragraph", "content": [{
+                "type": "text", "text": "Longer trips tend to use more fuel. Both quantities tend to increase together."
+            }] }] }
+        },
+        "explain": { "focus": "why", "keyPoints": ["Name two quantities."] }
+    });
+    let concept = library.create_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+    let original = &concept.cards[0];
+    let review = library.record_review_at(RecordReviewInput {
+        card_id: original.id.clone(), rating: ReviewRating::Good, assisted: false,
+    }, original.due_at).unwrap();
+    input["id"] = json!(concept.id);
+
+    for (value, focus) in [
+        ("example", ExplainFocus::Example),
+        ("nonExample", ExplainFocus::NonExample),
+        ("changedSituation", ExplainFocus::ChangedSituation),
+    ] {
+        input["explain"] = json!({ "focus": value, "keyPoints": [
+            "  Name   two quantities. ", "Describe how they vary together. 網"
+        ] });
+        let updated = library.update_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+        let card = &updated.cards[0];
+
+        assert_eq!(updated.cards.len(), 1);
+        assert_eq!(card.id, original.id);
+        assert_eq!(card.review_count, 1);
+        assert_eq!(card.due_at, review.due_at);
+        assert_eq!(card.explain.as_ref().unwrap().focus, focus);
+        assert_eq!(card.explain.as_ref().unwrap().key_points,
+            ["Name two quantities.", "Describe how they vary together. 網"]);
+        assert_eq!(library.concept(&concept.id).unwrap(), updated);
+    }
+}
+
+#[test]
+fn example_generation_requires_a_prompt_reference_and_valid_criteria_atomically() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let mut input = json!({
+        "title": "Example", "includeStandardRecall": false,
+        "content": { "schemaVersion": 1,
+            "prompt": { "type": "doc", "content": [{ "type": "paragraph", "content": [{
+                "type": "text", "text": "Give a case that illustrates the rule."
+            }] }] },
+            "answer": { "type": "doc", "content": [{ "type": "blockMath", "attrs": {
+                "latex": "x^2 \\geq 0"
+            } }] }
+        },
+        "explain": { "focus": "example", "keyPoints": ["Show how the rule applies."] }
+    });
+    let concept = library.create_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+    input["id"] = json!(concept.id);
+
+    for focus in ["example", "nonExample", "changedSituation"] {
+        input["explain"]["focus"] = json!(focus);
+
+        for field in ["prompt", "answer"] {
+            let mut invalid = input.clone();
+            invalid["content"][field] = json!({ "type": "doc", "content": [{
+                "type": "paragraph", "content": [{ "type": "text", "text": " \n\t " }]
+            }] });
+
+            let error = library.update_concept(serde_json::from_value(invalid.clone()).unwrap()).unwrap_err();
+            assert!(matches!(error, LibraryError::EmptyValue { .. }), "{focus}/{field}: {error}");
+            invalid.as_object_mut().unwrap().remove("id");
+            assert!(library.create_concept(serde_json::from_value(invalid).unwrap()).is_err());
+            assert_eq!(library.concept(&concept.id).unwrap(), concept);
+        }
+    }
+
+    for settings in [
+        json!({ "focus": "example", "keyPoints": [] }),
+        json!({ "focus": "example", "keyPoints": ["Rule", " rule "] }),
+        json!({ "focus": "example", "keyPoints": ["Rule"], "structurePrompts": ["A cue"] }),
+    ] {
+        input["explain"] = settings;
+        assert!(library.update_concept(serde_json::from_value(input.clone()).unwrap()).is_err());
+        assert_eq!(library.concept(&concept.id).unwrap(), concept);
+    }
+}
+
+#[test]
 fn reconstruction_focus_round_trips_without_replacing_the_explain_card() {
     let (_directory, store) = test_store();
     let library = ConceptLibrary::new(&store);

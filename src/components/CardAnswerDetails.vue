@@ -33,7 +33,7 @@ const details = computed( () => {
     return {
       label: focus.criteria,
       items: props.card.explain.keyPoints,
-      itemLabel: focus.reconstruction ? focus.criterion.toLowerCase() : '',
+      itemLabel: focus.reconstruction || focus.generation ? focus.criterion.toLowerCase() : '',
       ordered: props.card.explain.focus === 'sequence',
       kind: 'idea'
     };

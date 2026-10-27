@@ -39,11 +39,17 @@ const retry = ref( 0 );
 const previewContent = shallowRef({ ...props.content });
 const previewTitle = ref( props.title );
 const previewResponse = ref( '' );
-const reconstruction = computed( () => props.typeId === 'explain'
-  && explainFocusDetails( props.typeSettings?.focus ).reconstruction );
+const writtenExplain = computed( () => {
+  const focus = explainFocusDetails( props.typeSettings?.focus );
+
+  return props.typeId === 'explain' && ( focus.reconstruction || focus.generation );
+});
 
 watch([ () => props.typeId, () => props.typeSettings?.focus ], () => {
   previewResponse.value = '';
+  revealed.value = false;
+  revealedAssistance.value = [];
+  revealedAnswerParts.value = [];
 });
 
 watch([
@@ -168,14 +174,14 @@ function toggleAnswerParts( ids ) {
         @compare="setComparison"
       />
       <CardAnswerDetails
-        v-if="revealed && !reconstruction"
+        v-if="revealed && !writtenExplain"
         :card="card"
         comparison-enabled
         :checks="comparisonChecks"
         @compare="setComparison"
       />
       <ExplainResponse
-        v-if="reconstruction"
+        v-if="writtenExplain"
         v-model="previewResponse"
         :settings="typeSettings"
         :revealed="revealed"

@@ -6,6 +6,7 @@ use uuid::Uuid;
 mod worked_examples;
 
 use crate::library::models::ExplainFocus;
+use crate::library::content::ValidatedContent;
 use crate::library::{
     ClozeSettings, ExplainSettings, ImageLabelingSettings, ImageOcclusionSettings,
     LibraryError, LibraryResult, ProblemSettings, RetrievalFormKind, TypeAnswerSettings,
@@ -98,6 +99,25 @@ impl RetrievalFormConfiguration {
             _ => None,
         }
     }
+}
+
+pub(crate) fn validate_explain_content(
+    settings: Option<&ExplainSettings>,
+    content: &ValidatedContent,
+) -> LibraryResult<()> {
+    if !settings.is_some_and(|settings| settings.focus.is_generation()) {
+        return Ok(());
+    }
+
+    if !content.prompt_has_content {
+        return Err(LibraryError::EmptyValue { field: "Example prompt" });
+    }
+
+    if !content.answer_has_content {
+        return Err(LibraryError::EmptyValue { field: "Reference example" });
+    }
+
+    Ok(())
 }
 
 pub(crate) fn normalize_explain(settings: ExplainSettings) -> LibraryResult<ExplainSettings> {

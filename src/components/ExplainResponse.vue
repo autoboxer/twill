@@ -74,6 +74,7 @@ function focus() {
     ref="root"
     class="explain-response"
     :data-twill-reconstruction="focusDetails.reconstruction || undefined"
+    :data-twill-generation="focusDetails.generation || undefined"
   >
     <header class="explain-response__heading">
       <span aria-hidden="true">
@@ -132,7 +133,7 @@ function focus() {
             :items="settings.keyPoints"
             kind="idea"
             :ordered="settings.focus === 'sequence'"
-            :item-label="focusDetails.reconstruction ? focusDetails.criterion.toLowerCase() : ''"
+            :item-label="focusDetails.reconstruction || focusDetails.generation ? focusDetails.criterion.toLowerCase() : ''"
             :checks="checks"
             :written-response="hasResponse"
             :disabled="disabled"
@@ -140,6 +141,10 @@ function focus() {
           />
         </div>
       </div>
+
+      <p v-if="focusDetails.generation" class="study-comparison-guidance">
+        Check whether your response meets the criteria. It can differ from the reference example.
+      </p>
 
       <template v-if="focusDetails.reconstruction && review">
         <div class="reconstruction-review__actions">

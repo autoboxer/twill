@@ -98,6 +98,15 @@ pub enum ExplainFocus {
     Outline,
     Sequence,
     Relationships,
+    Example,
+    NonExample,
+    ChangedSituation,
+}
+
+impl ExplainFocus {
+    pub const fn is_generation(self) -> bool {
+        matches!(self, Self::Example | Self::NonExample | Self::ChangedSituation)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

@@ -276,7 +276,35 @@ Recalled or Still missed to return, or select Return to session without recordin
 an outcome. Your original response and idea checks are restored. These extra
 attempts are supported practice, not independent reviews. They do not change
 review dates or count as completed reviews, even when the chosen card is due.
-Tools for creating examples are planned.
+
+### Create and check your own example
+
+Select Explain in the concept editor. In Prompt focus, choose Create an example,
+Create a non-example, or Change the situation. Write a specific task in Prompt.
+For a changed situation, include the original case and what the learner should
+vary. In Answer, provide a checked reference example and explain the reasoning.
+For a non-example, identify the condition it fails. Add criteria that describe
+what a valid response must demonstrate, rather than requiring the reference's
+exact wording.
+
+During Study, write your response, answer mentally, or use paper. Select Compare
+example, Compare non-example, or Compare situation to see the reference and
+criteria. Your written response remains separate from the reference. The optional
+checks help you inspect the reasoning; they do not produce a correctness score.
+Choose one grade for your original attempt. Twill does not verify your example
+or add it to the Library. Responses and checks remain available during pause,
+navigation and Undo, but are cleared when you restart the app.
+
+For example, a task about positive correlation might ask for two quantities and
+how they tend to vary together. Longer trips tending to use more fuel is one
+reference example. Another valid case can satisfy the task. Repeating the
+definition of correlation without a specific case does not.
+
+Making examples can help you apply a rule, but takes time and is not consistently
+better than studying good supplied examples. Check unfamiliar or uncertain
+reasoning against a reliable source. Do not treat a plausible example as verified
+knowledge. Supplied example inspection before an attempt and dedicated generation
+follow-ups and correction fields are still planned.
 
 Practice can help you apply learning to a new task, but success with familiar
 cards does not guarantee that ability. Vary the question to practice something

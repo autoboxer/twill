@@ -23,6 +23,7 @@ const MAXIMUM_IMAGE_OCCLUSION_GROUPS: usize = 100;
 const MAXIMUM_IMAGE_OCCLUSION_REGIONS: usize = 500;
 
 pub struct ValidatedContent {
+    pub answer_has_content: bool,
     pub cloze_group_ids: Vec<String>,
     pub content: ConceptContent,
     pub image_occlusion_group_ids: Vec<String>,
@@ -96,6 +97,7 @@ pub fn validate_content(content: ConceptContent) -> LibraryResult<ValidatedConte
     validate_document(&content.assistance.reference, "Reference", &mut state)?;
 
     Ok(ValidatedContent {
+        answer_has_content: rich_document_has_content(&content.answer),
         cloze_group_ids: state.cloze_group_ids,
         prompt_has_content: rich_document_has_content(&content.prompt),
         content,

@@ -173,6 +173,10 @@ fn validate_concept_cards(
 
                 Some(settings.group_id)
             }
+            RetrievalFormConfiguration::Explain(settings) => {
+                super::retrieval_forms::validate_explain_content(Some(&settings), content)?;
+                template_id
+            }
             RetrievalFormConfiguration::Problem(_) if !content.prompt_has_content => {
                 return Err(LibraryError::MissingProblemPrompt);
             }

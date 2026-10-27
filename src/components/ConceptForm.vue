@@ -392,6 +392,18 @@ const explainKeyPointErrors = computed( () => {
 const explainKeyPointsValid = computed( () => (
   explainKeyPointErrors.value.every( ( error ) => !error )
 ) );
+const exampleContentError = computed( () => {
+  if ( !submitted.value || !explainSelected.value || !explainFocus.value.generation ) {
+    return '';
+  }
+
+  if ( !richDocumentHasContent( form.content.prompt ) ) {
+    return 'Describe the example task in Prompt.';
+  }
+
+  return richDocumentHasContent( form.content.answer )
+    ? '' : 'Add a checked reference example in Answer.';
+});
 const problemCheckpointErrors = computed( () => {
   if ( !submitted.value || !problemSelected.value ) {
     return form.problemCheckpoints.map( () => '' );
@@ -682,6 +694,7 @@ async function submit() {
     || Boolean( imageOcclusionError.value )
     || Boolean( imageLabelingError.value )
     || Boolean( problemPromptError.value )
+    || Boolean( exampleContentError.value )
     || !explainKeyPointsValid.value
     || Boolean( explainStructureError.value )
     || !problemCheckpointsValid.value
@@ -690,7 +703,7 @@ async function submit() {
   ) {
     if ( !acceptedAnswersValid.value ) {
       activeSetupId.value = TYPE_ANSWER_ID;
-    } else if ( !explainKeyPointsValid.value || explainStructureError.value ) {
+    } else if ( !explainKeyPointsValid.value || explainStructureError.value || exampleContentError.value ) {
       activeSetupId.value = EXPLAIN_ID;
     } else if ( !problemCheckpointsValid.value || problemPromptError.value || problemWorkedExampleError.value ) {
       activeSetupId.value = PROBLEM_ID;
@@ -878,6 +891,7 @@ defineExpose({ submit });
         />
       </div>
       <p v-if="problemPromptError" class="editor-field-error">{{ problemPromptError }}</p>
+      <p v-if="exampleContentError" class="editor-field-error" role="alert">{{ exampleContentError }}</p>
     </section>
 
     <section
@@ -1108,6 +1122,10 @@ defineExpose({ submit });
               :disabled="disabled"
             />
           </UFormField>
+
+          <p v-if="explainFocus.generation" class="editor-section__description">
+            {{ explainFocus.authoring }}
+          </p>
 
           <div class="explain-key-point-list">
             <UFormField

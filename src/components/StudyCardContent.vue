@@ -11,6 +11,7 @@ import { createStudyTemplateFields } from '../templates/studyFields';
 import RichContentRenderer from './RichContentRenderer.vue';
 import StudyImageLabel from './StudyImageLabel.vue';
 import { collectImageLabelTargets } from '../image-labeling/targets';
+import { explainFocusDetails } from '../explain/focus';
 
 const props = defineProps({
   answerRevealed: {
@@ -118,7 +119,14 @@ onBeforeUnmount( () => {
 defineExpose({ focus });
 
 function fieldDetails( value ) {
-  return templateFields.find( ( field ) => field.value === value );
+  const field = templateFields.find( ( field ) => field.value === value );
+
+  if ( value === 'answer' && isStandard.value && isExplain.value
+    && explainFocusDetails( props.card.explain?.focus ).generation ) {
+    return { ...field, label: 'Reference example' };
+  }
+
+  return field;
 }
 
 function fieldValue( field ) {

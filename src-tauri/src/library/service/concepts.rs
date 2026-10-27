@@ -16,7 +16,8 @@ use crate::data::{EntityKind, WriteTransaction};
 use crate::library::content::validate_content;
 use crate::library::media::{active_concept_media_ids, query_concept_media, validate_media_ids};
 use crate::library::retrieval_forms::{
-    normalize_explain, normalize_problem, normalize_type_answer, RetrievalFormConfiguration,
+    normalize_explain, normalize_problem, normalize_type_answer, validate_explain_content,
+    RetrievalFormConfiguration,
 };
 use crate::library::{
     ClozeSettings, ConceptDetail, CreateConceptInput, ImageLabelingSettings,
@@ -94,6 +95,8 @@ pub(in crate::library) fn create_concept(
     let explain = input.explain.map(normalize_explain).transpose()?;
     let problem = input.problem.map(normalize_problem).transpose()?;
     let type_answer = input.type_answer.map(normalize_type_answer).transpose()?;
+
+    validate_explain_content(explain.as_ref(), &content)?;
 
     if problem.is_some() && !content.prompt_has_content {
         return Err(LibraryError::MissingProblemPrompt);
@@ -242,6 +245,8 @@ pub(in crate::library) fn update_concept(
     let explain = input.explain.map(normalize_explain).transpose()?;
     let problem = input.problem.map(normalize_problem).transpose()?;
     let type_answer = input.type_answer.map(normalize_type_answer).transpose()?;
+
+    validate_explain_content(explain.as_ref(), &content)?;
 
     if problem.is_some() && !content.prompt_has_content {
         return Err(LibraryError::MissingProblemPrompt);
