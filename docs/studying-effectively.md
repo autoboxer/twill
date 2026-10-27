@@ -303,8 +303,21 @@ definition of correlation without a specific case does not.
 Making examples can help you apply a rule, but takes time and is not consistently
 better than studying good supplied examples. Check unfamiliar or uncertain
 reasoning against a reliable source. Do not treat a plausible example as verified
-knowledge. Supplied example inspection before an attempt and dedicated generation
-follow-ups and correction fields are still planned.
+knowledge.
+
+If you prefer to study a supplied example first, select Inspect example. You do
+not have to write your own example. You can read the reference, explain to
+yourself why it fits, and then compare it with the criteria. If useful, write
+another case after inspecting it. Hide example closes the reference but does
+not remove the help record.
+
+The response you wrote before the first help stays separate from work done
+afterward. Grade the original attempt, not the work completed with help. If you
+began by reading the example, choose Forgot or Again. Twill records the help
+use; supported work does not count as independent success. Viewing the reference
+after comparing an unaided response does not retroactively mark that attempt as
+assisted. These boundaries also apply to non-examples and changed situations.
+Optional generation follow-ups and separate correction fields are still planned.
 
 Practice can help you apply learning to a new task, but success with familiar
 cards does not guarantee that ability. Vary the question to practice something

@@ -3,10 +3,12 @@ import { computed, ref, shallowRef, watch } from 'vue';
 
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
 import { useStudyComparison } from '../composables/useStudyComparison';
+import { useStudyAssistance } from '../composables/useStudyAssistance';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import CardAnswerDetails from './CardAnswerDetails.vue';
 import StudyCardContent from './StudyCardContent.vue';
 import StudyAssistance from './StudyAssistance.vue';
+import StudyAssistanceNotice from './StudyAssistanceNotice.vue';
 import StudyAnswerParts from './StudyAnswerParts.vue';
 import WorkedExample from './WorkedExample.vue';
 import ExplainResponse from './ExplainResponse.vue';
@@ -33,8 +35,6 @@ const template = ref( null );
 const error = ref( '' );
 const loading = ref( false );
 const revealed = ref( false );
-const revealedAssistance = ref([]);
-const revealedAnswerParts = ref([]);
 const retry = ref( 0 );
 const previewContent = shallowRef({ ...props.content });
 const previewTitle = ref( props.title );
@@ -45,11 +45,10 @@ const writtenExplain = computed( () => {
   return props.typeId === 'explain' && ( focus.reconstruction || focus.generation );
 });
 
-watch([ () => props.typeId, () => props.typeSettings?.focus ], () => {
+watch([ () => props.typeId, previewContent, () => props.typeSettings ], () => {
   previewResponse.value = '';
   revealed.value = false;
-  revealedAssistance.value = [];
-  revealedAnswerParts.value = [];
+  restoreAssistance();
 });
 
 watch([
@@ -78,6 +77,25 @@ const card = computed( () => ({
   template: template.value
 }) );
 const selectiveAnswer = computed( () => supportsAnswerParts( card.value ) );
+const {
+  assisted,
+  responseBeforeAssistance,
+  revealedAssistance,
+  revealedAnswerParts,
+  restoreAssistance,
+  toggleAssistance,
+  toggleAnswerParts
+} = useStudyAssistance({
+  currentCard: card,
+  answerRevealed: revealed,
+  actionsBlocked: loading,
+  pretestActive: ref( false ),
+  response: previewResponse,
+  onExposed: () => {}
+});
+const comparisonResponse = computed( () => (
+  revealed.value && assisted.value ? responseBeforeAssistance.value : previewResponse.value
+) );
 const { comparisonChecks, restoreComparison, setComparison } = useStudyComparison({
   currentCard: card,
   answerRevealed: revealed,
@@ -96,8 +114,7 @@ watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
   error.value = '';
   loading.value = !builtInKinds[ id ];
   revealed.value = false;
-  revealedAssistance.value = [];
-  revealedAnswerParts.value = [];
+  restoreAssistance();
   restoreComparison();
 
   if ( !loading.value ) {
@@ -120,18 +137,6 @@ watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
     }
   }
 }, { immediate: true });
-
-function toggleAssistance( id ) {
-  revealedAssistance.value = revealedAssistance.value.includes( id )
-    ? revealedAssistance.value.filter( ( value ) => value !== id )
-    : [ ...revealedAssistance.value, id ];
-}
-
-function toggleAnswerParts( ids ) {
-  revealedAnswerParts.value = ids.every( ( id ) => revealedAnswerParts.value.includes( id ) )
-    ? revealedAnswerParts.value.filter( ( id ) => !ids.includes( id ) )
-    : [ ...new Set([ ...revealedAnswerParts.value, ...ids ]) ];
-}
 </script>
 
 <template>
@@ -182,17 +187,28 @@ function toggleAnswerParts( ids ) {
       />
       <ExplainResponse
         v-if="writtenExplain"
-        v-model="previewResponse"
+        :model-value="comparisonResponse"
+        :assisted="assisted"
         :settings="typeSettings"
         :revealed="revealed"
         :checks="comparisonChecks"
+        @update:model-value="previewResponse = $event"
         @compare="setComparison"
       />
       <StudyAssistance
         :content="previewContent"
         :explain="card.explain"
+        :answer-revealed="revealed"
         :revealed="revealedAssistance"
         @toggle="toggleAssistance"
+      />
+      <StudyAssistanceNotice
+        v-if="writtenExplain"
+        :assisted="assisted"
+        :revealed="revealed"
+        :response="previewResponse"
+        :original-response="responseBeforeAssistance"
+        :grading="false"
       />
       <UInput
         v-if="typeId === 'type-answer' && !revealed"

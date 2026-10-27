@@ -7,12 +7,13 @@ import RichContentRenderer from './RichContentRenderer.vue';
 const props = defineProps({
   content: { type: Object, required: true },
   explain: { type: Object, default: null },
+  answerRevealed: { type: Boolean, default: false },
   revealed: { type: Array, required: true },
   disabled: { type: Boolean, default: false }
 });
 
 const emit = defineEmits([ 'toggle' ]);
-const documents = computed( () => assistanceDocuments( props.content, props.explain ) );
+const documents = computed( () => assistanceDocuments( props.content, props.explain, props.answerRevealed ) );
 </script>
 
 <template>
@@ -35,7 +36,7 @@ const documents = computed( () => assistanceDocuments( props.content, props.expl
         :aria-controls="`study-help-${ item.id }`"
         @click="emit( 'toggle', item.id )"
       >
-        {{ revealed.includes( item.id ) ? `Hide ${ item.label.toLowerCase() }` : item.label }}
+        {{ revealed.includes( item.id ) ? `Hide ${ item.label.toLowerCase() }` : item.showLabel ?? item.label }}
       </UButton>
     </div>
 

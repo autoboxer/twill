@@ -24,6 +24,11 @@ const props = defineProps({
     default: false
   },
 
+  assisted: {
+    type: Boolean,
+    default: false
+  },
+
   review: {
     type: Object,
     default: null
@@ -88,7 +93,7 @@ function focus() {
 
     <UFormField
       v-if="!revealed"
-      :label="focusDetails.inputLabel"
+      :label="assisted && focusDetails.generation ? 'Your response after help' : focusDetails.inputLabel"
     >
       <UTextarea
         :model-value="modelValue"
@@ -119,7 +124,7 @@ function focus() {
         :class="{ 'explain-comparison__content--written': hasResponse }"
       >
         <div v-if="hasResponse">
-          <span>{{ focusDetails.response }}</span>
+          <span>{{ assisted ? 'Your response before help' : focusDetails.response }}</span>
 
           <p class="explain-comparison__attempt">
             {{ modelValue }}

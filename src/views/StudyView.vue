@@ -13,6 +13,7 @@ import StudyProblemSteps from '../components/StudyProblemSteps.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
 import StudyAnswerParts from '../components/StudyAnswerParts.vue';
 import StudyAssistance from '../components/StudyAssistance.vue';
+import StudyAssistanceNotice from '../components/StudyAssistanceNotice.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import StudyCaseComparisonDialog from '../components/StudyCaseComparisonDialog.vue';
 import StudyDeferredCards from '../components/StudyDeferredCards.vue';
@@ -949,6 +950,7 @@ useStartupReady( initialLoading );
             ref="explainResponse"
             :model-value="comparisonResponse"
             :settings="explainSettings"
+            :assisted="assisted"
             :revealed="answerRevealed"
             :checks="comparisonChecks"
             :review="reconstructionState"
@@ -1004,6 +1006,7 @@ useStartupReady( initialLoading );
             v-if="!pretestActive"
             :content="currentCard.content"
             :explain="explainSettings"
+            :answer-revealed="answerRevealed"
             :revealed="revealedAssistance"
             :disabled="actionsBlocked"
             @toggle="toggleAssistance"
@@ -1022,19 +1025,12 @@ useStartupReady( initialLoading );
             @compare="setComparison"
           />
 
-          <div
-            v-if="assisted"
-            class="study-assistance-notice"
-            data-twill-assisted
-            role="status"
-          >
-            <strong>Help used</strong>
-            <span>Grade your answer before help.</span>
-            <div v-if="answerRevealed && studyResponse && studyResponse !== responseBeforeAssistance" class="study-assisted-response">
-              <span>Your response after help</span>
-              <p>{{ studyResponse }}</p>
-            </div>
-          </div>
+          <StudyAssistanceNotice
+            :assisted="assisted"
+            :revealed="answerRevealed"
+            :response="studyResponse"
+            :original-response="responseBeforeAssistance"
+          />
 
           <StudyAnswerFeedback
             v-if="answerRevealed && currentAnswerFeedback"
