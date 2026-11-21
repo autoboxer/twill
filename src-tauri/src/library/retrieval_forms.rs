@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 mod worked_examples;
 
-use crate::library::models::ExplainFocus;
 use crate::library::content::ValidatedContent;
+use crate::library::models::{ExampleFollowUp, ExplainFocus};
 use crate::library::{
     ClozeSettings, ExplainSettings, ImageLabelingSettings, ImageOcclusionSettings,
     LibraryError, LibraryResult, ProblemSettings, RetrievalFormKind, TypeAnswerSettings,
@@ -122,6 +122,9 @@ pub(crate) fn validate_explain_content(
 
 pub(crate) fn normalize_explain(settings: ExplainSettings) -> LibraryResult<ExplainSettings> {
     let structure_prompts = normalize_structure_prompts(settings.focus, settings.structure_prompts)?;
+    let follow_up = settings.follow_up
+        .map(|follow_up| normalize_example_follow_up(settings.focus, follow_up))
+        .transpose()?;
 
     if settings.key_points.is_empty() {
         return Err(LibraryError::MissingExplainKeyPoint);
@@ -161,7 +164,36 @@ pub(crate) fn normalize_explain(settings: ExplainSettings) -> LibraryResult<Expl
         focus: settings.focus,
         key_points,
         structure_prompts,
+        follow_up,
     })
+}
+
+fn normalize_example_follow_up(
+    focus: ExplainFocus,
+    mut follow_up: ExampleFollowUp,
+) -> LibraryResult<ExampleFollowUp> {
+    if !focus.is_generation() {
+        return Err(LibraryError::InvalidExampleFollowUp {
+            message: "follow-ups are only available for example generation",
+        });
+    }
+
+    for (value, field, maximum) in [
+        (&mut follow_up.prompt, "Follow-up question", 500),
+        (&mut follow_up.reference, "Follow-up reference", 2000),
+    ] {
+        *value = value.trim().to_owned();
+
+        if value.is_empty() {
+            return Err(LibraryError::EmptyValue { field });
+        }
+
+        if value.chars().count() > maximum {
+            return Err(LibraryError::ValueTooLong { field, maximum });
+        }
+    }
+
+    Ok(follow_up)
 }
 
 fn normalize_structure_prompts(
@@ -398,6 +430,7 @@ mod tests {
             ),
             (
                 RetrievalFormConfiguration::Explain(ExplainSettings {
+                    follow_up: None,
                     focus: ExplainFocus::CauseAndEffect,
                     structure_prompts: Vec::new(),
                     key_points: vec!["Heat increases motion".to_owned()],

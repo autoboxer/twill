@@ -2,6 +2,8 @@
 import { computed, nextTick, ref, useId } from 'vue';
 import StudyIdeaList from './StudyIdeaList.vue';
 import { explainFocusDetails } from '../explain/focus';
+import { exampleFollowUp } from '../explain/followUp';
+import ExampleFollowUp from './ExampleFollowUp.vue';
 
 const props = defineProps({
   modelValue: {
@@ -40,7 +42,10 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits([ 'update:modelValue', 'compare', 'toggle-review', 'correction' ]);
+const emit = defineEmits([
+  'update:modelValue', 'compare', 'toggle-review', 'correction',
+  'toggle-follow-up', 'follow-up-response', 'toggle-follow-up-reference'
+]);
 
 const result = ref( null );
 const root = ref( null );
@@ -48,6 +53,7 @@ const reviewId = useId();
 
 const hasResponse = computed( () => Boolean( props.modelValue.trim() ) );
 const focusDetails = computed( () => explainFocusDetails( props.settings.focus ) );
+const followUp = computed( () => exampleFollowUp( props.settings ) );
 const gaps = computed( () => props.settings.keyPoints
   .map( ( text, index ) => ({ text, index }) )
   .filter( ({ index }) => [ 'missing', 'partial' ].includes( props.checks[ `idea:${ index }` ]) )
@@ -151,7 +157,7 @@ function focus() {
         Check whether your response meets the criteria. It can differ from the reference example.
       </p>
 
-      <template v-if="focusDetails.reconstruction && review">
+      <template v-if="( focusDetails.reconstruction || focusDetails.generation ) && review">
         <div class="reconstruction-review__actions">
           <UButton
             color="neutral"
@@ -200,9 +206,19 @@ function focus() {
 
           <p :id="`${ reviewId }-guidance`" class="study-comparison-guidance">
             Check and grade your original attempt, not this correction.
+            Your correction is kept only for this session.
           </p>
         </div>
       </template>
+      <ExampleFollowUp
+        v-if="followUp && review"
+        :follow-up="followUp"
+        :state="review"
+        :disabled="disabled"
+        @toggle="emit( 'toggle-follow-up' )"
+        @response="emit( 'follow-up-response', $event )"
+        @toggle-reference="emit( 'toggle-follow-up-reference' )"
+      />
     </div>
   </section>
 </template>

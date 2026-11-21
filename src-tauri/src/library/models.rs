@@ -45,7 +45,7 @@ pub use practice_links::{
     SetPracticeComparisonInput, UpdatePracticeLinkInput,
 };
 pub use retrieval::{
-    CardSummary, ClozeSettings, ExplainFocus, ExplainSettings, ImageLabelingSettings, ImageOcclusionSettings,
+    CardSummary, ClozeSettings, ExampleFollowUp, ExplainFocus, ExplainSettings, ImageLabelingSettings, ImageOcclusionSettings,
     ProblemSettings, ProblemErrorDiagnosis, RetrievalFormKind, TypeAnswerSettings,
     WorkedExample, WorkedStep,
 };

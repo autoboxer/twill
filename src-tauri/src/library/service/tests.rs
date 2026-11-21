@@ -1437,6 +1437,7 @@ fn explain_settings_are_validated_normalized_and_queued() {
         template_ids: Vec::new(),
         problem: None,
         explain: Some(ExplainSettings {
+            follow_up: None,
             focus: ExplainFocus::Why,
             structure_prompts: Vec::new(),
             key_points,
@@ -1590,6 +1591,93 @@ fn example_generation_requires_a_prompt_reference_and_valid_criteria_atomically(
 }
 
 #[test]
+fn example_follow_ups_are_optional_validated_and_preserve_the_schedule() {
+    let (_directory, store) = test_store();
+    let library = ConceptLibrary::new(&store);
+    let mut input = json!({
+        "title": "Follow-up", "includeStandardRecall": false,
+        "content": { "schemaVersion": 1,
+            "prompt": { "type": "doc", "content": [{ "type": "paragraph", "content": [{
+                "type": "text", "text": "Give a case that illustrates the rule."
+            }] }] },
+            "answer": { "type": "doc", "content": [{ "type": "paragraph", "content": [{
+                "type": "text", "text": "A checked case and its reasoning."
+            }] }] }
+        },
+        "explain": { "focus": "example", "keyPoints": ["Explain how the rule applies."] }
+    });
+    let concept = library.create_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+    let original = &concept.cards[0];
+    assert!(original.explain.as_ref().unwrap().follow_up.is_none());
+    assert!(serde_json::to_value(original.explain.as_ref().unwrap()).unwrap().get("followUp").is_none());
+
+    let review = library.record_review_at(RecordReviewInput {
+        card_id: original.id.clone(), rating: ReviewRating::Good, assisted: false,
+    }, original.due_at).unwrap();
+    input["id"] = json!(concept.id);
+
+    for focus in ["example", "nonExample", "changedSituation"] {
+        input["explain"]["focus"] = json!(focus);
+        input["explain"]["followUp"] = json!({
+            "prompt": "  Change the case.\nWhat changes? 網  ",
+            "reference": "  Another case.\nIts reasoning.  "
+        });
+        let updated = library.update_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+        let card = &updated.cards[0];
+        let follow_up = card.explain.as_ref().unwrap().follow_up.as_ref().unwrap();
+
+        assert_eq!(updated.cards.len(), 1);
+        assert_eq!(card.id, original.id);
+        assert_eq!(card.due_at, review.due_at);
+        assert_eq!(card.review_count, 1);
+        assert_eq!(follow_up.prompt, "Change the case.\nWhat changes? 網");
+        assert_eq!(follow_up.reference, "Another case.\nIts reasoning.");
+        assert_eq!(library.concept(&concept.id).unwrap(), updated);
+    }
+
+    input["explain"]["followUp"] = json!({ "prompt": "網".repeat(500), "reference": "😀".repeat(2000) });
+    let bounded = library.update_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
+
+    for (field, invalid) in [
+        ("prompt", " \n ".to_owned()), ("reference", "\t".to_owned()),
+        ("prompt", "網".repeat(501)), ("reference", "😀".repeat(2001)),
+    ] {
+        let mut invalid_input = input.clone();
+        invalid_input["explain"]["followUp"][field] = json!(invalid);
+        assert!(library.update_concept(serde_json::from_value(invalid_input.clone()).unwrap()).is_err());
+        invalid_input.as_object_mut().unwrap().remove("id");
+        assert!(library.create_concept(serde_json::from_value(invalid_input).unwrap()).is_err());
+        assert_eq!(library.concept(&concept.id).unwrap(), bounded);
+    }
+
+    for focus in ["why", "how", "causeAndEffect", "compareAndContrast", "outline", "sequence", "relationships"] {
+        input["explain"]["focus"] = json!(focus);
+        assert!(matches!(
+            library.update_concept(serde_json::from_value(input.clone()).unwrap()),
+            Err(LibraryError::InvalidExampleFollowUp { .. })
+        ));
+        assert_eq!(library.concept(&concept.id).unwrap(), bounded);
+    }
+
+    input["explain"]["focus"] = json!("example");
+    for malformed in [json!({ "prompt": "Missing reference" }), json!({
+        "prompt": "Question", "reference": "Reference", "unexpected": true
+    }), json!([])] {
+        let mut invalid_input = input.clone();
+        invalid_input["explain"]["followUp"] = malformed;
+        assert!(serde_json::from_value::<UpdateConceptInput>(invalid_input).is_err());
+    }
+
+    input["explain"]["followUp"] = serde_json::Value::Null;
+    let removed = library.update_concept(serde_json::from_value(input).unwrap()).unwrap();
+    assert!(removed.cards[0].explain.as_ref().unwrap().follow_up.is_none());
+    assert_eq!(removed.cards[0].id, original.id);
+    assert_eq!(removed.cards[0].due_at, review.due_at);
+    assert_eq!(removed.cards[0].review_count, 1);
+    assert_eq!(library.search(Default::default()).unwrap().concepts.len(), 1);
+}
+
+#[test]
 fn reconstruction_focus_round_trips_without_replacing_the_explain_card() {
     let (_directory, store) = test_store();
     let library = ConceptLibrary::new(&store);
@@ -1603,6 +1691,7 @@ fn reconstruction_focus_round_trips_without_replacing_the_explain_card() {
             template_ids: Vec::new(),
             problem: None,
             explain: Some(ExplainSettings {
+                follow_up: None,
                 focus: ExplainFocus::Outline,
                 structure_prompts: Vec::new(),
                 key_points: vec!["The endpoints establish a connection.".to_owned()],
@@ -1628,6 +1717,7 @@ fn reconstruction_focus_round_trips_without_replacing_the_explain_card() {
         ExplainFocus::Outline,
     ] {
         let settings = ExplainSettings {
+            follow_up: None,
             focus,
             structure_prompts: vec!["  Who   initiates? ".to_owned(), "What follows? 網".to_owned()],
             key_points: vec![
@@ -1731,6 +1821,7 @@ fn explain_edits_keep_schedules_and_readded_forms_start_fresh() {
             template_ids: Vec::new(),
             problem: None,
             explain: Some(ExplainSettings {
+                follow_up: None,
                 focus: ExplainFocus::Why,
                 structure_prompts: Vec::new(),
                 key_points: vec!["Earth's axis is tilted.".to_owned()],
@@ -1760,6 +1851,7 @@ fn explain_edits_keep_schedules_and_readded_forms_start_fresh() {
             template_ids: Vec::new(),
             problem: None,
             explain: Some(ExplainSettings {
+                follow_up: None,
                 focus: ExplainFocus::CauseAndEffect,
                 structure_prompts: Vec::new(),
                 key_points: vec![
@@ -1818,6 +1910,7 @@ fn explain_edits_keep_schedules_and_readded_forms_start_fresh() {
             template_ids: Vec::new(),
             problem: None,
             explain: Some(ExplainSettings {
+                follow_up: None,
                 focus: ExplainFocus::CompareAndContrast,
                 structure_prompts: Vec::new(),
                 key_points: vec!["Summer and winter receive different light.".to_owned()],

@@ -177,6 +177,9 @@ pub enum LibraryError {
     #[error("{message}")]
     InvalidStructurePrompts { message: &'static str },
 
+    #[error("Invalid example follow-up: {message}")]
+    InvalidExampleFollowUp { message: &'static str },
+
     #[error("problem cards require at least one checkpoint")]
     MissingProblemCheckpoint,
 

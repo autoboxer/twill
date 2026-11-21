@@ -11,6 +11,7 @@ import RichContentRenderer from '../components/RichContentRenderer.vue';
 import WorkedExample from '../components/WorkedExample.vue';
 import { useStartupReady } from '../composables/useStartupReady';
 import { explainFocusDetails } from '../explain/focus';
+import { exampleFollowUp } from '../explain/followUp';
 import { reconstructionPrompts } from '../explain/prompts';
 import { collectClozeGroups } from '../cloze/documents';
 import {
@@ -651,6 +652,15 @@ useStartupReady( initialLoading );
                       {{ prompt }}
                     </li>
                   </ul>
+                </details>
+                <details v-if="exampleFollowUp( card.explain )" class="example-follow-up-details">
+                  <summary>Follow-up</summary>
+                  <dl>
+                    <dt>Question</dt>
+                    <dd>{{ card.explain.followUp.prompt }}</dd>
+                    <dt>Reference</dt>
+                    <dd>{{ card.explain.followUp.reference }}</dd>
+                  </dl>
                 </details>
               </div>
 

@@ -317,7 +317,25 @@ began by reading the example, choose Forgot or Again. Twill records the help
 use; supported work does not count as independent success. Viewing the reference
 after comparing an unaided response does not retroactively mark that attempt as
 assisted. These boundaries also apply to non-examples and changed situations.
-Optional generation follow-ups and separate correction fields are still planned.
+
+After comparison, select Add correction to revise your reasoning without changing
+the original response. If the question or reference needs work, use Card issue
+or Edit later in the card header. A mistake in your response does not necessarily
+mean the card needs changing.
+
+For another case, select Add follow-up in the concept editor. Enter a Follow-up
+question and a checked Follow-up reference with reasoning. The question can
+contain up to 500 characters and the reference up to 2000. During Study, select
+Follow-up after comparison. Write a response or answer mentally, then select
+Compare follow-up. This is optional supported practice, not another scheduled
+card or an independent test. Grade the original attempt, not the correction or
+follow-up. Skip the extra practice when it does not serve your learning goal.
+
+Corrections and follow-up work remain separate from the original response and
+any writing done after help. They survive pause, navigation, linked practice and
+Undo within the session. A fresh practice attempt starts without them. They are
+not saved to the Library and are cleared when you restart the app. To change the
+source material, edit the concept after checking it against a reliable source.
 
 Practice can help you apply learning to a new task, but success with familiar
 cards does not guarantee that ability. Vary the question to practice something

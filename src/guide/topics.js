@@ -250,12 +250,15 @@ export const guideTopics = [
           'Add criteria that describe what a valid response must demonstrate. In the preview, try a response and select Show answer to check the task.',
           'During Study, write your response, answer mentally, or use paper.',
           'If you want to study the supplied example first, select Inspect example. You can read it without writing your own, or use it to help you make another case. Hide example hides the reference without removing the help record.',
-          'Select Compare example, Compare non-example, or Compare situation to see the reference and criteria. Compare your original response with the criteria and the reasoning in the reference. Your case and wording can differ. Use the optional checks, then choose one grade for the whole attempt.'
+          'Select Compare example, Compare non-example, or Compare situation to see the reference and criteria. Compare your original response with the criteria and the reasoning in the reference. Your case and wording can differ. Use the optional checks, then choose one grade for the whole attempt.',
+          'To revise your reasoning after comparison, select Add correction. Your original response remains unchanged. If the source material needs work, use Card issue or Edit later in the card header.',
+          'To offer another case, select Add follow-up in the concept editor. Enter a Follow-up question and a checked Follow-up reference. During Study, select Follow-up after comparison. Write a response or answer mentally, then select Compare follow-up.'
         ],
         paragraphs: [
           'An example should illustrate the rule in a specific case, not just repeat its definition. Twill does not verify the example or choose a grade for you.',
           'After you inspect an example, the comparison keeps your response before help separate from writing done afterward. Grade what you knew before help. If you started by reading the example, choose Forgot or Again for the original attempt. Twill records help use so supported work is not counted as independent success.',
-          'Responses and checks stay available when you pause, visit another view, or undo the last grade. They are not added to the Library and are cleared when you restart the app.',
+          'The follow-up is optional practice after seeing the reference, not another scheduled card. Grade the original attempt, not the correction or follow-up.',
+          'Responses, checks, corrections and follow-up work stay available when you pause, visit another view, return from linked practice, or undo the last grade. They are not added to the Library and are cleared when you restart the app. A fresh practice attempt starts without this writing.',
           'Making examples takes time and is not always better than studying good supplied examples. Use it when applying a rule is useful, and check uncertain reasoning against a reliable source.'
         ],
         example: 'For positive correlation, describe how longer trips tend to use more fuel. A criterion might ask you to identify two quantities and explain how they tend to change together.',

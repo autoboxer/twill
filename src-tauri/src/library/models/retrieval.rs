@@ -116,6 +116,15 @@ pub struct ExplainSettings {
     pub key_points: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub structure_prompts: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub follow_up: Option<ExampleFollowUp>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ExampleFollowUp {
+    pub prompt: String,
+    pub reference: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

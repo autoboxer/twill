@@ -4,6 +4,7 @@ import { computed, ref, shallowRef, watch } from 'vue';
 import { useTemplateLibrary } from '../composables/useTemplateLibrary';
 import { useStudyComparison } from '../composables/useStudyComparison';
 import { useStudyAssistance } from '../composables/useStudyAssistance';
+import { useExplainReview } from '../composables/useExplainReview';
 import { conceptLibraryErrorMessage } from '../composables/useConceptLibrary';
 import CardAnswerDetails from './CardAnswerDetails.vue';
 import StudyCardContent from './StudyCardContent.vue';
@@ -96,13 +97,25 @@ const {
 const comparisonResponse = computed( () => (
   revealed.value && assisted.value ? responseBeforeAssistance.value : previewResponse.value
 ) );
+const {
+  state: reviewState,
+  restore: restoreReview,
+  toggle: toggleReview,
+  setCorrection,
+  toggleFollowUp,
+  setFollowUpResponse,
+  toggleFollowUpReference
+} = useExplainReview({ currentCard: card, answerRevealed: revealed, actionsBlocked: loading });
 const { comparisonChecks, restoreComparison, setComparison } = useStudyComparison({
   currentCard: card,
   answerRevealed: revealed,
   actionsBlocked: loading
 });
 
-watch([ previewContent, () => props.typeSettings ], () => restoreComparison(), { deep: true });
+watch([ previewContent, () => props.typeSettings ], () => {
+  restoreComparison();
+  restoreReview();
+}, { deep: true });
 
 watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
   let current = true;
@@ -116,6 +129,7 @@ watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
   revealed.value = false;
   restoreAssistance();
   restoreComparison();
+  restoreReview();
 
   if ( !loading.value ) {
     return;
@@ -190,10 +204,16 @@ watch([ () => props.typeId, retry ], async ([ id ], previous, onCleanup ) => {
         :model-value="comparisonResponse"
         :assisted="assisted"
         :settings="typeSettings"
+        :review="reviewState"
         :revealed="revealed"
         :checks="comparisonChecks"
         @update:model-value="previewResponse = $event"
         @compare="setComparison"
+        @toggle-review="toggleReview"
+        @correction="setCorrection"
+        @toggle-follow-up="toggleFollowUp"
+        @follow-up-response="setFollowUpResponse"
+        @toggle-follow-up-reference="toggleFollowUpReference"
       />
       <StudyAssistance
         :content="previewContent"

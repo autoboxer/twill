@@ -67,6 +67,7 @@ impl From<LibraryError> for CommandError {
             | LibraryError::DuplicateAcceptedAnswer
             | LibraryError::MissingExplainKeyPoint
             | LibraryError::InvalidStructurePrompts { .. }
+            | LibraryError::InvalidExampleFollowUp { .. }
             | LibraryError::TooManyExplainKeyPoints { .. }
             | LibraryError::DuplicateExplainKeyPoint
             | LibraryError::MissingProblemCheckpoint

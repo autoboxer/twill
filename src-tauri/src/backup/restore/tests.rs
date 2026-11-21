@@ -26,7 +26,7 @@ fn concept_input(title: &str) -> CreateConceptInput {
 }
 
 #[test]
-fn backup_round_trip_preserves_generated_examples_and_rejects_missing_content() {
+fn backup_round_trip_preserves_generated_examples_and_rejects_invalid_content() {
     let root = tempdir().unwrap();
     let source = LocalDataStore::open(root.path().join("source")).unwrap();
     let library = ConceptLibrary::new(&source);
@@ -42,7 +42,8 @@ fn backup_round_trip_preserves_generated_examples_and_rejects_missing_content() 
             "content": [{ "type": "text", "text": "Checked reference and reasoning. 網" }]
         }] });
         input.explain = Some(serde_json::from_value(json!({
-            "focus": focus, "keyPoints": ["Explain why the case fits."]
+            "focus": focus, "keyPoints": ["Explain why the case fits."],
+            "followUp": { "prompt": "Give another case. 網", "reference": "Checked case.\nIts reasoning." }
         })).unwrap());
         concepts.push(library.create_concept(input).unwrap());
     }
@@ -78,6 +79,26 @@ fn backup_round_trip_preserves_generated_examples_and_rejects_missing_content() 
         });
 
         assert!(matches!(inspect_backup(invalid), Err(BackupError::InvalidArchive(_))));
+    }
+
+    for (index, (path, value)) in [
+        ("$.followUp.reference", json!("")),
+        ("$.followUp.prompt", json!("網".repeat(501))),
+        ("$.followUp.reference", json!("😀".repeat(2001))),
+        ("$.focus", json!("outline")),
+    ].into_iter().enumerate() {
+        let invalid = root.path().join(format!("follow-up-{index}.twill"));
+        rewrite_database(&archive, &invalid, |connection| {
+            connection.set_db_config(
+                rusqlite::config::DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, false,
+            ).unwrap();
+            connection.execute(
+                "UPDATE cards SET configuration_json = json_set(configuration_json, ?1, json(?2))",
+                [path, &value.to_string()],
+            ).unwrap();
+        });
+        let result = inspect_backup(invalid);
+        assert!(matches!(result, Err(BackupError::InvalidArchive(_))), "follow-up {index}: {result:?}");
     }
 }
 

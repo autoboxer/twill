@@ -113,7 +113,7 @@ const {
   ratingCounts,
   recordAssessment,
   recordMasteryAssessment,
-  reconstructionReview,
+  explainReview,
   recoveryError,
   resumeSession,
   responseBeforeAssistance,
@@ -169,10 +169,13 @@ const {
   toggleCorrection: toggleProblemCorrection
 } = guidedProblem;
 const {
-  state: reconstructionState,
-  toggle: toggleReconstructionReview,
-  setCorrection: setReconstructionCorrection
-} = reconstructionReview;
+  state: explainReviewState,
+  toggle: toggleExplainReview,
+  setCorrection: setExplainCorrection,
+  toggleFollowUp,
+  setFollowUpResponse,
+  toggleFollowUpReference
+} = explainReview;
 const {
   active: comparisonAttempt,
   error: caseComparisonError,
@@ -953,12 +956,15 @@ useStartupReady( initialLoading );
             :assisted="assisted"
             :revealed="answerRevealed"
             :checks="comparisonChecks"
-            :review="reconstructionState"
+            :review="explainReviewState"
             :disabled="actionsBlocked"
             @update:model-value="studyResponse = $event"
             @compare="setComparison"
-            @toggle-review="toggleReconstructionReview"
-            @correction="setReconstructionCorrection"
+            @toggle-review="toggleExplainReview"
+            @correction="setExplainCorrection"
+            @toggle-follow-up="toggleFollowUp"
+            @follow-up-response="setFollowUpResponse"
+            @toggle-follow-up-reference="toggleFollowUpReference"
           />
 
           <ProblemResponse
