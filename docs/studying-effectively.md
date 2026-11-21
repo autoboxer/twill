@@ -276,7 +276,66 @@ Recalled or Still missed to return, or select Return to session without recordin
 an outcome. Your original response and idea checks are restored. These extra
 attempts are supported practice, not independent reviews. They do not change
 review dates or count as completed reviews, even when the chosen card is due.
-Tools for creating examples are planned.
+
+### Create and check your own example
+
+Select Explain in the concept editor. In Prompt focus, choose Create an example,
+Create a non-example, or Change the situation. Write a specific task in Prompt.
+For a changed situation, include the original case and what the learner should
+vary. In Answer, provide a checked reference example and explain the reasoning.
+For a non-example, identify the condition it fails. Add criteria that describe
+what a valid response must demonstrate, rather than requiring the reference's
+exact wording.
+
+During Study, write your response, answer mentally, or use paper. Select Compare
+example, Compare non-example, or Compare situation to see the reference and
+criteria. Your written response remains separate from the reference. The optional
+checks help you inspect the reasoning; they do not produce a correctness score.
+Choose one grade for your original attempt. Twill does not verify your example
+or add it to the Library. Responses and checks remain available during pause,
+navigation and Undo, but are cleared when you restart the app.
+
+For example, a task about positive correlation might ask for two quantities and
+how they tend to vary together. Longer trips tending to use more fuel is one
+reference example. Another valid case can satisfy the task. Repeating the
+definition of correlation without a specific case does not.
+
+Making examples can help you apply a rule, but takes time and is not consistently
+better than studying good supplied examples. Check unfamiliar or uncertain
+reasoning against a reliable source. Do not treat a plausible example as verified
+knowledge.
+
+If you prefer to study a supplied example first, select Inspect example. You do
+not have to write your own example. You can read the reference, explain to
+yourself why it fits, and then compare it with the criteria. If useful, write
+another case after inspecting it. Hide example closes the reference but does
+not remove the help record.
+
+The response you wrote before the first help stays separate from work done
+afterward. Grade the original attempt, not the work completed with help. If you
+began by reading the example, choose Forgot or Again. Twill records the help
+use; supported work does not count as independent success. Viewing the reference
+after comparing an unaided response does not retroactively mark that attempt as
+assisted. These boundaries also apply to non-examples and changed situations.
+
+After comparison, select Add correction to revise your reasoning without changing
+the original response. If the question or reference needs work, use Card issue
+or Edit later in the card header. A mistake in your response does not necessarily
+mean the card needs changing.
+
+For another case, select Add follow-up in the concept editor. Enter a Follow-up
+question and a checked Follow-up reference with reasoning. The question can
+contain up to 500 characters and the reference up to 2000. During Study, select
+Follow-up after comparison. Write a response or answer mentally, then select
+Compare follow-up. This is optional supported practice, not another scheduled
+card or an independent test. Grade the original attempt, not the correction or
+follow-up. Skip the extra practice when it does not serve your learning goal.
+
+Corrections and follow-up work remain separate from the original response and
+any writing done after help. They survive pause, navigation, linked practice and
+Undo within the session. A fresh practice attempt starts without them. They are
+not saved to the Library and are cleared when you restart the app. To change the
+source material, edit the concept after checking it against a reliable source.
 
 Practice can help you apply learning to a new task, but success with familiar
 cards does not guarantee that ability. Vary the question to practice something

@@ -26,6 +26,83 @@ fn concept_input(title: &str) -> CreateConceptInput {
 }
 
 #[test]
+fn backup_round_trip_preserves_generated_examples_and_rejects_invalid_content() {
+    let root = tempdir().unwrap();
+    let source = LocalDataStore::open(root.path().join("source")).unwrap();
+    let library = ConceptLibrary::new(&source);
+    let mut concepts = Vec::new();
+
+    for focus in ["example", "nonExample", "changedSituation"] {
+        let mut input = concept_input(focus);
+        input.include_standard_recall = false;
+        input.content.prompt = json!({ "type": "doc", "content": [{ "type": "paragraph",
+            "content": [{ "type": "text", "text": "Apply the rule to a specific case." }]
+        }] });
+        input.content.answer = json!({ "type": "doc", "content": [{ "type": "paragraph",
+            "content": [{ "type": "text", "text": "Checked reference and reasoning. 網" }]
+        }] });
+        input.explain = Some(serde_json::from_value(json!({
+            "focus": focus, "keyPoints": ["Explain why the case fits."],
+            "followUp": { "prompt": "Give another case. 網", "reference": "Checked case.\nIts reasoning." }
+        })).unwrap());
+        concepts.push(library.create_concept(input).unwrap());
+    }
+
+    let archive = root.path().join("examples.twill");
+    create_backup(&source, &archive).unwrap();
+    let preview = inspect_backup(&archive).unwrap();
+    let profile = root.path().join("target");
+    let target = LocalDataStore::open(&profile).unwrap();
+    prepare_restore(&profile, &archive, &preview.fingerprint).unwrap();
+    drop(target);
+
+    let restored = open_with_restore(&profile, || Ok(LocalDataStore::open(&profile)?)).unwrap();
+    let library = ConceptLibrary::new(&restored);
+    let queue = library.study_queue().unwrap();
+
+    for concept in &concepts {
+        assert_eq!(library.concept(&concept.id).unwrap(), *concept);
+        let queued = queue.cards.iter().find(|card| card.id == concept.cards[0].id).unwrap();
+        assert_eq!(queued.explain, concept.cards[0].explain);
+    }
+
+    for field in ["prompt", "answer"] {
+        let invalid = root.path().join(format!("missing-{field}.twill"));
+        rewrite_database(&archive, &invalid, |connection| {
+            connection.set_db_config(
+                rusqlite::config::DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, false,
+            ).unwrap();
+            connection.execute(
+                "UPDATE concepts SET content_json = json_set(content_json, ?1, json(?2))",
+                [format!("$.{field}"), serde_json::to_string(&ConceptContent::default().answer).unwrap()],
+            ).unwrap();
+        });
+
+        assert!(matches!(inspect_backup(invalid), Err(BackupError::InvalidArchive(_))));
+    }
+
+    for (index, (path, value)) in [
+        ("$.followUp.reference", json!("")),
+        ("$.followUp.prompt", json!("網".repeat(501))),
+        ("$.followUp.reference", json!("😀".repeat(2001))),
+        ("$.focus", json!("outline")),
+    ].into_iter().enumerate() {
+        let invalid = root.path().join(format!("follow-up-{index}.twill"));
+        rewrite_database(&archive, &invalid, |connection| {
+            connection.set_db_config(
+                rusqlite::config::DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, false,
+            ).unwrap();
+            connection.execute(
+                "UPDATE cards SET configuration_json = json_set(configuration_json, ?1, json(?2))",
+                [path, &value.to_string()],
+            ).unwrap();
+        });
+        let result = inspect_backup(invalid);
+        assert!(matches!(result, Err(BackupError::InvalidArchive(_))), "follow-up {index}: {result:?}");
+    }
+}
+
+#[test]
 fn backup_round_trip_preserves_reconstruction_prompts() {
     let root = tempdir().unwrap();
     let source = LocalDataStore::open(root.path().join("source")).unwrap();

@@ -13,6 +13,7 @@ import StudyProblemSteps from '../components/StudyProblemSteps.vue';
 import StudyAnswerFeedback from '../components/StudyAnswerFeedback.vue';
 import StudyAnswerParts from '../components/StudyAnswerParts.vue';
 import StudyAssistance from '../components/StudyAssistance.vue';
+import StudyAssistanceNotice from '../components/StudyAssistanceNotice.vue';
 import StudyCardContent from '../components/StudyCardContent.vue';
 import StudyCaseComparisonDialog from '../components/StudyCaseComparisonDialog.vue';
 import StudyDeferredCards from '../components/StudyDeferredCards.vue';
@@ -112,7 +113,7 @@ const {
   ratingCounts,
   recordAssessment,
   recordMasteryAssessment,
-  reconstructionReview,
+  explainReview,
   recoveryError,
   resumeSession,
   responseBeforeAssistance,
@@ -168,10 +169,13 @@ const {
   toggleCorrection: toggleProblemCorrection
 } = guidedProblem;
 const {
-  state: reconstructionState,
-  toggle: toggleReconstructionReview,
-  setCorrection: setReconstructionCorrection
-} = reconstructionReview;
+  state: explainReviewState,
+  toggle: toggleExplainReview,
+  setCorrection: setExplainCorrection,
+  toggleFollowUp,
+  setFollowUpResponse,
+  toggleFollowUpReference
+} = explainReview;
 const {
   active: comparisonAttempt,
   error: caseComparisonError,
@@ -949,14 +953,18 @@ useStartupReady( initialLoading );
             ref="explainResponse"
             :model-value="comparisonResponse"
             :settings="explainSettings"
+            :assisted="assisted"
             :revealed="answerRevealed"
             :checks="comparisonChecks"
-            :review="reconstructionState"
+            :review="explainReviewState"
             :disabled="actionsBlocked"
             @update:model-value="studyResponse = $event"
             @compare="setComparison"
-            @toggle-review="toggleReconstructionReview"
-            @correction="setReconstructionCorrection"
+            @toggle-review="toggleExplainReview"
+            @correction="setExplainCorrection"
+            @toggle-follow-up="toggleFollowUp"
+            @follow-up-response="setFollowUpResponse"
+            @toggle-follow-up-reference="toggleFollowUpReference"
           />
 
           <ProblemResponse
@@ -1004,6 +1012,7 @@ useStartupReady( initialLoading );
             v-if="!pretestActive"
             :content="currentCard.content"
             :explain="explainSettings"
+            :answer-revealed="answerRevealed"
             :revealed="revealedAssistance"
             :disabled="actionsBlocked"
             @toggle="toggleAssistance"
@@ -1022,19 +1031,12 @@ useStartupReady( initialLoading );
             @compare="setComparison"
           />
 
-          <div
-            v-if="assisted"
-            class="study-assistance-notice"
-            data-twill-assisted
-            role="status"
-          >
-            <strong>Help used</strong>
-            <span>Grade your answer before help.</span>
-            <div v-if="answerRevealed && studyResponse && studyResponse !== responseBeforeAssistance" class="study-assisted-response">
-              <span>Your response after help</span>
-              <p>{{ studyResponse }}</p>
-            </div>
-          </div>
+          <StudyAssistanceNotice
+            :assisted="assisted"
+            :revealed="answerRevealed"
+            :response="studyResponse"
+            :original-response="responseBeforeAssistance"
+          />
 
           <StudyAnswerFeedback
             v-if="answerRevealed && currentAnswerFeedback"

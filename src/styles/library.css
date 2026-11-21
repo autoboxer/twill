@@ -404,13 +404,29 @@
   gap: 0.4rem;
 }
 
-.retrieval-form-list__structure {
+.retrieval-form-list__structure,
+.example-follow-up-details {
   font-size: 0.85rem;
   overflow-wrap: anywhere;
 }
 
-.retrieval-form-list__structure summary {
+.retrieval-form-list__structure summary,
+.example-follow-up-details summary {
   cursor: pointer;
+}
+
+.example-follow-up-details dl {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.example-follow-up-details dt {
+  font-weight: 600;
+}
+
+.example-follow-up-details dd {
+  white-space: pre-wrap;
 }
 
 .retrieval-form-list__structure ul {

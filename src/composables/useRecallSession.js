@@ -164,7 +164,7 @@ export function useRecallSession() {
     }
   }
 
-  function assess({ rating, response, reviewId, assistance, comparison, reconstruction, guidedProblem }) {
+  function assess({ rating, response, reviewId, assistance, comparison, explainReview, guidedProblem }) {
     if (
       masteryStarted.value
       || pretestTeachingActive.value
@@ -192,7 +192,7 @@ export function useRecallSession() {
       response,
       assistance,
       comparison,
-      reconstruction,
+      explainReview,
       guidedProblem,
       reviewId
     });
@@ -306,7 +306,7 @@ export function useRecallSession() {
     return true;
   }
 
-  function assessMastery({ recalled, response, assistance, comparison, reconstruction, guidedProblem }) {
+  function assessMastery({ recalled, response, assistance, comparison, explainReview, guidedProblem }) {
     const item = masteryItems.value[ masteryIndex.value ];
 
     if (
@@ -325,7 +325,7 @@ export function useRecallSession() {
       response,
       assistance,
       comparison,
-      reconstruction,
+      explainReview,
       guidedProblem
     });
     masteryIndex.value += 1;

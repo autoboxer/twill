@@ -4,6 +4,8 @@ import { computed, nextTick, reactive, ref, watch } from 'vue';
 import { retrievalForms } from '../retrieval-forms/catalog';
 import { explainFocusDetails, explainFocusItems } from '../explain/focus';
 import { normalizeStructurePrompts, structurePromptsError } from '../explain/prompts';
+import { normalizeExampleFollowUp, exampleFollowUpError } from '../explain/followUp';
+import ExampleFollowUpEditor from './ExampleFollowUpEditor.vue';
 
 import ClozePreview from './ClozePreview.vue';
 import ImageOcclusionPreview from './ImageOcclusionPreview.vue';
@@ -108,6 +110,7 @@ const form = reactive({
   explainFocus: 'why',
   explainStructurePrompts: '',
   explainKeyPoints: [ '' ],
+  explainFollowUp: null,
   problemCheckpoints: [ '' ],
   problemWorkedExample: null,
   retrievalFormIds: [ STANDARD_RECALL_ID ],
@@ -128,6 +131,10 @@ const activeSetupId = ref( STANDARD_RECALL_ID );
 const previewOpen = ref( false );
 const editorElement = ref( null );
 const explainFocus = computed( () => explainFocusDetails( form.explainFocus ) );
+const selectedFollowUp = computed( () => explainFocus.value.generation
+  ? normalizeExampleFollowUp( form.explainFollowUp ) : null );
+const explainFollowUpError = computed( () => submitted.value && explainSelected.value
+  ? exampleFollowUpError( selectedFollowUp.value ) : '' );
 const structurePromptsOpen = ref( false );
 const selectedStructurePrompts = computed( () => explainFocus.value.reconstruction
   ? normalizeStructurePrompts( form.explainStructurePrompts ) : []);
@@ -307,6 +314,7 @@ const previewTypeSettings = computed( () => {
   if ( activeSetupId.value === EXPLAIN_ID ) {
     return {
       focus: form.explainFocus,
+      followUp: selectedFollowUp.value,
       structurePrompts: selectedStructurePrompts.value,
       keyPoints: form.explainKeyPoints.map( normalizeExplainKeyPoint ).filter( Boolean )
     };
@@ -392,6 +400,18 @@ const explainKeyPointErrors = computed( () => {
 const explainKeyPointsValid = computed( () => (
   explainKeyPointErrors.value.every( ( error ) => !error )
 ) );
+const exampleContentError = computed( () => {
+  if ( !submitted.value || !explainSelected.value || !explainFocus.value.generation ) {
+    return '';
+  }
+
+  if ( !richDocumentHasContent( form.content.prompt ) ) {
+    return 'Describe the example task in Prompt.';
+  }
+
+  return richDocumentHasContent( form.content.answer )
+    ? '' : 'Add a checked reference example in Answer.';
+});
 const problemCheckpointErrors = computed( () => {
   if ( !submitted.value || !problemSelected.value ) {
     return form.problemCheckpoints.map( () => '' );
@@ -500,6 +520,7 @@ watch([ () => props.concept, () => props.editorState ], ([ concept, editorState 
   form.title = state.title;
   form.deckIds = state.deckIds;
   form.explainFocus = state.explainFocus;
+  form.explainFollowUp = state.explainFollowUp;
   form.explainStructurePrompts = state.explainStructurePrompts;
   structurePromptsOpen.value = Boolean( state.explainStructurePrompts );
   form.explainKeyPoints = state.explainKeyPoints;
@@ -682,15 +703,17 @@ async function submit() {
     || Boolean( imageOcclusionError.value )
     || Boolean( imageLabelingError.value )
     || Boolean( problemPromptError.value )
+    || Boolean( exampleContentError.value )
     || !explainKeyPointsValid.value
     || Boolean( explainStructureError.value )
+    || Boolean( explainFollowUpError.value )
     || !problemCheckpointsValid.value
     || Boolean( problemWorkedExampleError.value )
     || !acceptedAnswersValid.value
   ) {
     if ( !acceptedAnswersValid.value ) {
       activeSetupId.value = TYPE_ANSWER_ID;
-    } else if ( !explainKeyPointsValid.value || explainStructureError.value ) {
+    } else if ( !explainKeyPointsValid.value || explainStructureError.value || exampleContentError.value || explainFollowUpError.value ) {
       activeSetupId.value = EXPLAIN_ID;
     } else if ( !problemCheckpointsValid.value || problemPromptError.value || problemWorkedExampleError.value ) {
       activeSetupId.value = PROBLEM_ID;
@@ -716,6 +739,7 @@ async function submit() {
   const explain = explainSelected.value
     ? {
       focus: form.explainFocus,
+      followUp: selectedFollowUp.value,
       structurePrompts: selectedStructurePrompts.value,
       keyPoints: form.explainKeyPoints.map( normalizeExplainKeyPoint )
     }
@@ -878,6 +902,7 @@ defineExpose({ submit });
         />
       </div>
       <p v-if="problemPromptError" class="editor-field-error">{{ problemPromptError }}</p>
+      <p v-if="exampleContentError" class="editor-field-error" role="alert">{{ exampleContentError }}</p>
     </section>
 
     <section
@@ -1109,6 +1134,10 @@ defineExpose({ submit });
             />
           </UFormField>
 
+          <p v-if="explainFocus.generation" class="editor-section__description">
+            {{ explainFocus.authoring }}
+          </p>
+
           <div class="explain-key-point-list">
             <UFormField
               v-for="( keyPoint, index ) in form.explainKeyPoints"
@@ -1179,6 +1208,13 @@ defineExpose({ submit });
             :disabled="disabled || atExplainKeyPointLimit"
             class="explain-settings__add"
             @click="addExplainKeyPoint"
+          />
+
+          <ExampleFollowUpEditor
+            v-if="explainFocus.generation"
+            v-model="form.explainFollowUp"
+            :disabled="disabled"
+            :submitted="submitted"
           />
 
           <div v-if="explainFocus.reconstruction" class="structure-prompts-editor">

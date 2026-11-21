@@ -210,7 +210,7 @@ export const guideTopics = [
   {
     id: 'explain',
     title: 'Explain',
-    summary: 'Explain an idea or reconstruct how several ideas fit together.',
+    summary: 'Explain an idea, reconstruct a topic, or create an example.',
     sections: [
       {
         title: 'Define a good explanation',
@@ -241,6 +241,28 @@ export const guideTopics = [
         ],
         example: 'Ask for the three messages in a TCP handshake. Add one reference step for each message. Include why each acknowledgement follows the preceding message when that relationship matters.',
         avoid: 'Keep the task small enough to check fairly. Reconstructing an entire chapter in one card makes it difficult to identify and grade important gaps.'
+      },
+      {
+        title: 'Create and check an example',
+        steps: [
+          'Select Explain in the concept editor. In Prompt focus, choose Create an example, Create a non-example, or Change the situation.',
+          'Describe the task in Prompt. In Answer, provide a checked reference example and explain why it fits. For a non-example, explain which condition it fails. For a changed situation, include the original case in Prompt and explain the effect of the change in Answer.',
+          'Add criteria that describe what a valid response must demonstrate. In the preview, try a response and select Show answer to check the task.',
+          'During Study, write your response, answer mentally, or use paper.',
+          'If you want to study the supplied example first, select Inspect example. You can read it without writing your own, or use it to help you make another case. Hide example hides the reference without removing the help record.',
+          'Select Compare example, Compare non-example, or Compare situation to see the reference and criteria. Compare your original response with the criteria and the reasoning in the reference. Your case and wording can differ. Use the optional checks, then choose one grade for the whole attempt.',
+          'To revise your reasoning after comparison, select Add correction. Your original response remains unchanged. If the source material needs work, use Card issue or Edit later in the card header.',
+          'To offer another case, select Add follow-up in the concept editor. Enter a Follow-up question and a checked Follow-up reference. During Study, select Follow-up after comparison. Write a response or answer mentally, then select Compare follow-up.'
+        ],
+        paragraphs: [
+          'An example should illustrate the rule in a specific case, not just repeat its definition. Twill does not verify the example or choose a grade for you.',
+          'After you inspect an example, the comparison keeps your response before help separate from writing done afterward. Grade what you knew before help. If you started by reading the example, choose Forgot or Again for the original attempt. Twill records help use so supported work is not counted as independent success.',
+          'The follow-up is optional practice after seeing the reference, not another scheduled card. Grade the original attempt, not the correction or follow-up.',
+          'Responses, checks, corrections and follow-up work stay available when you pause, visit another view, return from linked practice, or undo the last grade. They are not added to the Library and are cleared when you restart the app. A fresh practice attempt starts without this writing.',
+          'Making examples takes time and is not always better than studying good supplied examples. Use it when applying a rule is useful, and check uncertain reasoning against a reliable source.'
+        ],
+        example: 'For positive correlation, describe how longer trips tend to use more fuel. A criterion might ask you to identify two quantities and explain how they tend to change together.',
+        avoid: 'Do not mark a different example wrong just because it does not match the reference. Check whether its reasoning satisfies the task.'
       }
     ],
     related: [ 'problem', 'feedback', 'grading' ]
