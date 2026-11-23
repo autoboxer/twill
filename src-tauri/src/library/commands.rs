@@ -18,7 +18,7 @@ use crate::library::{
     PracticeComparisonCase, PracticeLink, PracticeLinkLibrary, PretestRecord, QueueDeferredEditInput,
     RecordPretestInput, RecordReviewInput,
     RemovePracticeLinkInput, RenameNamedItemInput, ReverseReviewInput,
-    ReviewOutcome, ReviewReversalOutcome,
+    ReviewHistory, ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings,
     SetAppearancePreferencesInput, SetConceptArchivedInput, SetCssSnippetEnabledInput,
     SetGradingModeInput, SetLibraryViewPreferencesInput, SetMixedPracticeEnabledInput,
@@ -78,6 +78,7 @@ impl From<LibraryError> for CommandError {
             LibraryError::DuplicateName { .. }
             | LibraryError::AuthoringMediaSessionClosed
             | LibraryError::CardNotDue { .. }
+            | LibraryError::StudyContentChanged
             | LibraryError::PretestNotEligible(_)
             | LibraryError::ReviewNotReversible
             | LibraryError::CardQualityConcernClosed(_)
@@ -184,6 +185,16 @@ pub(crate) fn get_concept(
 ) -> CommandResult<ConceptDetail> {
     ConceptLibrary::new(local_data.inner())
         .concept(&concept_id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_review_history(
+    local_data: State<'_, LocalDataStore>,
+    card_id: String,
+) -> CommandResult<ReviewHistory> {
+    ConceptLibrary::new(local_data.inner())
+        .review_history(&card_id)
         .map_err(Into::into)
 }
 

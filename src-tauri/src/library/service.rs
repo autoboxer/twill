@@ -12,7 +12,7 @@ use crate::library::study::{
 use crate::library::{
     AppearancePreferences, ConceptDetail, DevicePreferences, GradingMode, LibraryError,
     LibraryResult, LibraryViewPreferences, MediaSummary, PretestRecord, RecordPretestInput,
-    RecordReviewInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
+    RecordReviewInput, ReverseReviewInput, ReviewHistory, ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings, StartupDestination, StudyQuery, StudyQueue, UpdateSchedulingSettingsInput,
 };
 
@@ -56,6 +56,12 @@ impl<'store> ConceptLibrary<'store> {
 
     pub fn record_review(&self, input: RecordReviewInput) -> LibraryResult<ReviewOutcome> {
         self.record_review_at(input, current_timestamp()?)
+    }
+
+    pub fn review_history(&self, card_id: &str) -> LibraryResult<ReviewHistory> {
+        self.store.read_result(|connection| {
+            crate::library::study::query_review_history(connection, card_id)
+        })
     }
 
     pub fn record_pretest(&self, input: RecordPretestInput) -> LibraryResult<PretestRecord> {
@@ -143,7 +149,10 @@ impl<'store> ConceptLibrary<'store> {
 
         self.store
             .write_result(|transaction| {
-                record_review(transaction, &card_id, input.rating, input.assisted, now)
+                record_review(
+                    transaction, &card_id, input.rating, input.assisted,
+                    input.content_version.as_deref(), now,
+                )
             })
     }
 

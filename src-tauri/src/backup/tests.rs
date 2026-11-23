@@ -119,7 +119,8 @@ fn backup_captures_uncheckpointed_content_media_and_all_learning_state() {
     let concept = library.create_concept(input).unwrap();
     let review = library
         .record_review(RecordReviewInput {
-            assisted: false,
+            assisted: Some(false),
+            content_version: None,
             card_id: concept.cards[0].id.clone(),
             rating: ReviewRating::Good,
         })

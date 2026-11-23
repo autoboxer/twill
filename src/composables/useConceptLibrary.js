@@ -67,6 +67,7 @@ export function useConceptLibrary() {
       return saved;
     },
     getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
+    getReviewHistory: ( cardId ) => run( 'get_review_history', { cardId }),
     getLibrary: ( input = {}) => run( 'get_library', { input }),
     getLibraryOrganizations: () => run( 'get_library_organizations' ),
     getStudyQueue: async ( input = {}) => resolveStudyQueue( await run( 'get_study_queue', { input }) ),
@@ -75,8 +76,8 @@ export function useConceptLibrary() {
     recordPretest: ( cardId, outcome ) => run( 'record_pretest', {
       input: { cardId, outcome }
     }),
-    recordReview: ( cardId, rating, assisted = false ) => run( 'record_review', {
-      input: { cardId, rating, assisted }
+    recordReview: ( cardId, rating, assisted = null, contentVersion = null ) => run( 'record_review', {
+      input: { cardId, rating, assisted, contentVersion }
     }),
     reverseReview: ( reviewId ) => run( 'reverse_review', {
       input: { reviewId }

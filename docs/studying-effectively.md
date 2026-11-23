@@ -496,6 +496,17 @@ a long streak of immediate repetitions.
 
 ## Make fair comparisons and honest grades
 
+To inspect a card's recent grades, open its concept in Library and expand
+Recent reviews under the relevant retrieval form. The list shows up to ten
+grades with their dates and recorded help use. Undone grades remain visible
+but do not count toward the schedule or review total. Earlier version means
+that the concept, retrieval form, or template has changed. Missing information
+is labeled as not recorded.
+
+No help opened describes one attempt, not lasting recall. Recent practice can
+still make that attempt easier. Extra practice does not add scheduled grades,
+and written study responses are not saved in review history.
+
 - Decide what a correct response should include before reviewing. An explanation
   can be correct without matching exact wording. A numerical answer may require
   units, a stated tolerance, or an assumption. Include those requirements in

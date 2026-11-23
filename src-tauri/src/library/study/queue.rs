@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use rusqlite::{named_params, params_from_iter, Connection};
 
+use super::history::CONTENT_VERSION_SQL;
+
 use crate::library::media::query_media_for_concepts;
 use crate::library::mixed_practice::mix_due_cards;
 use crate::library::models::TemplateMode;
@@ -106,7 +108,8 @@ pub fn query_selected_study_queue(
                 )
                 AND NOT EXISTS (
                     SELECT 1 FROM pretests WHERE pretests.concept_id = concepts.entity_id
-                ) AS pretest_eligible
+                ) AS pretest_eligible,
+            {CONTENT_VERSION_SQL} AS content_version
         {scope}
             AND card_scheduling.due_at <= :now
         ORDER BY card_scheduling.due_at, cards.entity_id
@@ -132,6 +135,7 @@ pub fn query_selected_study_queue(
                 row.get::<_, String>(5)?,
                 row.get::<_, i64>(6)?,
                 row.get::<_, bool>(7)?,
+                row.get::<_, String>(8)?,
             ))
         },
     )?;
@@ -151,12 +155,14 @@ pub fn query_selected_study_queue(
                 state,
                 due_at,
                 pretest_eligible,
+                content_version,
             ) = row;
             let retrieval_kind = RetrievalFormKind::try_from(retrieval_kind.as_str())?;
             let parsed = parse_retrieval_form_configuration(retrieval_kind, &configuration)?;
 
             Ok(StudyCard {
                 id,
+                content_version,
                 concept_id,
                 retrieval_kind,
                 explain: parsed.explain().cloned(),

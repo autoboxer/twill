@@ -227,11 +227,15 @@ fn backup_round_trip_preserves_assistance_answer_parts_image_labels_media_and_re
         "type": "mediaImage", "attrs": { "mediaId": media.id }
     }] });
     let concept = library.create_concept(input).unwrap();
+    let card = library.study_queue().unwrap().cards.into_iter()
+        .find(|card| card.image_labeling.is_some()).unwrap();
     let review = library.record_review(RecordReviewInput {
-        card_id: concept.cards.iter().find(|card| card.image_labeling.is_some()).unwrap().id.clone(),
+        card_id: card.id.clone(),
         rating: ReviewRating::Again,
-        assisted: true,
+        assisted: Some(true), content_version: Some(card.content_version),
     }).unwrap();
+    let history = library.review_history(&card.id).unwrap();
+    assert_eq!(history.reviews[0].current_content, Some(true));
     let reviewed = library.concept(&concept.id).unwrap();
     let archive = root.path().join("help.twill");
 
@@ -257,6 +261,7 @@ fn backup_round_trip_preserves_assistance_answer_parts_image_labels_media_and_re
     assert_eq!(saved.content.answer, concept.content.answer);
     assert_eq!(saved.media[0].id, media.id);
     assert!(assisted);
+    assert_eq!(ConceptLibrary::new(&restored).review_history(&card.id).unwrap(), history);
     assert_eq!(fs::read_dir(restored.media_directory()).unwrap().count(), 1);
 }
 
@@ -337,7 +342,8 @@ fn fixture_with_input(
 
     library
         .record_review(RecordReviewInput {
-            assisted: false,
+            assisted: Some(false),
+            content_version: None,
             card_id: concept.cards[0].id.clone(),
             rating: ReviewRating::Good,
         })

@@ -424,7 +424,8 @@ fn card_filters_match_one_active_form_and_due_excludes_archived_and_future_cards
     library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: recall.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -500,7 +501,8 @@ fn card_filters_match_one_active_form_and_due_excludes_archived_and_future_cards
         due_at = library
             .record_review_at(
                 RecordReviewInput {
-                    assisted: false,
+                    assisted: Some(false),
+                    content_version: None,
                     card_id: typed.id.clone(),
                     rating,
                 },
@@ -576,7 +578,8 @@ fn row_due_dates_follow_active_cards_without_narrowing_to_the_search_match() {
     let typed_review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: typed.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -597,7 +600,8 @@ fn row_due_dates_follow_active_cards_without_narrowing_to_the_search_match() {
     let recall_review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: recall.id.clone(),
                 rating: ReviewRating::Good,
             },

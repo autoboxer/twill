@@ -48,7 +48,7 @@ pub use models::{
     PracticeChoice, PracticeChoiceOption, PracticeComparison, PracticeComparisonCase, PracticeLink,
     PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput,
     RemovePracticeLinkInput, RenameNamedItemInput, RetrievalFormKind, ReverseReviewInput, ReviewOutcome,
-    ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
+    ReviewHistory, ReviewHistoryEntry, ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
     SetAppearancePreferencesInput, SetConceptArchivedInput,
     SetCssSnippetEnabledInput, SetGradingModeInput, SetMixedPracticeEnabledInput,
     SetPretestingEnabledInput, SetStartupDestinationInput, SetLibraryViewPreferencesInput,

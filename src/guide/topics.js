@@ -329,6 +329,14 @@ export const guideTopics = [
         ],
         example: 'If you needed the revealed answer to finish your response, choose Forgot or Again. Being able to repeat the answer afterward does not change that attempt.',
         avoid: 'Choose a grade that reflects your attempt. If a card repeatedly causes difficulty, inspect the question or revisit the material rather than choose Easy to delay it.'
+      },
+      {
+        title: 'Read recent reviews',
+        paragraphs: [
+          'Open a concept in Library. Under Retrieval forms, expand Recent reviews for the card you want to inspect. You can see its latest grades, dates, and whether you opened help before revealing the answer.',
+          'A grade marked Undone does not count toward the schedule or review total. Earlier version means that the concept, retrieval form, or template has changed since that review. Missing information is shown as not recorded.',
+          'No help opened describes that attempt only. It does not prove lasting recall or rule out recent practice. Extra practice does not add scheduled grades, and your written study responses are not saved in this history.'
+        ]
       }
     ],
     related: [ 'feedback', 'card-quality', 'sessions' ]

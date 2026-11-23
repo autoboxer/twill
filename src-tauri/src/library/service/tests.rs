@@ -44,7 +44,7 @@ fn image_label_edits_preserve_media_schedules_and_reject_invalid_writes() {
     let concept = library.create_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
 
     library.record_review(RecordReviewInput {
-        card_id: concept.cards[0].id.clone(), rating: ReviewRating::Good, assisted: false,
+        card_id: concept.cards[0].id.clone(), rating: ReviewRating::Good, assisted: Some(false), content_version: None,
     }).unwrap();
 
     let reviewed = library.concept(&concept.id).unwrap();
@@ -118,7 +118,7 @@ fn image_labels_schedule_independently_and_preserve_target_identity() {
         && card.image_labeling.is_some() && card.template_id.is_none()));
 
     let review = library.record_review_at(RecordReviewInput {
-        card_id: first.id.clone(), rating: ReviewRating::Good, assisted: false,
+        card_id: first.id.clone(), rating: ReviewRating::Good, assisted: Some(false), content_version: None,
     }, first.due_at).unwrap();
     let reviewed = library.concept(&concept.id).unwrap();
     assert_eq!(find_card(&reviewed, &second_id), second);
@@ -149,7 +149,7 @@ fn image_labels_schedule_independently_and_preserve_target_identity() {
     }).unwrap().concepts.is_empty());
     assert!(store.entity(&second.id).unwrap().unwrap().deleted_at.is_some());
     assert!(library.record_review(RecordReviewInput {
-        card_id: second.id.clone(), rating: ReviewRating::Good, assisted: false,
+        card_id: second.id.clone(), rating: ReviewRating::Good, assisted: Some(false), content_version: None,
     }).is_err());
 
     let mut empty = input.clone();
@@ -214,7 +214,8 @@ fn worked_example_edits_preserve_card_schedule_and_reject_invalid_writes() {
         .record_review(RecordReviewInput {
             card_id: original_card.id.clone(),
             rating: ReviewRating::Good,
-            assisted: false,
+            assisted: Some(false),
+            content_version: None,
         })
         .unwrap();
     let mut update = json!({
@@ -314,7 +315,8 @@ fn error_diagnosis_edits_are_atomic_and_preserve_the_reviewed_problem() {
         .record_review(RecordReviewInput {
             card_id: card_id.clone(),
             rating: ReviewRating::Good,
-            assisted: false,
+            assisted: Some(false),
+            content_version: None,
         })
         .unwrap();
 
@@ -500,7 +502,8 @@ fn assisted_reviews_keep_the_chosen_rating_and_survive_undo() {
                 RecordReviewInput {
                     card_id: concept.cards[0].id.clone(),
                     rating: ReviewRating::Good,
-                    assisted,
+                    assisted: Some(assisted),
+                    content_version: None,
                 },
                 now,
             )
@@ -509,8 +512,8 @@ fn assisted_reviews_keep_the_chosen_rating_and_survive_undo() {
     let unaided = review(&independent, false);
     let supported = review(&assisted, true);
 
-    assert!(!unaided.assisted);
-    assert!(supported.assisted);
+    assert_eq!(unaided.assisted, Some(false));
+    assert_eq!(supported.assisted, Some(true));
     assert_eq!(unaided.rating, supported.rating);
     assert_eq!(unaided.scheduled_interval_days, supported.scheduled_interval_days);
     assert_eq!(unaided.due_at, supported.due_at);
@@ -536,7 +539,7 @@ fn assisted_reviews_keep_the_chosen_rating_and_survive_undo() {
         .unwrap();
 
     assert_eq!(flags, vec![true, true]);
-    assert!(corrected.assisted);
+    assert_eq!(corrected.assisted, Some(true));
     assert_eq!(library.concept(&assisted.id).unwrap().cards[0].review_count, 1);
 
     let default_input: RecordReviewInput = serde_json::from_value(json!({
@@ -544,7 +547,7 @@ fn assisted_reviews_keep_the_chosen_rating_and_survive_undo() {
     }))
     .unwrap();
 
-    assert!(!default_input.assisted);
+    assert_eq!(default_input.assisted, None);
 }
 
 #[test]
@@ -1213,7 +1216,8 @@ fn retrieval_forms_are_selected_without_duplicates_and_schedule_independently() 
     library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: reviewed_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -1337,7 +1341,8 @@ fn type_answer_edits_keep_schedules_and_readded_forms_start_fresh() {
     let review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: original_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -1517,7 +1522,7 @@ fn example_generation_focus_preserves_the_explain_card_and_schedule() {
     let concept = library.create_concept(serde_json::from_value(input.clone()).unwrap()).unwrap();
     let original = &concept.cards[0];
     let review = library.record_review_at(RecordReviewInput {
-        card_id: original.id.clone(), rating: ReviewRating::Good, assisted: false,
+        card_id: original.id.clone(), rating: ReviewRating::Good, assisted: Some(false), content_version: None,
     }, original.due_at).unwrap();
     input["id"] = json!(concept.id);
 
@@ -1612,7 +1617,7 @@ fn example_follow_ups_are_optional_validated_and_preserve_the_schedule() {
     assert!(serde_json::to_value(original.explain.as_ref().unwrap()).unwrap().get("followUp").is_none());
 
     let review = library.record_review_at(RecordReviewInput {
-        card_id: original.id.clone(), rating: ReviewRating::Good, assisted: false,
+        card_id: original.id.clone(), rating: ReviewRating::Good, assisted: Some(false), content_version: None,
     }, original.due_at).unwrap();
     input["id"] = json!(concept.id);
 
@@ -1703,7 +1708,8 @@ fn reconstruction_focus_round_trips_without_replacing_the_explain_card() {
     let review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: original.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -1833,7 +1839,8 @@ fn explain_edits_keep_schedules_and_readded_forms_start_fresh() {
     let review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: original_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -2097,7 +2104,8 @@ fn problem_edits_keep_schedules_and_readded_forms_start_fresh() {
     let review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: original_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -2262,7 +2270,8 @@ fn cloze_groups_schedule_independently_and_reconcile_by_identity() {
     let review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: first_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -2447,7 +2456,8 @@ fn image_occlusion_groups_schedule_independently_and_include_source_media() {
     let review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: first_card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -3142,7 +3152,8 @@ fn reviewed_concepts_do_not_become_pretest_eligible_after_undo() {
     let review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -3327,7 +3338,8 @@ fn scheduling_changes_leave_existing_due_dates_and_cap_future_intervals() {
     let first_review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -3357,7 +3369,8 @@ fn scheduling_changes_leave_existing_due_dates_and_cap_future_intervals() {
     let second_review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Easy,
             },
@@ -3453,7 +3466,8 @@ fn reviews_persist_fsrs_scheduling_and_only_due_cards_are_queued() {
     let first_review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -3478,7 +3492,8 @@ fn reviews_persist_fsrs_scheduling_and_only_due_cards_are_queued() {
     let changes_before_duplicate = store.changes_after(0, 100).unwrap();
     let duplicate = library.record_review_at(
         RecordReviewInput {
-            assisted: false,
+            assisted: Some(false),
+            content_version: None,
             card_id: card.id.clone(),
             rating: ReviewRating::Good,
         },
@@ -3499,7 +3514,8 @@ fn reviews_persist_fsrs_scheduling_and_only_due_cards_are_queued() {
     let lapse = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Again,
             },
@@ -3592,7 +3608,8 @@ fn reversing_a_review_restores_the_schedule_and_is_idempotent() {
     let review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -3683,7 +3700,8 @@ fn reversing_a_review_restores_the_schedule_and_is_idempotent() {
     let replacement = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Easy,
             },
@@ -3733,7 +3751,8 @@ fn only_the_latest_effective_review_can_be_reversed() {
     let first_review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -3743,7 +3762,8 @@ fn only_the_latest_effective_review_can_be_reversed() {
     let second_review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Again,
             },
@@ -3838,7 +3858,8 @@ fn a_failed_reversal_rolls_back_the_event_and_schedule() {
     let review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Good,
             },
@@ -3921,7 +3942,8 @@ fn a_failed_new_card_enters_learning_without_counting_a_lapse() {
     let review = library
         .record_review_at(
             RecordReviewInput {
-                assisted: false,
+                assisted: Some(false),
+                content_version: None,
                 card_id: card.id.clone(),
                 rating: ReviewRating::Again,
             },
@@ -3984,7 +4006,8 @@ fn a_failed_review_write_rolls_back_the_event_and_schedule() {
     let changes_before = store.changes_after(0, 100).unwrap();
     let result = library.record_review_at(
         RecordReviewInput {
-            assisted: false,
+            assisted: Some(false),
+            content_version: None,
             card_id: card.id.clone(),
             rating: ReviewRating::Good,
         },

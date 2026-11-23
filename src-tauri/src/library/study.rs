@@ -8,7 +8,10 @@ use crate::library::{
     SchedulingSettings, SchedulingState, UpdateSchedulingSettingsInput,
 };
 
+mod history;
 mod queue;
+
+pub use history::query_review_history;
 
 pub use queue::{query_selected_study_queue, query_study_queue};
 pub(super) use queue::query_templates;
@@ -100,10 +103,17 @@ pub fn record_review(
     transaction: &WriteTransaction<'_>,
     card_id: &str,
     rating: ReviewRating,
-    assisted: bool,
+    assisted: Option<bool>,
+    content_version: Option<&str>,
     now: i64,
 ) -> LibraryResult<ReviewOutcome> {
     let schedule = query_schedule(transaction, card_id)?;
+
+    if let Some(expected) = content_version {
+        if expected != history::query_content_version(transaction, card_id)? {
+            return Err(LibraryError::StudyContentChanged);
+        }
+    }
 
     if schedule.due_at > now {
         return Err(LibraryError::CardNotDue {
@@ -154,9 +164,10 @@ pub fn record_review(
             difficulty,
             due_at,
             scheduler_configuration_id,
-            last_change_id
+            last_change_id,
+            content_version
         ) VALUES (
-            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14
+            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15
         )",
         params![
             review.id,
@@ -173,6 +184,7 @@ pub fn record_review(
             due_at,
             configuration.id,
             review.last_change_id,
+            content_version,
         ],
     )?;
     transaction.execute(

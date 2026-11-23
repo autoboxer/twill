@@ -531,6 +531,7 @@ export function useStudySession({
     }
 
     const cardId = currentCard.value.id;
+    const contentVersion = currentCard.value.contentVersion;
     const attempt = attemptSnapshot();
 
     assessmentError.value = '';
@@ -543,7 +544,7 @@ export function useStudySession({
     }
 
     try {
-      const review = await recordReview( cardId, rating, attempt.assistance.used );
+      const review = await recordReview( cardId, rating, attempt.assistance.used, contentVersion );
 
       if ( !viewActive || currentCard.value?.id !== cardId ) {
         return;

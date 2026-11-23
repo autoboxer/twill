@@ -20,6 +20,7 @@ pub struct StudyTemplate {
 #[serde(rename_all = "camelCase")]
 pub struct StudyCard {
     pub id: String,
+    pub content_version: String,
     pub concept_id: String,
     pub retrieval_kind: RetrievalFormKind,
     pub explain: Option<ExplainSettings>,
@@ -107,7 +108,9 @@ pub struct RecordReviewInput {
     pub card_id: String,
     pub rating: ReviewRating,
     #[serde(default)]
-    pub assisted: bool,
+    pub assisted: Option<bool>,
+    #[serde(default)]
+    pub content_version: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -146,11 +149,29 @@ pub struct ReviewOutcome {
     pub review_id: String,
     pub card_id: String,
     pub rating: ReviewRating,
-    pub assisted: bool,
+    pub assisted: Option<bool>,
     pub scheduling_state: SchedulingState,
     pub reviewed_at: i64,
     pub due_at: i64,
     pub scheduled_interval_days: f64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewHistoryEntry {
+    pub id: String,
+    pub rating: ReviewRating,
+    pub assisted: Option<bool>,
+    pub reviewed_at: i64,
+    pub current_content: Option<bool>,
+    pub reversed_at: Option<i64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewHistory {
+    pub reviews: Vec<ReviewHistoryEntry>,
+    pub has_more: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

@@ -72,7 +72,8 @@ fn problem_links_only_offer_live_problem_cards_regardless_of_due_date() {
         .record_review(RecordReviewInput {
             card_id: related_card.id.clone(),
             rating: ReviewRating::Good,
-            assisted: false,
+            assisted: Some(false),
+            content_version: None,
         })
         .unwrap();
     let before = changes(&store);
@@ -294,7 +295,8 @@ fn rating_changes_only_the_attempted_card() {
         .record_review(RecordReviewInput {
             card_id: first.cards[0].id.clone(),
             rating: ReviewRating::Good,
-            assisted: false,
+            assisted: Some(false),
+            content_version: None,
         })
         .unwrap();
 
@@ -332,7 +334,8 @@ fn linked_practice_loads_independent_cards_and_templates_without_scheduling_writ
     concepts.record_review(RecordReviewInput {
         card_id: target.cards[0].id.clone(),
         rating: ReviewRating::Good,
-        assisted: false,
+        assisted: Some(false),
+        content_version: None,
     }).unwrap();
 
     let target = concepts.concept(&target.id).unwrap();
