@@ -16,7 +16,7 @@ use crate::library::{
     LibraryPage, LibraryQuery, LinkedPracticeCase, LinkedPracticeInput,
     FinalizeConceptInput, FinalizeTemplateInput, OrganizationSummary,
     PracticeComparisonCase, PracticeLink, PracticeLinkLibrary, PretestRecord, QueueDeferredEditInput,
-    RecordPretestInput, RecordReviewInput,
+    RecordPretestInput, RecordReviewInput, RecordExposureInput, StudyWorkload,
     RemovePracticeLinkInput, RenameNamedItemInput, ReverseReviewInput,
     ReviewHistory, ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings,
@@ -185,6 +185,25 @@ pub(crate) fn get_concept(
 ) -> CommandResult<ConceptDetail> {
     ConceptLibrary::new(local_data.inner())
         .concept(&concept_id)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn record_practice_exposure(
+    local_data: State<'_, LocalDataStore>,
+    input: RecordExposureInput,
+) -> CommandResult<String> {
+    ConceptLibrary::new(local_data.inner())
+        .record_exposure(input)
+        .map_err(Into::into)
+}
+
+#[tauri::command(async)]
+pub(crate) fn get_study_workload(
+    local_data: State<'_, LocalDataStore>,
+) -> CommandResult<StudyWorkload> {
+    ConceptLibrary::new(local_data.inner())
+        .study_workload()
         .map_err(Into::into)
 }
 

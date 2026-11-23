@@ -49,6 +49,7 @@ pub use models::{
     PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput,
     RemovePracticeLinkInput, RenameNamedItemInput, RetrievalFormKind, ReverseReviewInput, ReviewOutcome,
     ReviewHistory, ReviewHistoryEntry, ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
+    LearningEvidence, RecordExposureInput, StudyWorkload,
     SetAppearancePreferencesInput, SetConceptArchivedInput,
     SetCssSnippetEnabledInput, SetGradingModeInput, SetMixedPracticeEnabledInput,
     SetPretestingEnabledInput, SetStartupDestinationInput, SetLibraryViewPreferencesInput,

@@ -157,6 +157,7 @@ fn queue_shares_documents_and_templates_without_losing_form_configuration() {
     for card in &first.cards {
         library
             .record_review(RecordReviewInput {
+                exposure_id: None,
                 assisted: Some(false),
                 content_version: None,
                 card_id: card.id.clone(),
@@ -266,6 +267,7 @@ fn focused_filters_match_one_due_card_and_keep_scoped_counts() {
         .unwrap();
     library
         .record_review(RecordReviewInput {
+            exposure_id: None,
             assisted: Some(false),
             content_version: None,
             card_id: recall.id.clone(),

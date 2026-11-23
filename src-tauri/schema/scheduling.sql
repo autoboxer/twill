@@ -29,6 +29,8 @@ CREATE TABLE reviews (
     rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 4),
     assisted INTEGER CHECK (assisted IN (0, 1)),
     content_version TEXT CHECK (length(content_version) BETWEEN 1 AND 200),
+    exposure_id TEXT REFERENCES practice_exposures(entity_id),
+    evidence_kind TEXT CHECK (evidence_kind IN ('first', 'recent', 'delayed', 'helped')),
     reviewed_at INTEGER NOT NULL CHECK (reviewed_at >= 0),
     elapsed_days INTEGER NOT NULL CHECK (elapsed_days >= 0),
     scheduled_interval_days REAL NOT NULL CHECK (scheduled_interval_days > 0.0),
@@ -100,6 +102,8 @@ CREATE TABLE card_scheduling (
 
 CREATE INDEX reviews_card_reviewed_idx
     ON reviews(card_id, reviewed_at, entity_id);
+
+CREATE INDEX reviews_exposure_idx ON reviews(exposure_id) WHERE exposure_id IS NOT NULL;
 
 CREATE INDEX review_reversals_card_reversed_idx
     ON review_reversals(card_id, reversed_at, entity_id);

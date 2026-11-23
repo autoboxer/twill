@@ -149,7 +149,7 @@ async function loadConcept() {
   }
 
   try {
-    const loadedConcept = await getConcept( requestedConceptId );
+    const loadedConcept = await getConcept( requestedConceptId, { forDisplay: true });
 
     if ( request !== loadRequestSequence ) {
       return;
@@ -610,7 +610,12 @@ useStartupReady( initialLoading );
                 · {{ reviewCountLabel( card.reviewCount ) }}
               </span>
 
-              <ReviewHistory :card-id="card.id" :concept-version="concept.lastChangeId" />
+              <ReviewHistory
+                :card-id="card.id"
+                :concept-version="concept.lastChangeId"
+                :improvable="!concept.archived"
+                @improve="qualityDialogOpen = true"
+              />
 
               <div
                 v-if="card.typeAnswer"

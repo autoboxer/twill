@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 
 import { resolveStudyQueue } from '../study/queue';
 import { markStudyConceptChanged } from '../study/resume';
+import { recordPracticeExposure } from './usePracticeExposure';
 
 export function conceptLibraryErrorMessage( error ) {
   if ( typeof error === 'string' ) {
@@ -66,7 +67,15 @@ export function useConceptLibrary() {
 
       return saved;
     },
-    getConcept: ( conceptId ) => run( 'get_concept', { conceptId }),
+    getConcept: async ( conceptId, { forDisplay = false } = {}) => {
+      const concept = await run( 'get_concept', { conceptId });
+
+      if ( forDisplay ) {
+        await recordPracticeExposure( conceptId );
+      }
+
+      return concept;
+    },
     getReviewHistory: ( cardId ) => run( 'get_review_history', { cardId }),
     getLibrary: ( input = {}) => run( 'get_library', { input }),
     getLibraryOrganizations: () => run( 'get_library_organizations' ),
@@ -76,8 +85,9 @@ export function useConceptLibrary() {
     recordPretest: ( cardId, outcome ) => run( 'record_pretest', {
       input: { cardId, outcome }
     }),
-    recordReview: ( cardId, rating, assisted = null, contentVersion = null ) => run( 'record_review', {
-      input: { cardId, rating, assisted, contentVersion }
+    getStudyWorkload: () => run( 'get_study_workload' ),
+    recordReview: ( cardId, rating, assisted = null, contentVersion = null, exposureId = null ) => run( 'record_review', {
+      input: { cardId, rating, assisted, contentVersion, exposureId }
     }),
     reverseReview: ( reviewId ) => run( 'reverse_review', {
       input: { reviewId }

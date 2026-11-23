@@ -1,11 +1,12 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 import { conceptLibraryErrorMessage, useConceptLibrary } from '../composables/useConceptLibrary';
 
 const props = defineProps({
   cardId: { type: String, required: true },
-  conceptVersion: { type: String, required: true }
+  conceptVersion: { type: String, required: true },
+  improvable: { type: Boolean, default: true }
 });
 const { getReviewHistory } = useConceptLibrary();
 const open = ref( false );
@@ -13,6 +14,7 @@ const history = ref( null );
 const loading = ref( false );
 const error = ref( '' );
 const retry = ref( 0 );
+const emit = defineEmits([ 'improve' ]);
 const dateFormat = new Intl.DateTimeFormat( undefined, { dateStyle: 'medium', timeStyle: 'short' });
 const ratings = {
   again: 'Forgot',
@@ -20,6 +22,17 @@ const ratings = {
   good: 'Remembered',
   easy: 'Remembered easily'
 };
+const evidenceLabels = { first: 'First review of this version', recent: 'Recent practice', delayed: 'Delayed review' };
+const otherReviews = computed( () => {
+  const evidence = history.value?.evidence;
+
+  return evidence ? [
+    [ evidence.first, 'first' ],
+    [ evidence.recent, 'recent' ],
+    [ evidence.helped, 'with help' ],
+    [ evidence.unknown, 'with incomplete context' ]
+  ].filter( ([ count ]) => count > 0 ).map( ([ count, label ]) => `${ count } ${ label }` ).join( ', ' ) : '';
+});
 
 watch([ open, () => props.cardId, () => props.conceptVersion, retry ], async ( values, previous, onCleanup ) => {
   let current = true;
@@ -83,6 +96,32 @@ function assistanceLabel( assisted ) {
       <template v-else-if="history">
         <p v-if="!history.reviews.length">No scheduled reviews yet.</p>
         <template v-else>
+          <section class="review-history__evidence" aria-label="Learning evidence">
+            <p v-if="history.evidence.delayedTotal">
+              Remembered in {{ history.evidence.delayedRemembered }} of {{ history.evidence.delayedTotal }}
+              delayed {{ history.evidence.delayedTotal === 1 ? 'review' : 'reviews' }}.
+            </p>
+            <p v-else>No delayed reviews recorded for this version in the past 30 days.</p>
+            <p>This summary covers the past 30 days and the current card version.</p>
+            <p v-if="otherReviews">Other reviews include {{ otherReviews }}.</p>
+            <details class="review-history__method">
+              <summary>How this is counted</summary>
+              <p>
+                Delayed reviews follow an earlier review and at least 24 hours without
+                recorded exposure to this concept or a linked case. Helped and undone reviews are excluded.
+                These counts describe recorded practice, not permanent mastery.
+              </p>
+            </details>
+            <UButton
+              v-if="improvable && history.evidence.delayedTotal > history.evidence.delayedRemembered"
+              color="neutral"
+              variant="link"
+              size="sm"
+              @click="emit( 'improve' )"
+            >
+              Needs improvement
+            </UButton>
+          </section>
           <p v-if="history.hasMore">Showing the 10 most recent grades, including any you undid.</p>
           <ul class="review-history__list" aria-label="Recent reviews">
             <li v-for="review in history.reviews" :key="review.id">
@@ -93,6 +132,7 @@ function assistanceLabel( assisted ) {
                 </time>
               </div>
               <p>{{ assistanceLabel( review.assisted ) }}</p>
+              <p v-if="evidenceLabels[ review.evidenceKind ]">{{ evidenceLabels[ review.evidenceKind ] }}</p>
               <p v-if="review.currentContent === false">Earlier version of this card</p>
               <p v-else-if="review.currentContent === null">Card version not recorded</p>
               <p v-if="review.reversedAt !== null" class="review-history__undone">
@@ -131,6 +171,15 @@ function assistanceLabel( assisted ) {
   padding: 0;
   margin: 0;
   list-style: none;
+}
+
+.review-history__evidence {
+  margin-bottom: 0.75rem;
+}
+
+.review-history__evidence p + p {
+  margin-top: 0.35rem;
+  color: var(--ui-text-muted);
 }
 
 .review-history__list > li {

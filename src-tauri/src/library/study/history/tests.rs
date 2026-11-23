@@ -92,6 +92,7 @@ fn review_versions_reject_stale_content_and_identify_earlier_history() {
         )
         .unwrap();
     let input = |version| RecordReviewInput {
+        exposure_id: None,
         card_id: card_id.clone(),
         rating: ReviewRating::Hard,
         assisted: Some(true),
@@ -173,6 +174,7 @@ fn template_edits_invalidate_queued_review_versions() {
 
     assert!(matches!(
         library.record_review(RecordReviewInput {
+            exposure_id: None,
             card_id: card.id.clone(),
             rating: ReviewRating::Good,
             assisted: Some(false),
@@ -215,6 +217,7 @@ fn history_is_bounded_ordered_and_separate_for_each_card() {
                     ReviewRating::Again,
                     Some(index % 2 == 0),
                     Some(&version),
+                    None,
                     now,
                 )
             })

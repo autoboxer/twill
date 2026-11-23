@@ -50,6 +50,7 @@ pub use retrieval::{
     WorkedExample, WorkedStep,
 };
 pub use study::{
+    LearningEvidence, RecordExposureInput, StudyWorkload,
     PretestOutcome, PretestRecord, RecordPretestInput, RecordReviewInput, ReverseReviewInput,
     ReviewHistory, ReviewHistoryEntry, ReviewOutcome, ReviewRating, ReviewReversalOutcome, SchedulingSettings, SchedulingState,
     StudyCard, StudyConcept, StudyQuery, StudyQueue, StudyTemplate, UpdateSchedulingSettingsInput,

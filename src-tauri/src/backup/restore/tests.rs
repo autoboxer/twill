@@ -229,7 +229,13 @@ fn backup_round_trip_preserves_assistance_answer_parts_image_labels_media_and_re
     let concept = library.create_concept(input).unwrap();
     let card = library.study_queue().unwrap().cards.into_iter()
         .find(|card| card.image_labeling.is_some()).unwrap();
+    let exposure_id = library.record_exposure(crate::library::RecordExposureInput {
+        concept_id: concept.id.clone(),
+        card_id: Some(card.id.clone()),
+        content_version: Some(card.content_version.clone()),
+    }).unwrap();
     let review = library.record_review(RecordReviewInput {
+        exposure_id: Some(exposure_id),
         card_id: card.id.clone(),
         rating: ReviewRating::Again,
         assisted: Some(true), content_version: Some(card.content_version),
@@ -342,6 +348,7 @@ fn fixture_with_input(
 
     library
         .record_review(RecordReviewInput {
+            exposure_id: None,
             assisted: Some(false),
             content_version: None,
             card_id: concept.cards[0].id.clone(),

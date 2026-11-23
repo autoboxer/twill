@@ -1,4 +1,5 @@
 use rusqlite::{Connection, OptionalExtension};
+use crate::data::current_timestamp;
 
 use crate::library::{
     LibraryError, LibraryResult, ReviewHistory, ReviewHistoryEntry, ReviewRating,
@@ -40,7 +41,7 @@ pub fn query_review_history(
     let current_version = query_content_version(connection, card_id)?;
     let mut statement = connection.prepare(
         "SELECT reviews.entity_id, reviews.rating, reviews.assisted, reviews.reviewed_at,
-            reviews.content_version, review_reversals.reversed_at
+            reviews.content_version, review_reversals.reversed_at, reviews.evidence_kind
         FROM reviews
         LEFT JOIN review_reversals ON review_reversals.review_id = reviews.entity_id
         WHERE reviews.card_id = ?1
@@ -64,6 +65,7 @@ pub fn query_review_history(
             reviewed_at: row.get(3)?,
             current_content: version.map(|version| version == current_version),
             reversed_at: row.get(5)?,
+            evidence_kind: row.get(6)?,
         })
     })?;
     let mut reviews = rows.collect::<Result<Vec<_>, _>>()?;
@@ -71,7 +73,15 @@ pub fn query_review_history(
 
     reviews.truncate(HISTORY_LIMIT);
 
-    Ok(ReviewHistory { reviews, has_more })
+    let evidence = super::evidence::query_evidence(
+        connection, card_id, &current_version, current_timestamp()?,
+    )?;
+
+    Ok(ReviewHistory {
+        reviews,
+        has_more,
+        evidence,
+    })
 }
 
 #[cfg(test)]

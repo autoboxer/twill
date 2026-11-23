@@ -35,6 +35,8 @@ const props = defineProps({
   }
 });
 
+const emit = defineEmits([ 'answer-exposed' ]);
+
 const { readMedia } = useConceptLibrary();
 const { frameAppearance } = useAppearance();
 
@@ -106,11 +108,31 @@ const clozePrompt = computed( () => {
   );
 });
 
+const frontAnswerExposed = computed( () => {
+  if ( props.answerRevealed || isStandard.value || !richDocumentHasContent( props.card.content.answer ) ) {
+    return false;
+  }
+
+  if ( isVisual.value ) {
+    return visibleBlocks.value.some( block => block.type === 'field' && block.field === 'answer' );
+  }
+
+  // Stored templates allow field tokens only in sanitized document content
+  return !customPending.value && !renderError.value
+    && /{{\s*answer\s*}}/.test( props.card.template.content.custom.frontHtml );
+});
+
 watch(
   [ () => props.card, frameAppearance ],
   prepareCustomDocuments,
   { immediate: true }
 );
+
+watch([ root, () => props.card.id, frontAnswerExposed ], ([ element, cardId, exposed ]) => {
+  if ( element && exposed ) {
+    emit( 'answer-exposed', cardId );
+  }
+}, { flush: 'post' });
 
 onBeforeUnmount( () => {
   renderRequestSequence += 1;

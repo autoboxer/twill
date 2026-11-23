@@ -273,7 +273,7 @@ async function loadData() {
     }
 
     const conceptRequest = requestedConceptId
-      ? loadConcept( requestedConceptId )
+      ? loadConcept( requestedConceptId, { forDisplay: true })
         .then( ( value ) => ({ value }) )
         .catch( ( cause ) => ({ cause }) )
       : Promise.resolve({ value: null });

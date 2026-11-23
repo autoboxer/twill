@@ -111,6 +111,36 @@ pub struct RecordReviewInput {
     pub assisted: Option<bool>,
     #[serde(default)]
     pub content_version: Option<String>,
+    #[serde(default)]
+    pub exposure_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RecordExposureInput {
+    pub concept_id: String,
+    pub card_id: Option<String>,
+    pub content_version: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LearningEvidence {
+    pub delayed_remembered: i64,
+    pub delayed_total: i64,
+    pub recent: i64,
+    pub first: i64,
+    pub helped: i64,
+    pub unknown: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StudyWorkload {
+    pub due: i64,
+    pub overdue: i64,
+    pub new: i64,
+    pub introduced: i64,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -165,6 +195,7 @@ pub struct ReviewHistoryEntry {
     pub reviewed_at: i64,
     pub current_content: Option<bool>,
     pub reversed_at: Option<i64>,
+    pub evidence_kind: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -172,6 +203,7 @@ pub struct ReviewHistoryEntry {
 pub struct ReviewHistory {
     pub reviews: Vec<ReviewHistoryEntry>,
     pub has_more: bool,
+    pub evidence: LearningEvidence,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

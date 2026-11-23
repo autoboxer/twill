@@ -54,7 +54,7 @@ async function loadPreview() {
   revealed.value = false;
 
   try {
-    const concept = await getConcept( conceptId );
+    const concept = await getConcept( conceptId, { forDisplay: true });
 
     if ( request !== requestSequence ) {
       return;

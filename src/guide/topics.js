@@ -335,7 +335,9 @@ export const guideTopics = [
         paragraphs: [
           'Open a concept in Library. Under Retrieval forms, expand Recent reviews for the card you want to inspect. You can see its latest grades, dates, and whether you opened help before revealing the answer.',
           'A grade marked Undone does not count toward the schedule or review total. Earlier version means that the concept, retrieval form, or template has changed since that review. Missing information is shown as not recorded.',
-          'No help opened describes that attempt only. It does not prove lasting recall or rule out recent practice. Extra practice does not add scheduled grades, and your written study responses are not saved in this history.'
+          'The summary counts delayed reviews of the current card version over the past 30 days. A delayed review follows an earlier review and at least 24 hours since recorded exposure to the concept or a linked case. Helped and undone grades are excluded. First reviews, recent practice, and incomplete context appear separately.',
+          'Opening help, comparing cases, revealing answers in extra practice, or opening content in Library can make a later review recent. Twill cannot measure studying elsewhere or how long you keep reading an open answer. These counts do not prove permanent mastery or change your schedule. Written study responses are not saved in this history.',
+          'In Study, expand Library workload to see reviews due, cards not yet reviewed, and introductions over the past seven days. These counts cover your whole active library, not just the selected session.'
         ]
       }
     ],

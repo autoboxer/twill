@@ -21,6 +21,7 @@ import StudyHelpButton from '../components/StudyHelpButton.vue';
 import StudyLinkedPracticePicker from '../components/StudyLinkedPracticePicker.vue';
 import StudySessionBuilder from '../components/StudySessionBuilder.vue';
 import StudySessionControls from '../components/StudySessionControls.vue';
+import StudyWorkload from '../components/StudyWorkload.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
 import { COMMAND_IDS } from '../commands/registry';
 import {
@@ -112,6 +113,7 @@ const {
   problemSettings,
   ratingCounts,
   recordAssessment,
+  recordFrontAnswerExposure,
   recordMasteryAssessment,
   explainReview,
   recoveryError,
@@ -581,8 +583,10 @@ useStartupReady( initialLoading );
       </div>
     </header>
 
+    <StudyWorkload :revision="completedCount" />
+
     <UAlert
-      v-if="navigationNotice && sessionBusy"
+      v-if="navigationNotice && ( sessionBusy || assessmentError )"
       class="study-mode-error"
       :description="navigationNotice"
       color="neutral"
@@ -935,6 +939,7 @@ useStartupReady( initialLoading );
             :answer-revealed="answerRevealed"
             :media="studyMedia"
             :hide-answer="selectiveAnswer"
+            @answer-exposed="recordFrontAnswerExposure"
           />
 
           <TypeAnswerResponse

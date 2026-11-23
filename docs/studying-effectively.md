@@ -507,6 +507,30 @@ No help opened describes one attempt, not lasting recall. Recent practice can
 still make that attempt easier. Extra practice does not add scheduled grades,
 and written study responses are not saved in review history.
 
+The summary above the list counts delayed reviews of the current card version
+over the past 30 days. A delayed review follows an earlier review of that version
+and at least 24 hours since Twill recorded exposure to the concept or a directly
+linked case. Opening help, revealing answers during extra practice, comparing
+cases, and opening content in Library or the editor can make a later review recent.
+Helped and undone grades do not enter the delayed total. First reviews, recent
+practice, and incomplete context appear separately. Remembered includes Hard,
+Good, and Easy in Advanced mode. An edited version starts a new summary.
+
+If a template places the Answer field on the front, Twill treats that attempt
+as helped. Keep the Answer field off the front when you want to practice recall
+without seeing the answer first.
+
+This is a record of practice, not a test of permanent mastery. Twill cannot measure
+studying elsewhere or how long you continue reading an open answer. The 24 hour
+boundary makes the display consistent; it does not change your review schedule.
+Undo removes a grade from the totals but does not erase the answer exposure.
+If a question needs work, use Needs improvement to record what should change.
+
+In Study, expand Library workload to see reviewed cards that are due, including
+those overdue by at least 24 hours. Cards not yet reviewed are listed separately,
+along with the number first reviewed in the past seven days. These counts cover
+the whole active library, even when you build a smaller focused session.
+
 - Decide what a correct response should include before reviewing. An explanation
   can be correct without matching exact wording. A numerical answer may require
   units, a stated tolerance, or an assumption. Include those requirements in
