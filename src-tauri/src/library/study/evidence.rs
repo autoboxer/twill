@@ -44,12 +44,20 @@ pub fn record_exposure(
         (None, None) => None,
         _ => return Err(LibraryError::StudyContentChanged),
     };
+
+    if input.uncertainty_marked && recall_kind.is_none() {
+        return Err(LibraryError::InvalidContent {
+            field: "Uncertainty",
+            message: "can only be recorded for a scheduled answer reveal".to_owned(),
+        });
+    }
+
     let entity = transaction.create_entity_at(EntityKind::PracticeExposure, now)?;
 
     transaction.execute(
         "INSERT INTO practice_exposures
-        (entity_id, concept_id, card_id, content_version, recall_kind, occurred_at, last_change_id)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        (entity_id, concept_id, card_id, content_version, recall_kind, occurred_at, last_change_id, uncertainty_marked)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             entity.id,
             input.concept_id,
@@ -57,7 +65,8 @@ pub fn record_exposure(
             input.content_version,
             recall_kind,
             now,
-            entity.last_change_id
+            entity.last_change_id,
+            input.uncertainty_marked,
         ],
     )?;
 
@@ -227,3 +236,6 @@ pub fn query_workload(connection: &Connection, now: i64) -> LibraryResult<StudyW
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod uncertainty_tests;

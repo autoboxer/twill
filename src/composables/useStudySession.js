@@ -101,6 +101,7 @@ export function useStudySession({
   const pendingPretestOutcome = ref( '' );
   const exposure = usePracticeExposure();
   const exposureId = ref( null );
+  const uncertaintyMarked = ref( false );
   const revealPending = ref( false );
 
   function exposeConcept( conceptId, contextCardId = null ) {
@@ -184,6 +185,18 @@ export function useStudySession({
     markAssistance,
     onExposed: () => exposeConcept( currentCard.value?.conceptId )
   });
+
+  const uncertaintyAvailable = computed( () => Boolean( currentCard.value )
+    && !linkedPracticeActive.value && !masteryActive.value
+    && !pretestActive.value && !pretestTeachingActive.value );
+  const canMarkUncertainty = computed( () => uncertaintyAvailable.value
+    && !actionsBlocked.value && !answerRevealed.value && !assisted.value );
+
+  function setUncertaintyMarked( marked ) {
+    if ( canMarkUncertainty.value && typeof marked === 'boolean' ) {
+      uncertaintyMarked.value = marked;
+    }
+  }
 
   const reviewMedia = ref([]);
   const studyMedia = computed( () => linkedPractice.active.value?.media ?? reviewMedia.value );
@@ -466,7 +479,8 @@ export function useStudySession({
       const card = currentCard.value;
       const scheduled = !linkedPracticeActive.value && !masteryActive.value;
       const recorded = await recordPracticeExposure(
-        card.conceptId, scheduled ? card.id : null, scheduled ? card.contentVersion : null
+        card.conceptId, scheduled ? card.id : null, scheduled ? card.contentVersion : null,
+        scheduled && uncertaintyMarked.value
       );
 
       exposureId.value = scheduled ? recorded : null;
@@ -904,6 +918,7 @@ export function useStudySession({
   function attemptSnapshot() {
     return {
       exposureId: exposureId.value,
+      uncertaintyMarked: uncertaintyMarked.value,
       response: studyResponse.value,
       assistance: assistanceSnapshot(),
       comparison: comparisonSnapshot(),
@@ -914,6 +929,7 @@ export function useStudySession({
 
   function restoreAttempt( saved ) {
     exposureId.value = saved?.exposureId ?? null;
+    uncertaintyMarked.value = saved?.uncertaintyMarked === true;
     studyResponse.value = saved?.response ?? '';
     restoreAssistance( saved?.assistance );
     restoreComparison( saved?.comparison );
@@ -1010,6 +1026,7 @@ export function useStudySession({
     assessmentPending,
     beginMasteryRound,
     canRevealAnswer,
+    canMarkUncertainty,
     canUndoLastGrade,
     caseComparison,
     completedCount,
@@ -1080,6 +1097,7 @@ export function useStudySession({
     sessionResumeNotice,
     sessionSelection,
     setComparison,
+    setUncertaintyMarked,
     showAnswer,
     skipCurrentPretest,
     startLinkedPractice,
@@ -1091,6 +1109,8 @@ export function useStudySession({
     toggleAssistance,
     toggleAnswerParts,
     typeAnswerSettings,
+    uncertaintyAvailable,
+    uncertaintyMarked,
     undoLastGrade,
     undoPending,
     updateGradingMode

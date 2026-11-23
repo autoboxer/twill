@@ -6,8 +6,8 @@ const queued = [];
 const pending = ref( false );
 let flushing = null;
 
-export function recordPracticeExposure( conceptId, cardId = null, contentVersion = null ) {
-  return invoke( 'record_practice_exposure', { input: { conceptId, cardId, contentVersion } });
+export function recordPracticeExposure( conceptId, cardId = null, contentVersion = null, uncertaintyMarked = false ) {
+  return invoke( 'record_practice_exposure', { input: { conceptId, cardId, contentVersion, uncertaintyMarked } });
 }
 
 export function usePracticeExposure() {

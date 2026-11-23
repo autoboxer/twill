@@ -132,6 +132,7 @@ function assistanceLabel( assisted ) {
                 </time>
               </div>
               <p>{{ assistanceLabel( review.assisted ) }}</p>
+              <p v-if="review.uncertaintyMarked">Marked Not sure before reveal</p>
               <p v-if="evidenceLabels[ review.evidenceKind ]">{{ evidenceLabels[ review.evidenceKind ] }}</p>
               <p v-if="review.currentContent === false">Earlier version of this card</p>
               <p v-else-if="review.currentContent === null">Card version not recorded</p>

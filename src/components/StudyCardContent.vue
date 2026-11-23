@@ -163,8 +163,8 @@ function fieldValue( field ) {
   return props.card.content[ field ];
 }
 
-function focus() {
-  root.value?.focus({ preventScroll: true });
+function focus({ preventScroll = true } = {}) {
+  root.value?.focus({ preventScroll });
 }
 
 async function prepareCustomDocuments() {

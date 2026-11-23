@@ -41,9 +41,11 @@ pub fn query_review_history(
     let current_version = query_content_version(connection, card_id)?;
     let mut statement = connection.prepare(
         "SELECT reviews.entity_id, reviews.rating, reviews.assisted, reviews.reviewed_at,
-            reviews.content_version, review_reversals.reversed_at, reviews.evidence_kind
+            reviews.content_version, review_reversals.reversed_at, reviews.evidence_kind,
+            practice_exposures.uncertainty_marked
         FROM reviews
         LEFT JOIN review_reversals ON review_reversals.review_id = reviews.entity_id
+        LEFT JOIN practice_exposures ON practice_exposures.entity_id = reviews.exposure_id
         WHERE reviews.card_id = ?1
         ORDER BY reviews.reviewed_at DESC, reviews.entity_id DESC
         LIMIT ?2",
@@ -66,6 +68,7 @@ pub fn query_review_history(
             current_content: version.map(|version| version == current_version),
             reversed_at: row.get(5)?,
             evidence_kind: row.get(6)?,
+            uncertainty_marked: row.get(7)?,
         })
     })?;
     let mut reviews = rows.collect::<Result<Vec<_>, _>>()?;

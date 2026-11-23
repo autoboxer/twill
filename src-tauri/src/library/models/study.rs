@@ -121,6 +121,8 @@ pub struct RecordExposureInput {
     pub concept_id: String,
     pub card_id: Option<String>,
     pub content_version: Option<String>,
+    #[serde(default)]
+    pub uncertainty_marked: bool,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
@@ -196,6 +198,7 @@ pub struct ReviewHistoryEntry {
     pub current_content: Option<bool>,
     pub reversed_at: Option<i64>,
     pub evidence_kind: Option<String>,
+    pub uncertainty_marked: Option<bool>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

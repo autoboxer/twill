@@ -164,7 +164,7 @@ export function useRecallSession() {
     }
   }
 
-  function assess({ rating, response, reviewId, exposureId, assistance, comparison, explainReview, guidedProblem }) {
+  function assess({ rating, response, reviewId, exposureId, uncertaintyMarked, assistance, comparison, explainReview, guidedProblem }) {
     if (
       masteryStarted.value
       || pretestTeachingActive.value
@@ -195,6 +195,7 @@ export function useRecallSession() {
       explainReview,
       guidedProblem,
       exposureId,
+      uncertaintyMarked,
       reviewId
     });
 

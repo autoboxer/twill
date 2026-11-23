@@ -35,6 +35,7 @@ fn expose(
             record_exposure(
                 transaction,
                 RecordExposureInput {
+                    uncertainty_marked: false,
                     concept_id: concept.id.clone(),
                     card_id: version.map(|_| concept.cards[0].id.clone()),
                     content_version: version.map(str::to_owned),
@@ -266,6 +267,7 @@ fn help_missing_context_and_changed_versions_never_inflate_delayed_evidence() {
         .write_result(|transaction| record_exposure(
             transaction,
             RecordExposureInput {
+                uncertainty_marked: false,
                 concept_id: concept.id,
                 card_id: Some(concept.cards[0].id.clone()),
                 content_version: Some(version),
@@ -315,6 +317,7 @@ fn shared_prompt_exposure_affects_siblings_without_exposing_its_own_hidden_targe
             record_exposure(
                 transaction,
                 RecordExposureInput {
+                    uncertainty_marked: false,
                     concept_id: concept.id.clone(),
                     card_id: Some(concept.cards[0].id.clone()),
                     content_version: None,

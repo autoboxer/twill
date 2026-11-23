@@ -5,9 +5,11 @@ CREATE TABLE practice_exposures (
     card_id TEXT REFERENCES cards(entity_id),
     content_version TEXT,
     recall_kind TEXT CHECK (recall_kind IN ('first', 'recent', 'delayed')),
+    uncertainty_marked INTEGER NOT NULL DEFAULT 0 CHECK (uncertainty_marked IN (0, 1)),
     occurred_at INTEGER NOT NULL CHECK (occurred_at >= 0),
     last_change_id TEXT NOT NULL UNIQUE REFERENCES change_log(id),
-    CHECK (recall_kind IS NULL OR (card_id IS NOT NULL AND content_version IS NOT NULL))
+    CHECK (recall_kind IS NULL OR (card_id IS NOT NULL AND content_version IS NOT NULL)),
+    CHECK (uncertainty_marked = 0 OR recall_kind IS NOT NULL)
 ) STRICT;
 
 CREATE INDEX practice_exposures_concept_time_idx

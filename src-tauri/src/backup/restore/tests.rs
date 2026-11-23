@@ -230,6 +230,7 @@ fn backup_round_trip_preserves_assistance_answer_parts_image_labels_media_and_re
     let card = library.study_queue().unwrap().cards.into_iter()
         .find(|card| card.image_labeling.is_some()).unwrap();
     let exposure_id = library.record_exposure(crate::library::RecordExposureInput {
+        uncertainty_marked: true,
         concept_id: concept.id.clone(),
         card_id: Some(card.id.clone()),
         content_version: Some(card.content_version.clone()),
@@ -242,6 +243,7 @@ fn backup_round_trip_preserves_assistance_answer_parts_image_labels_media_and_re
     }).unwrap();
     let history = library.review_history(&card.id).unwrap();
     assert_eq!(history.reviews[0].current_content, Some(true));
+    assert_eq!(history.reviews[0].uncertainty_marked, Some(true));
     let reviewed = library.concept(&concept.id).unwrap();
     let archive = root.path().join("help.twill");
 

@@ -496,6 +496,22 @@ a long streak of immediate repetitions.
 
 ## Make fair comparisons and honest grades
 
+When you are unsure about an answer, you can select Not sure before opening help
+or revealing the answer in a scheduled review. You can clear it before either
+action. Leaving it unmarked does not report confidence. The choice locks after
+help or reveal so it continues to describe your original attempt.
+
+After a marked reveal, choose Review feedback to return to authored feedback,
+or Review answer if no feedback is available. Check the explanation even if your
+answer was correct. Then choose your grade as usual. Not sure does not change
+the grade, schedule, or delayed review count. It is a reminder and a record of
+your uncertainty, not a claim that recording confidence itself improves learning.
+
+Pause, navigation, and Undo last grade preserve the mark for that attempt. A
+fresh attempt starts unmarked. Pretests and extra practice do not offer this
+control. Recent reviews shows the mark after you grade. It is saved with the
+answer reveal, but your written response is not added to review history.
+
 To inspect a card's recent grades, open its concept in Library and expand
 Recent reviews under the relevant retrieval form. The list shows up to ten
 grades with their dates and recorded help use. Undone grades remain visible
