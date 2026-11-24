@@ -4,6 +4,7 @@ import { onBeforeRouteLeave, useRoute } from 'vue-router';
 import { conceptLibraryErrorMessage, useConceptLibrary } from './useConceptLibrary';
 import { useDevicePreferences } from './useDevicePreferences';
 import { useRecallSession } from './useRecallSession';
+import { recordPracticeExposure, usePracticeExposure } from './usePracticeExposure';
 import { useStudyAssistance } from './useStudyAssistance';
 import { useStudyComparison } from './useStudyComparison';
 import { useExplainReview } from './useExplainReview';
@@ -48,7 +49,7 @@ export function useStudySession({
     currentCard: reviewCard,
     deferredCards,
     excludeConcepts,
-    exposeConcept,
+    exposeConcept: deferExposedConcept,
     hasCards,
     isComplete,
     lastAssessment,
@@ -98,14 +99,25 @@ export function useStudySession({
 
   const pretestPending = ref( false );
   const pendingPretestOutcome = ref( '' );
+  const exposure = usePracticeExposure();
+  const exposureId = ref( null );
+  const uncertaintyMarked = ref( false );
+  const revealPending = ref( false );
+
+  function exposeConcept( conceptId, contextCardId = null ) {
+    deferExposedConcept( conceptId );
+    void exposure.remember( conceptId, contextCardId ).catch( ( cause ) => {
+      assessmentError.value = conceptLibraryErrorMessage( cause );
+    });
+  }
 
   const writePending = computed( () => gradingModePending.value || assessmentPending.value
-    || pretestPending.value || undoPending.value );
+    || pretestPending.value || undoPending.value || revealPending.value || exposure.pending.value );
 
-  // Study writes are already durable when their pending flags clear
+  // Retry any failed exposure writes before closing or restarting the app
   const { nativeActionPending } = useNativeActionGuard({
     busy: writePending,
-    flush: () => {}
+    flush: exposure.flush
   });
   const caseComparison = useCaseComparisonPractice({ sourceCard: reviewCard, onExposed: exposeConcept });
   const linkedPractice = useLinkedPractice({
@@ -174,16 +186,40 @@ export function useStudySession({
     onExposed: () => exposeConcept( currentCard.value?.conceptId )
   });
 
+  const uncertaintyAvailable = computed( () => Boolean( currentCard.value )
+    && !linkedPracticeActive.value && !masteryActive.value
+    && !pretestActive.value && !pretestTeachingActive.value );
+  const canMarkUncertainty = computed( () => uncertaintyAvailable.value
+    && !actionsBlocked.value && !answerRevealed.value && !assisted.value );
+
+  function setUncertaintyMarked( marked ) {
+    if ( canMarkUncertainty.value && typeof marked === 'boolean' ) {
+      uncertaintyMarked.value = marked;
+    }
+  }
+
   const reviewMedia = ref([]);
   const studyMedia = computed( () => linkedPractice.active.value?.media ?? reviewMedia.value );
 
   function exposeVisibleContext() {
     if ([ 'cloze', 'imageOcclusion' ].includes( currentCard.value?.retrievalKind ) ) {
-      exposeConcept( currentCard.value.conceptId );
+      exposeConcept( currentCard.value.conceptId, currentCard.value.id );
     }
   }
 
   watch( () => currentCard.value?.id, exposeVisibleContext, { flush: 'post' });
+
+  function recordFrontAnswerExposure( cardId ) {
+    const card = currentCard.value;
+
+    if ( !viewActive || !card || card.id !== cardId || answerRevealed.value
+      || sessionStatus.value !== 'active' || route.name !== 'study' ) {
+      return;
+    }
+
+    markAssistance();
+    exposeConcept( card.conceptId );
+  }
 
   const mixedPracticeEnabled = ref( false );
   const nextDueAt = ref( null );
@@ -292,13 +328,21 @@ export function useStudySession({
     loadRequestSequence += 1;
   });
 
-  onBeforeRouteLeave( () => {
+  onBeforeRouteLeave( async () => {
+    navigationNotice.value = '';
     if ( writePending.value || nativeActionPending.value || ( initialLoading.value && hasCards.value ) ) {
       navigationNotice.value = 'Wait for the current study action to finish, then try again.';
       return false;
     }
 
-    return true;
+    try {
+      await exposure.flush();
+      return true;
+    } catch ( cause ) {
+      navigationNotice.value = conceptLibraryErrorMessage( cause );
+      assessmentError.value = navigationNotice.value;
+      return false;
+    }
   });
 
   function pauseSession() {
@@ -427,16 +471,35 @@ export function useStudySession({
       return;
     }
 
-    answerFeedbackReviewed.value = false;
-    if ( linkedPracticeActive.value ) {
-      linkedPractice.active.value.answerRevealed = true;
-    } else {
-      revealAnswer();
-    }
-    exposeConcept( currentCard.value?.conceptId );
-    await nextTick();
+    revealPending.value = true;
+    assessmentError.value = '';
 
-    onAnswerRevealed();
+    try {
+      await exposure.flush();
+      const card = currentCard.value;
+      const scheduled = !linkedPracticeActive.value && !masteryActive.value;
+      const recorded = await recordPracticeExposure(
+        card.conceptId, scheduled ? card.id : null, scheduled ? card.contentVersion : null,
+        scheduled && uncertaintyMarked.value
+      );
+
+      exposureId.value = scheduled ? recorded : null;
+      answerFeedbackReviewed.value = false;
+
+      if ( linkedPracticeActive.value ) {
+        linkedPractice.active.value.answerRevealed = true;
+      } else {
+        revealAnswer();
+      }
+
+      deferExposedConcept( card.conceptId );
+      await nextTick();
+      onAnswerRevealed();
+    } catch ( cause ) {
+      assessmentError.value = conceptLibraryErrorMessage( cause );
+    } finally {
+      revealPending.value = false;
+    }
   }
 
   async function skipCurrentPretest() {
@@ -531,6 +594,7 @@ export function useStudySession({
     }
 
     const cardId = currentCard.value.id;
+    const contentVersion = currentCard.value.contentVersion;
     const attempt = attemptSnapshot();
 
     assessmentError.value = '';
@@ -543,7 +607,8 @@ export function useStudySession({
     }
 
     try {
-      const review = await recordReview( cardId, rating, attempt.assistance.used );
+      await exposure.flush();
+      const review = await recordReview( cardId, rating, attempt.assistance.used, contentVersion, attempt.exposureId );
 
       if ( !viewActive || currentCard.value?.id !== cardId ) {
         return;
@@ -852,6 +917,8 @@ export function useStudySession({
 
   function attemptSnapshot() {
     return {
+      exposureId: exposureId.value,
+      uncertaintyMarked: uncertaintyMarked.value,
       response: studyResponse.value,
       assistance: assistanceSnapshot(),
       comparison: comparisonSnapshot(),
@@ -861,6 +928,8 @@ export function useStudySession({
   }
 
   function restoreAttempt( saved ) {
+    exposureId.value = saved?.exposureId ?? null;
+    uncertaintyMarked.value = saved?.uncertaintyMarked === true;
     studyResponse.value = saved?.response ?? '';
     restoreAssistance( saved?.assistance );
     restoreComparison( saved?.comparison );
@@ -957,6 +1026,7 @@ export function useStudySession({
     assessmentPending,
     beginMasteryRound,
     canRevealAnswer,
+    canMarkUncertainty,
     canUndoLastGrade,
     caseComparison,
     completedCount,
@@ -1011,6 +1081,7 @@ export function useStudySession({
     problemSettings,
     ratingCounts,
     recordAssessment,
+    recordFrontAnswerExposure,
     recordMasteryAssessment,
     explainReview,
     recoveryError,
@@ -1026,6 +1097,7 @@ export function useStudySession({
     sessionResumeNotice,
     sessionSelection,
     setComparison,
+    setUncertaintyMarked,
     showAnswer,
     skipCurrentPretest,
     startLinkedPractice,
@@ -1037,6 +1109,8 @@ export function useStudySession({
     toggleAssistance,
     toggleAnswerParts,
     typeAnswerSettings,
+    uncertaintyAvailable,
+    uncertaintyMarked,
     undoLastGrade,
     undoPending,
     updateGradingMode

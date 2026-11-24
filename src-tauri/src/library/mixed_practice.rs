@@ -83,6 +83,7 @@ mod tests {
     ) -> StudyCard {
         StudyCard {
             id: id.to_owned(),
+            content_version: String::new(),
             concept_id: concept_id.to_owned(),
             retrieval_kind,
             explain: None,

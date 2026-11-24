@@ -12,8 +12,9 @@ use crate::library::study::{
 use crate::library::{
     AppearancePreferences, ConceptDetail, DevicePreferences, GradingMode, LibraryError,
     LibraryResult, LibraryViewPreferences, MediaSummary, PretestRecord, RecordPretestInput,
-    RecordReviewInput, ReverseReviewInput, ReviewOutcome, ReviewReversalOutcome,
+    RecordReviewInput, ReverseReviewInput, ReviewHistory, ReviewOutcome, ReviewReversalOutcome,
     SchedulingSettings, StartupDestination, StudyQuery, StudyQueue, UpdateSchedulingSettingsInput,
+    RecordExposureInput, StudyWorkload,
 };
 
 mod assignments;
@@ -58,8 +59,30 @@ impl<'store> ConceptLibrary<'store> {
         self.record_review_at(input, current_timestamp()?)
     }
 
+    pub fn review_history(&self, card_id: &str) -> LibraryResult<ReviewHistory> {
+        self.store.read_result(|connection| {
+            crate::library::study::query_review_history(connection, card_id)
+        })
+    }
+
     pub fn record_pretest(&self, input: RecordPretestInput) -> LibraryResult<PretestRecord> {
         self.record_pretest_at(input, current_timestamp()?)
+    }
+
+    pub fn record_exposure(&self, input: RecordExposureInput) -> LibraryResult<String> {
+        let now = current_timestamp()?;
+
+        self.store.write_result(|transaction| {
+            crate::library::study::record_exposure(transaction, input, now)
+        })
+    }
+
+    pub fn study_workload(&self) -> LibraryResult<StudyWorkload> {
+        let now = current_timestamp()?;
+
+        self.store.read_result(|connection| {
+            crate::library::study::query_workload(connection, now)
+        })
     }
 
     pub fn reverse_review(
@@ -143,7 +166,15 @@ impl<'store> ConceptLibrary<'store> {
 
         self.store
             .write_result(|transaction| {
-                record_review(transaction, &card_id, input.rating, input.assisted, now)
+                record_review(
+                    transaction,
+                    &card_id,
+                    input.rating,
+                    input.assisted,
+                    input.content_version.as_deref(),
+                    input.exposure_id.as_deref(),
+                    now,
+                )
             })
     }
 

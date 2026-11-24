@@ -53,9 +53,7 @@ export function useCaseComparisonPractice({ sourceCard, onExposed }) {
       };
 
       for ( const concept of [ activity.source, activity.related ]) {
-        if ( concept.cards.some( ( card ) => [ 'cloze', 'imageOcclusion' ].includes( card.retrievalKind ) ) ) {
-          onExposed( concept.id );
-        }
+        onExposed( concept.id );
       }
 
       return true;

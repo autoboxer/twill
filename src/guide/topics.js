@@ -329,6 +329,25 @@ export const guideTopics = [
         ],
         example: 'If you needed the revealed answer to finish your response, choose Forgot or Again. Being able to repeat the answer afterward does not change that attempt.',
         avoid: 'Choose a grade that reflects your attempt. If a card repeatedly causes difficulty, inspect the question or revisit the material rather than choose Easy to delay it.'
+      },
+      {
+        title: 'Mark an uncertain answer',
+        paragraphs: [
+          'If you are unsure about an answer, select Not sure before opening help or revealing the answer. This is optional for each scheduled review. Leaving it unmarked does not mean you were confident.',
+          'The choice locks when you open help or reveal the answer. After reveal, choose Review feedback to return to authored feedback, or Review answer when no feedback is available. You can revisit this material before choosing your grade, even when your answer was correct.',
+          'Grade your original answer as usual. Not sure does not choose a grade or change the schedule. Pause and navigation preserve the choice, and Undo last grade retains it when you correct a grade. A fresh attempt starts unmarked. Pretests and extra practice do not offer this control.',
+          'Recent reviews shows which graded attempts you marked. The mark is saved with that attempt, but your written response is not saved in history.'
+        ]
+      },
+      {
+        title: 'Read recent reviews',
+        paragraphs: [
+          'Open a concept in Library. Under Retrieval forms, expand Recent reviews for the card you want to inspect. You can see its latest grades, dates, and whether you opened help before revealing the answer.',
+          'A grade marked Undone does not count toward the schedule or review total. Earlier version means that the concept, retrieval form, or template has changed since that review. Missing information is shown as not recorded.',
+          'The summary counts delayed reviews of the current card version over the past 30 days. A delayed review follows an earlier review and at least 24 hours since recorded exposure to the concept or a linked case. Helped and undone grades are excluded. First reviews, recent practice, and incomplete context appear separately.',
+          'Opening help, comparing cases, revealing answers in extra practice, or opening content in Library can make a later review recent. Twill cannot measure studying elsewhere or how long you keep reading an open answer. These counts do not prove permanent mastery or change your schedule. Written study responses are not saved in this history.',
+          'In Study, expand Library workload to see reviews due, cards not yet reviewed, and introductions over the past seven days. These counts cover your whole active library, not just the selected session.'
+        ]
       }
     ],
     related: [ 'feedback', 'card-quality', 'sessions' ]

@@ -21,6 +21,7 @@ import StudyHelpButton from '../components/StudyHelpButton.vue';
 import StudyLinkedPracticePicker from '../components/StudyLinkedPracticePicker.vue';
 import StudySessionBuilder from '../components/StudySessionBuilder.vue';
 import StudySessionControls from '../components/StudySessionControls.vue';
+import StudyWorkload from '../components/StudyWorkload.vue';
 import TypeAnswerResponse from '../components/TypeAnswerResponse.vue';
 import { COMMAND_IDS } from '../commands/registry';
 import {
@@ -60,6 +61,7 @@ const {
   assessmentPending,
   beginMasteryRound,
   canRevealAnswer,
+  canMarkUncertainty,
   canUndoLastGrade,
   caseComparison,
   completedCount,
@@ -112,6 +114,7 @@ const {
   problemSettings,
   ratingCounts,
   recordAssessment,
+  recordFrontAnswerExposure,
   recordMasteryAssessment,
   explainReview,
   recoveryError,
@@ -127,6 +130,7 @@ const {
   sessionResumeNotice,
   sessionSelection,
   setComparison,
+  setUncertaintyMarked,
   showAnswer,
   skipCurrentPretest,
   startLinkedPractice,
@@ -138,6 +142,8 @@ const {
   toggleAssistance,
   toggleAnswerParts,
   typeAnswerSettings,
+  uncertaintyAvailable,
+  uncertaintyMarked,
   undoLastGrade,
   undoPending,
   updateGradingMode
@@ -193,6 +199,7 @@ const {
   typeAnswerResponse,
   focusCurrentState,
   focusAnswer,
+  focusRevealedAnswer,
   focusFirstGradingAction
 } = useStudyFocus( session );
 const {
@@ -581,8 +588,10 @@ useStartupReady( initialLoading );
       </div>
     </header>
 
+    <StudyWorkload :revision="completedCount" />
+
     <UAlert
-      v-if="navigationNotice && sessionBusy"
+      v-if="navigationNotice && ( sessionBusy || assessmentError )"
       class="study-mode-error"
       :description="navigationNotice"
       color="neutral"
@@ -935,6 +944,7 @@ useStartupReady( initialLoading );
             :answer-revealed="answerRevealed"
             :media="studyMedia"
             :hide-answer="selectiveAnswer"
+            @answer-exposed="recordFrontAnswerExposure"
           />
 
           <TypeAnswerResponse
@@ -1046,6 +1056,22 @@ useStartupReady( initialLoading );
         </div>
 
         <footer class="study-card__footer">
+          <div
+            v-if="uncertaintyAvailable && answerRevealed && uncertaintyMarked"
+            class="study-uncertainty"
+          >
+            <span>You marked this answer as uncertain.</span>
+            <UButton
+              color="neutral"
+              variant="link"
+              size="sm"
+              :disabled="actionsBlocked"
+              @click="currentAnswerFeedback ? answerFeedback?.focus() : focusRevealedAnswer( true )"
+            >
+              {{ currentAnswerFeedback ? 'Review feedback' : 'Review answer' }}
+            </UButton>
+          </div>
+
           <p v-if="comparisonGuidance" class="study-comparison-guidance" role="status">
             {{ comparisonGuidance }}
           </p>
@@ -1089,6 +1115,20 @@ useStartupReady( initialLoading );
               >
                 {{ revealActionLabel }}
               </UButton>
+
+              <UTooltip
+                v-if="uncertaintyAvailable"
+                text="Optional. Mark this before opening help or revealing the answer."
+              >
+                <UCheckbox
+                  class="study-uncertainty-toggle"
+                  label="Not sure"
+                  size="sm"
+                  :model-value="uncertaintyMarked"
+                  :disabled="!canMarkUncertainty"
+                  @update:model-value="setUncertaintyMarked"
+                />
+              </UTooltip>
 
               <UButton
                 v-if="pretestActive"

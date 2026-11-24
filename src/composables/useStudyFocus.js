@@ -110,7 +110,7 @@ export function useStudyFocus( session ) {
     gradingActions.value?.querySelector( 'button:not(:disabled)' )?.focus();
   }
 
-  function focusRevealedAnswer() {
+  function focusRevealedAnswer( scroll = false ) {
     if ( typeAnswerSettings.value ) {
       typeAnswerResponse.value?.focus();
     } else if ( explainSettings.value ) {
@@ -118,7 +118,7 @@ export function useStudyFocus( session ) {
     } else if ( problemSettings.value ) {
       problemResponse.value?.focus();
     } else {
-      studyContent.value?.focus();
+      studyContent.value?.focus({ preventScroll: !scroll });
     }
   }
 

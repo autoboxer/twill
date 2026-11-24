@@ -496,6 +496,57 @@ a long streak of immediate repetitions.
 
 ## Make fair comparisons and honest grades
 
+When you are unsure about an answer, you can select Not sure before opening help
+or revealing the answer in a scheduled review. You can clear it before either
+action. Leaving it unmarked does not report confidence. The choice locks after
+help or reveal so it continues to describe your original attempt.
+
+After a marked reveal, choose Review feedback to return to authored feedback,
+or Review answer if no feedback is available. Check the explanation even if your
+answer was correct. Then choose your grade as usual. Not sure does not change
+the grade, schedule, or delayed review count. It is a reminder and a record of
+your uncertainty, not a claim that recording confidence itself improves learning.
+
+Pause, navigation, and Undo last grade preserve the mark for that attempt. A
+fresh attempt starts unmarked. Pretests and extra practice do not offer this
+control. Recent reviews shows the mark after you grade. It is saved with the
+answer reveal, but your written response is not added to review history.
+
+To inspect a card's recent grades, open its concept in Library and expand
+Recent reviews under the relevant retrieval form. The list shows up to ten
+grades with their dates and recorded help use. Undone grades remain visible
+but do not count toward the schedule or review total. Earlier version means
+that the concept, retrieval form, or template has changed. Missing information
+is labeled as not recorded.
+
+No help opened describes one attempt, not lasting recall. Recent practice can
+still make that attempt easier. Extra practice does not add scheduled grades,
+and written study responses are not saved in review history.
+
+The summary above the list counts delayed reviews of the current card version
+over the past 30 days. A delayed review follows an earlier review of that version
+and at least 24 hours since Twill recorded exposure to the concept or a directly
+linked case. Opening help, revealing answers during extra practice, comparing
+cases, and opening content in Library or the editor can make a later review recent.
+Helped and undone grades do not enter the delayed total. First reviews, recent
+practice, and incomplete context appear separately. Remembered includes Hard,
+Good, and Easy in Advanced mode. An edited version starts a new summary.
+
+If a template places the Answer field on the front, Twill treats that attempt
+as helped. Keep the Answer field off the front when you want to practice recall
+without seeing the answer first.
+
+This is a record of practice, not a test of permanent mastery. Twill cannot measure
+studying elsewhere or how long you continue reading an open answer. The 24 hour
+boundary makes the display consistent; it does not change your review schedule.
+Undo removes a grade from the totals but does not erase the answer exposure.
+If a question needs work, use Needs improvement to record what should change.
+
+In Study, expand Library workload to see reviewed cards that are due, including
+those overdue by at least 24 hours. Cards not yet reviewed are listed separately,
+along with the number first reviewed in the past seven days. These counts cover
+the whole active library, even when you build a smaller focused session.
+
 - Decide what a correct response should include before reviewing. An explanation
   can be correct without matching exact wording. A numerical answer may require
   units, a stated tolerance, or an assumption. Include those requirements in

@@ -23,7 +23,8 @@ CREATE TABLE entities (
             'media',
             'css_snippet',
             'card_quality_concern',
-            'practice_link'
+            'practice_link',
+            'practice_exposure'
         )
     ),
     created_at INTEGER NOT NULL CHECK (created_at >= 0),

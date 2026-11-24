@@ -694,6 +694,16 @@ ol.study-idea-list .study-idea-list__text::before {
 
 .study-actions__primary {
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.study-uncertainty {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.82rem;
+  color: var(--ui-text-muted);
 }
 
 .study-actions__buttons {

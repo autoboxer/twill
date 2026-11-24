@@ -8,6 +8,7 @@ import ContentState from '../components/ContentState.vue';
 import LinkedPracticeManager from '../components/LinkedPracticeManager.vue';
 import PageHeader from '../components/PageHeader.vue';
 import RichContentRenderer from '../components/RichContentRenderer.vue';
+import ReviewHistory from '../components/ReviewHistory.vue';
 import WorkedExample from '../components/WorkedExample.vue';
 import { useStartupReady } from '../composables/useStartupReady';
 import { explainFocusDetails } from '../explain/focus';
@@ -148,7 +149,7 @@ async function loadConcept() {
   }
 
   try {
-    const loadedConcept = await getConcept( requestedConceptId );
+    const loadedConcept = await getConcept( requestedConceptId, { forDisplay: true });
 
     if ( request !== loadRequestSequence ) {
       return;
@@ -608,6 +609,13 @@ useStartupReady( initialLoading );
                 {{ retrievalFormDescription( card ) }}
                 · {{ reviewCountLabel( card.reviewCount ) }}
               </span>
+
+              <ReviewHistory
+                :card-id="card.id"
+                :concept-version="concept.lastChangeId"
+                :improvable="!concept.archived"
+                @improve="qualityDialogOpen = true"
+              />
 
               <div
                 v-if="card.typeAnswer"
